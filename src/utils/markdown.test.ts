@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { htmlToMarkdown, markdownToHtml } from './markdown';
+import { markdownToHtml, markdownToProseMirror, proseMirrorToMarkdown } from './markdown';
 
-const roundTrip = (md: string) => htmlToMarkdown(markdownToHtml(md));
+const roundTrip = (md: string) => proseMirrorToMarkdown(markdownToProseMirror(md));
 
 describe('markdownToHtml sanitization', () => {
   it('strips <script> tags', () => {
@@ -53,15 +53,19 @@ describe('markdown round-trip (open -> save without edits)', () => {
     });
   }
 
-  // ---- Known lossy cases (roadmap H1, fixed in Phase 2) --------------------
-  // `it.fails` passes while the bug exists; once the Markdown pipeline is
-  // replaced these start "failing" and should be flipped to plain `it`.
-  it.fails('preserves soft-wrapped lines (currently gains trailing "  ")', () => {
+  it('parses alternative ++underline++ and ==highlight== syntax', () => {
+    const md = 'Alternative ++underlined++ and ==highlighted== words.';
+    const json = markdownToProseMirror(md);
+    expect(proseMirrorToMarkdown(json)).toBe('Alternative <u>underlined</u> and <mark>highlighted</mark> words.');
+  });
+
+  // ---- Fixed in Phase 2: previously lost/corrupted by turndown/marked ----
+  it('preserves soft-wrapped lines without adding trailing spaces', () => {
     const md = 'A line that was\nhard-wrapped by another editor.';
     expect(roundTrip(md)).toBe(md);
   });
 
-  it.fails('does not escape a paragraph starting with a number and period', () => {
+  it('does not escape a paragraph starting with a number and period', () => {
     const md = '1984. That was the year everything changed.';
     expect(roundTrip(md)).toBe(md);
   });

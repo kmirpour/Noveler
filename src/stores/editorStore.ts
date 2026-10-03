@@ -1,13 +1,19 @@
 import { create } from 'zustand';
 import type { Editor } from '@tiptap/react';
-import { markdownToHtml, htmlToMarkdown } from '../utils/markdown';
+import type { JSONContent } from '@tiptap/core';
 import * as fileService from '../services/fileService';
 import { clearRecovery } from '../services/recovery';
 import { exportToPdf } from '../export/pdf';
+import {
+  type AppSettings,
+  type FontFamily,
+  type Theme,
+  type ViewMode,
+  loadSettings,
+  saveSettings,
+  addRecentFile,
+} from '../services/settings';
 import { getCurrentWindow } from '@tauri-apps/api/window';
-
-export type ViewMode = 'editor' | 'split' | 'preview';
-export type Theme = 'light' | 'dark' | 'sepia';
 
 /** A document to load into the editor, replacing the current one. */
 export interface LoadDocumentInput {
@@ -19,9 +25,8 @@ export interface LoadDocumentInput {
   statusMessage?: string;
 }
 
-export interface EditorState {
-  content: string; // HTML representation for TipTap
-  markdownContent: string; // Live markdown string
+export interface DocumentSlice {
+  markdownContent: string;
   fileName: string | null;
   filePath: string | null;
   isDirty: boolean;
@@ -30,54 +35,58 @@ export interface EditorState {
   statusMessage: string | null;
   editorInstance: Editor | null;
 
-  // View modes & Theme
-  viewMode: ViewMode;
-  theme: Theme;
-  sidebarOpen: boolean;
-  autoSaveEnabled: boolean;
-
-  // Project state
-  projectPath: string | null;
-  projectName: string | null;
-  projectFiles: fileService.FileEntry[];
-
-  // Setters
-  setContent: (content: string) => void;
   setFileName: (name: string | null) => void;
   setFilePath: (path: string | null) => void;
   setDirty: (dirty: boolean) => void;
   setStatusMessage: (msg: string | null) => void;
   updateCounts: (text: string) => void;
   setEditorInstance: (editor: Editor | null) => void;
-  setViewMode: (mode: ViewMode) => void;
-  setTheme: (theme: Theme) => void;
-  cycleTheme: () => void;
-  setSidebarOpen: (open: boolean) => void;
-  toggleSidebar: () => void;
-  setAutoSaveEnabled: (enabled: boolean) => void;
+  setMarkdownContent: (markdown: string) => void;
 
-  // Document lifecycle
-  /**
-   * If the current document has unsaved changes, ask the user to save, discard
-   * or cancel. Resolves true when it is safe to replace the document.
-   */
   confirmDiscardIfDirty: () => Promise<boolean>;
-  /** Replace the editor contents. Does NOT check for unsaved changes. */
   loadDocument: (doc: LoadDocumentInput) => void;
-
-  // File Actions
   newFile: () => Promise<boolean>;
   openFileAction: () => Promise<boolean>;
   openFileByPath: (path: string) => Promise<boolean>;
   saveFileAction: () => Promise<boolean>;
   saveFileAsAction: () => Promise<boolean>;
-  openProjectFolderAction: () => Promise<boolean>;
-  refreshProjectFiles: () => Promise<void>;
-
-  // Export Actions
   exportDocxAction: () => Promise<void>;
   printAction: () => void;
 }
+
+export interface ProjectSlice {
+  projectPath: string | null;
+  projectName: string | null;
+  projectFiles: fileService.FileEntry[];
+
+  openProjectFolderAction: () => Promise<boolean>;
+  refreshProjectFiles: () => Promise<void>;
+}
+
+export interface SettingsSlice {
+  theme: Theme;
+  viewMode: ViewMode;
+  sidebarOpen: boolean;
+  autoSaveEnabled: boolean;
+  autoSaveIntervalMs: number;
+  fontFamily: FontFamily;
+  fontSize: number;
+  paragraphIndent: boolean;
+  recentFiles: string[];
+
+  setTheme: (theme: Theme) => void;
+  cycleTheme: () => void;
+  setViewMode: (mode: ViewMode) => void;
+  setSidebarOpen: (open: boolean) => void;
+  toggleSidebar: () => void;
+  setAutoSaveEnabled: (enabled: boolean) => void;
+  setFontFamily: (fontFamily: FontFamily) => void;
+  cycleFontFamily: () => void;
+  setFontSize: (fontSize: number) => void;
+  toggleParagraphIndent: () => void;
+}
+
+export type EditorState = DocumentSlice & ProjectSlice & SettingsSlice;
 
 const initialMarkdown = `# Welcome to Noveler
 
@@ -95,21 +104,7 @@ The morning sun cast long shadows across the empty street. She stood at the wind
 
 She didn't turn around. "In a moment," she said softly.`;
 
-const initialHtml = markdownToHtml(initialMarkdown);
-
-const getInitialTheme = (): Theme => {
-  if (typeof window !== 'undefined') {
-    const saved = localStorage.getItem('noveler-theme') as Theme;
-    if (saved && (saved === 'light' || saved === 'dark' || saved === 'sepia')) {
-      document.documentElement.setAttribute('data-theme', saved);
-      return saved;
-    }
-  }
-  if (typeof document !== 'undefined') {
-    document.documentElement.setAttribute('data-theme', 'light');
-  }
-  return 'light';
-};
+const initialSettings: AppSettings = loadSettings();
 
 const updateWindowTitle = async (fileName: string | null, isDirty: boolean) => {
   if (fileService.isTauri()) {
@@ -126,7 +121,7 @@ const updateWindowTitle = async (fileName: string | null, isDirty: boolean) => {
 const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 export const useEditorStore = create<EditorState>((set, get) => ({
-  content: initialHtml,
+  // --- Document Slice -----------------------------------------------------
   markdownContent: initialMarkdown,
   fileName: null,
   filePath: null,
@@ -135,20 +130,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   charCount: 0,
   statusMessage: null,
   editorInstance: null,
-
-  viewMode: 'editor',
-  theme: getInitialTheme(),
-  sidebarOpen: false,
-  autoSaveEnabled: true,
-
-  projectPath: null,
-  projectName: null,
-  projectFiles: [],
-
-  setContent: (content) => {
-    const markdown = htmlToMarkdown(content);
-    set({ content, markdownContent: markdown });
-  },
 
   setFileName: (fileName) => {
     set({ fileName });
@@ -185,25 +166,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setEditorInstance: (editorInstance) => set({ editorInstance }),
 
-  setViewMode: (viewMode) => set({ viewMode }),
-
-  setTheme: (theme: Theme) => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('noveler-theme', theme);
-      document.documentElement.setAttribute('data-theme', theme);
-    }
-    set({ theme });
-  },
-
-  cycleTheme: () => {
-    const current = get().theme;
-    const next: Theme = current === 'light' ? 'dark' : current === 'dark' ? 'sepia' : 'light';
-    get().setTheme(next);
-  },
-
-  setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
-  toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
-  setAutoSaveEnabled: (autoSaveEnabled) => set({ autoSaveEnabled }),
+  setMarkdownContent: (markdownContent) => set({ markdownContent }),
 
   confirmDiscardIfDirty: async () => {
     const { isDirty, fileName, saveFileAction } = get();
@@ -219,12 +182,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   loadDocument: ({ markdown, fileName, filePath, dirty = false, statusMessage }) => {
-    const html = markdownToHtml(markdown);
     const { editorInstance, updateCounts } = get();
 
     if (editorInstance) {
-      // emitUpdate=false so loading a file doesn't immediately mark it dirty.
-      editorInstance.commands.setContent(html, { emitUpdate: false });
+      editorInstance.commands.setContent(markdown, { contentType: 'markdown', emitUpdate: false });
       updateCounts(editorInstance.getText());
       editorInstance.commands.focus('start');
     } else {
@@ -232,7 +193,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     set({
-      content: html,
       markdownContent: markdown,
       fileName,
       filePath,
@@ -260,12 +220,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const opened = await fileService.openFile();
       if (!opened) return false;
 
+      const path = fileService.isTauri() ? opened.path : null;
+      if (path) {
+        const updated = addRecentFile(path);
+        set({ recentFiles: updated.recentFiles });
+      }
+
       get().loadDocument({
         markdown: opened.content,
         fileName: opened.name,
-        // The browser fallback only knows the bare file name, which is not a
-        // writable location. Leave it null so Save goes through Save As.
-        filePath: fileService.isTauri() ? opened.path : null,
+        filePath: path,
         statusMessage: `Opened ${opened.name}`,
       });
       return true;
@@ -282,10 +246,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         get().setStatusMessage(`Can't open ${fileService.extractFileName(path)}: unsupported file type`);
         return false;
       }
-      if (path === get().filePath) return true; // already open
+      if (path === get().filePath) return true;
       if (!(await get().confirmDiscardIfDirty())) return false;
 
       const opened = await fileService.readFileDirect(path);
+      const updated = addRecentFile(path);
+      set({ recentFiles: updated.recentFiles });
+
       get().loadDocument({
         markdown: opened.content,
         fileName: opened.name,
@@ -307,14 +274,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     try {
-      const html = editorInstance ? editorInstance.getHTML() : get().content;
-      const markdown = htmlToMarkdown(html);
-
+      const markdown = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
       await fileService.saveFile(filePath, markdown);
+
+      const updated = addRecentFile(filePath);
 
       set({
         markdownContent: markdown,
         isDirty: false,
+        recentFiles: updated.recentFiles,
         statusMessage: `Saved ${fileName || 'file'}`,
       });
 
@@ -330,15 +298,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   saveFileAsAction: async () => {
     const { fileName, editorInstance, refreshProjectFiles } = get();
     try {
-      const html = editorInstance ? editorInstance.getHTML() : get().content;
-      const markdown = htmlToMarkdown(html);
-
+      const markdown = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
       const defaultName = fileName || 'Untitled.md';
       const saved = await fileService.saveFileAs(markdown, defaultName);
       if (!saved) return false;
 
+      const path = fileService.isTauri() ? saved.path : null;
+      if (path) {
+        const updated = addRecentFile(path);
+        set({ recentFiles: updated.recentFiles });
+      }
+
       set({
-        filePath: fileService.isTauri() ? saved.path : null,
+        filePath: path,
         fileName: saved.name,
         markdownContent: markdown,
         isDirty: false,
@@ -355,10 +327,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  exportDocxAction: async () => {
+    const { editorInstance, fileName, setStatusMessage } = get();
+    try {
+      const docInput: JSONContent | string = editorInstance
+        ? editorInstance.getJSON()
+        : get().markdownContent;
+
+      const { exportToDocx } = await import('../export/docx');
+      const saved = await exportToDocx(docInput, fileName || 'manuscript.docx');
+      if (saved) setStatusMessage(`Exported ${saved.name}`);
+    } catch (err) {
+      console.error('Error exporting DOCX:', err);
+      setStatusMessage(`Export failed: ${errorMessage(err)}`);
+    }
+  },
+
+  printAction: () => {
+    const { editorInstance } = get();
+    const markdown = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
+    exportToPdf(markdown);
+  },
+
+  // --- Project Slice ------------------------------------------------------
+  projectPath: initialSettings.lastProjectPath,
+  projectName: null,
+  projectFiles: [],
+
   openProjectFolderAction: async () => {
     try {
       const res = await fileService.openFolder();
       if (!res) return false;
+
+      saveSettings({ lastProjectPath: res.path });
 
       set({
         projectPath: res.path,
@@ -386,24 +387,68 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  exportDocxAction: async () => {
-    const { editorInstance, fileName, setStatusMessage } = get();
-    try {
-      // Serialize from the live editor so the export always matches the screen.
-      const markdown = editorInstance ? htmlToMarkdown(editorInstance.getHTML()) : get().markdownContent;
-      // Loaded on demand: the docx library is ~2/3 of the bundle and only needed here.
-      const { exportToDocx } = await import('../export/docx');
-      const saved = await exportToDocx(markdown, fileName || 'manuscript.docx');
-      if (saved) setStatusMessage(`Exported ${saved.name}`);
-    } catch (err) {
-      console.error('Error exporting DOCX:', err);
-      setStatusMessage(`Export failed: ${errorMessage(err)}`);
-    }
+  // --- Settings Slice -----------------------------------------------------
+  theme: initialSettings.theme,
+  viewMode: initialSettings.viewMode,
+  sidebarOpen: initialSettings.sidebarOpen,
+  autoSaveEnabled: initialSettings.autoSaveEnabled,
+  autoSaveIntervalMs: initialSettings.autoSaveIntervalMs,
+  fontFamily: initialSettings.fontFamily,
+  fontSize: initialSettings.fontSize,
+  paragraphIndent: initialSettings.paragraphIndent,
+  recentFiles: initialSettings.recentFiles,
+
+  setTheme: (theme: Theme) => {
+    saveSettings({ theme });
+    set({ theme });
   },
 
-  printAction: () => {
-    const { editorInstance } = get();
-    const markdown = editorInstance ? htmlToMarkdown(editorInstance.getHTML()) : get().markdownContent;
-    exportToPdf(markdown);
+  cycleTheme: () => {
+    const current = get().theme;
+    const next: Theme = current === 'light' ? 'dark' : current === 'dark' ? 'sepia' : 'light';
+    get().setTheme(next);
+  },
+
+  setViewMode: (viewMode: ViewMode) => {
+    saveSettings({ viewMode });
+    set({ viewMode });
+  },
+
+  setSidebarOpen: (sidebarOpen: boolean) => {
+    saveSettings({ sidebarOpen });
+    set({ sidebarOpen });
+  },
+
+  toggleSidebar: () => {
+    const next = !get().sidebarOpen;
+    saveSettings({ sidebarOpen: next });
+    set({ sidebarOpen: next });
+  },
+
+  setAutoSaveEnabled: (autoSaveEnabled: boolean) => {
+    saveSettings({ autoSaveEnabled });
+    set({ autoSaveEnabled });
+  },
+
+  setFontFamily: (fontFamily: FontFamily) => {
+    saveSettings({ fontFamily });
+    set({ fontFamily });
+  },
+
+  cycleFontFamily: () => {
+    const current = get().fontFamily;
+    const next: FontFamily = current === 'serif' ? 'sans' : current === 'sans' ? 'mono' : 'serif';
+    get().setFontFamily(next);
+  },
+
+  setFontSize: (fontSize: number) => {
+    saveSettings({ fontSize });
+    set({ fontSize });
+  },
+
+  toggleParagraphIndent: () => {
+    const next = !get().paragraphIndent;
+    saveSettings({ paragraphIndent: next });
+    set({ paragraphIndent: next });
   },
 }));

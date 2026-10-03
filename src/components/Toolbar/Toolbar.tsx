@@ -19,10 +19,8 @@ import {
   Quote,
   Minus,
   Highlighter,
+  Type,
   AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
   Columns2,
   BookOpen,
   PenTool,
@@ -48,6 +46,10 @@ export function Toolbar() {
     setViewMode,
     theme,
     setTheme,
+    fontFamily,
+    cycleFontFamily,
+    paragraphIndent,
+    toggleParagraphIndent,
   } = useEditorStore();
 
   return (
@@ -69,7 +71,7 @@ export function Toolbar() {
       <div className="toolbar-group file-actions">
         <button
           className="toolbar-button"
-          onClick={() => newFile()}
+          onClick={() => void newFile()}
           title="New File (Ctrl+N)"
         >
           <FilePlus size={18} />
@@ -159,21 +161,21 @@ export function Toolbar() {
             <button
               className={`toolbar-button ${editor.isActive('heading', { level: 1 }) ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-              title="Heading 1"
+              title="Heading 1 (Book / Part Title)"
             >
               <Heading1 size={18} />
             </button>
             <button
               className={`toolbar-button ${editor.isActive('heading', { level: 2 }) ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-              title="Heading 2"
+              title="Heading 2 (Chapter Title)"
             >
               <Heading2 size={18} />
             </button>
             <button
               className={`toolbar-button ${editor.isActive('heading', { level: 3 }) ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-              title="Heading 3"
+              title="Heading 3 (Section Title)"
             >
               <Heading3 size={18} />
             </button>
@@ -204,14 +206,14 @@ export function Toolbar() {
             <button
               className={`toolbar-button ${editor.isActive('blockquote') ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleBlockquote().run()}
-              title="Blockquote"
+              title="Blockquote (Letter / Excerpt)"
             >
               <Quote size={18} />
             </button>
             <button
               className="toolbar-button"
               onClick={() => editor.chain().focus().setHorizontalRule().run()}
-              title="Horizontal Rule"
+              title="Scene Break (* * *)"
             >
               <Minus size={18} />
             </button>
@@ -226,34 +228,21 @@ export function Toolbar() {
 
           <div className="toolbar-separator" />
 
+          {/* Typography Settings */}
           <div className="toolbar-group">
             <button
-              className={`toolbar-button ${editor.isActive({ textAlign: 'left' }) ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().setTextAlign('left').run()}
-              title="Align Left"
+              className="toolbar-button"
+              onClick={cycleFontFamily}
+              title={`Font Family: ${fontFamily === 'serif' ? 'Serif (Georgia)' : fontFamily === 'sans' ? 'Sans-Serif (System)' : 'Monospace (Consolas)'}`}
             >
-              <AlignLeft size={18} />
+              <Type size={17} />
             </button>
             <button
-              className={`toolbar-button ${editor.isActive({ textAlign: 'center' }) ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().setTextAlign('center').run()}
-              title="Align Center"
+              className={`toolbar-button ${paragraphIndent ? 'active' : ''}`}
+              onClick={toggleParagraphIndent}
+              title={`Paragraph Style: ${paragraphIndent ? 'Fiction First-Line Indents' : 'Web Block Spacing'}`}
             >
-              <AlignCenter size={18} />
-            </button>
-            <button
-              className={`toolbar-button ${editor.isActive({ textAlign: 'right' }) ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().setTextAlign('right').run()}
-              title="Align Right"
-            >
-              <AlignRight size={18} />
-            </button>
-            <button
-              className={`toolbar-button ${editor.isActive({ textAlign: 'justify' }) ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().setTextAlign('justify').run()}
-              title="Justify"
-            >
-              <AlignJustify size={18} />
+              <AlignLeft size={17} />
             </button>
           </div>
         </>

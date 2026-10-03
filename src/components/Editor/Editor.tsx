@@ -3,56 +3,70 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
-import Underline from '@tiptap/extension-underline';
-import Highlight from '@tiptap/extension-highlight';
-import TextAlign from '@tiptap/extension-text-align';
+import { Markdown } from '@tiptap/markdown';
+import { FictionUnderline, FictionHighlight } from '../../utils/markdown';
 import { useEditorStore } from '../../stores/editorStore';
 import { isTauri, isSupportedTextFile } from '../../services/fileService';
 import './Editor.css';
 
 const AUTOSAVE_DELAY_MS = 1500;
+const COUNT_DEBOUNCE_MS = 250;
+const PREVIEW_DEBOUNCE_MS = 300;
 
 export function Editor() {
-  // Only the initial document is needed here; later loads go through
-  // editor.commands.setContent in the store, so don't re-render per keystroke.
-  const [initialContent] = useState(() => useEditorStore.getState().content);
+  const [initialMarkdown] = useState(() => useEditorStore.getState().markdownContent);
   const setEditorInstance = useEditorStore((s) => s.setEditorInstance);
   const updateCounts = useEditorStore((s) => s.updateCounts);
+  const fontFamily = useEditorStore((s) => s.fontFamily);
+  const fontSize = useEditorStore((s) => s.fontSize);
+  const paragraphIndent = useEditorStore((s) => s.paragraphIndent);
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
         underline: false,
       }),
+      FictionUnderline,
+      FictionHighlight,
+      Markdown,
       Placeholder.configure({
         placeholder: 'Start writing your story...',
       }),
       Typography,
-      Underline,
-      Highlight,
-      TextAlign.configure({
-        types: ['heading', 'paragraph'],
-      }),
     ],
-    content: initialContent,
+    content: initialMarkdown,
+    contentType: 'markdown',
     editorProps: {
       attributes: { spellcheck: 'true' },
     },
     onUpdate: ({ editor }) => {
-      // Always read fresh state: this callback may outlive the render that created it.
       const store = useEditorStore.getState();
-      store.setContent(editor.getHTML());
-      store.setDirty(true);
-      store.updateCounts(editor.getText());
 
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
+      if (!store.isDirty) {
+        store.setDirty(true);
       }
-      // Autosave only to a real on-disk path. In the browser build a "save"
-      // is a download, which must never fire on its own.
+
+      // Debounced word and character counting (avoids blocking keystrokes on large books)
+      if (countTimerRef.current) clearTimeout(countTimerRef.current);
+      countTimerRef.current = setTimeout(() => {
+        store.updateCounts(editor.getText());
+      }, COUNT_DEBOUNCE_MS);
+
+      // Debounced markdown sync for live Preview / Split view
+      if (store.viewMode !== 'editor') {
+        if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+        previewTimerRef.current = setTimeout(() => {
+          store.setMarkdownContent(editor.getMarkdown());
+        }, PREVIEW_DEBOUNCE_MS);
+      }
+
+      // Autosave to real on-disk files
       if (store.autoSaveEnabled && store.filePath && isTauri()) {
+        if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = setTimeout(() => {
           const latest = useEditorStore.getState();
           if (latest.isDirty && latest.filePath && latest.autoSaveEnabled) {
@@ -70,14 +84,12 @@ export function Editor() {
     }
     return () => {
       setEditorInstance(null);
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      if (countTimerRef.current) clearTimeout(countTimerRef.current);
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     };
   }, [editor, setEditorInstance, updateCounts]);
 
-  // Browser-build only. In the desktop app Tauri intercepts OS file drops and
-  // delivers real paths via onDragDropEvent (see useAppLifecycle).
   const handleDragOver = (e: React.DragEvent) => {
     if (!isTauri() && e.dataTransfer.types.includes('Files')) {
       e.preventDefault();
@@ -99,14 +111,15 @@ export function Editor() {
     store.loadDocument({
       markdown: await file.text(),
       fileName: file.name,
-      filePath: null, // the browser can't write back to the original location
+      filePath: null,
       statusMessage: `Opened ${file.name}`,
     });
   };
 
   return (
     <div
-      className="editor-container"
+      className={`editor-container font-${fontFamily} ${paragraphIndent ? 'indent-fiction' : 'indent-block'}`}
+      style={{ fontSize: `${fontSize}px` }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
