@@ -86,7 +86,31 @@ export interface SettingsSlice {
   toggleParagraphIndent: () => void;
 }
 
-export type EditorState = DocumentSlice & ProjectSlice & SettingsSlice;
+export interface WritingSlice {
+  focusMode: boolean;
+  typewriterMode: boolean;
+  dimUnfocused: boolean;
+  dailyWordGoal: number;
+  sessionStartWordCount: number | null;
+  sessionWords: number;
+  selectedWordCount: number;
+  findReplaceOpen: boolean;
+  commandPaletteOpen: boolean;
+  goalsModalOpen: boolean;
+
+  toggleFocusMode: () => void;
+  setFocusMode: (val: boolean) => void;
+  toggleTypewriterMode: () => void;
+  toggleDimUnfocused: () => void;
+  setDailyWordGoal: (goal: number) => void;
+  resetSessionWords: () => void;
+  setSelectedWordCount: (count: number) => void;
+  setFindReplaceOpen: (open: boolean) => void;
+  setCommandPaletteOpen: (open: boolean) => void;
+  setGoalsModalOpen: (open: boolean) => void;
+}
+
+export type EditorState = DocumentSlice & ProjectSlice & SettingsSlice & WritingSlice;
 
 const initialMarkdown = `# Welcome to Noveler
 
@@ -161,7 +185,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const plainText = text.trim();
     const wordCount = plainText === '' ? 0 : plainText.split(/\s+/).length;
     const charCount = plainText.length;
-    set({ wordCount, charCount });
+    const state = get();
+    const sessionStart = state.sessionStartWordCount ?? wordCount;
+    const sessionWords = Math.max(0, wordCount - sessionStart);
+    set({ wordCount, charCount, sessionStartWordCount: sessionStart, sessionWords });
   },
 
   setEditorInstance: (editorInstance) => set({ editorInstance }),
@@ -198,6 +225,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       filePath,
       isDirty: dirty,
       statusMessage: statusMessage ?? null,
+      sessionStartWordCount: null,
+      sessionWords: 0,
+      selectedWordCount: 0,
     });
     updateWindowTitle(fileName, dirty);
   },
@@ -451,4 +481,56 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     saveSettings({ paragraphIndent: next });
     set({ paragraphIndent: next });
   },
+
+  // --- Writing Slice ------------------------------------------------------
+  focusMode: initialSettings.focusMode,
+  typewriterMode: initialSettings.typewriterMode,
+  dimUnfocused: initialSettings.dimUnfocused,
+  dailyWordGoal: initialSettings.dailyWordGoal,
+  sessionStartWordCount: null,
+  sessionWords: 0,
+  selectedWordCount: 0,
+  findReplaceOpen: false,
+  commandPaletteOpen: false,
+  goalsModalOpen: false,
+
+  toggleFocusMode: () => {
+    const next = !get().focusMode;
+    saveSettings({ focusMode: next });
+    set({ focusMode: next });
+  },
+
+  setFocusMode: (val: boolean) => {
+    saveSettings({ focusMode: val });
+    set({ focusMode: val });
+  },
+
+  toggleTypewriterMode: () => {
+    const next = !get().typewriterMode;
+    saveSettings({ typewriterMode: next });
+    set({ typewriterMode: next });
+  },
+
+  toggleDimUnfocused: () => {
+    const next = !get().dimUnfocused;
+    saveSettings({ dimUnfocused: next });
+    set({ dimUnfocused: next });
+  },
+
+  setDailyWordGoal: (dailyWordGoal: number) => {
+    const valid = Math.max(0, Math.floor(dailyWordGoal));
+    saveSettings({ dailyWordGoal: valid });
+    set({ dailyWordGoal: valid });
+  },
+
+  resetSessionWords: () => {
+    const current = get().wordCount;
+    set({ sessionStartWordCount: current, sessionWords: 0 });
+  },
+
+  setSelectedWordCount: (selectedWordCount: number) => set({ selectedWordCount }),
+  setFindReplaceOpen: (findReplaceOpen: boolean) => set({ findReplaceOpen }),
+  setCommandPaletteOpen: (commandPaletteOpen: boolean) => set({ commandPaletteOpen }),
+  setGoalsModalOpen: (goalsModalOpen: boolean) => set({ goalsModalOpen }),
 }));
+

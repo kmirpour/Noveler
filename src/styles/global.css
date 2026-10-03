@@ -265,3 +265,32 @@ body {
     color: inherit !important;
   }
 }
+
+/* Floating exit button for Focus Mode */
+.exit-focus-btn {
+  position: fixed;
+  top: 14px;
+  right: 20px;
+  z-index: 40;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  padding: 6px 12px;
+  border-radius: 6px;
+  opacity: 0.2;
+  transition: opacity 0.2s, background 0.15s, color 0.15s;
+  cursor: pointer;
+}
+
+.exit-focus-btn:hover {
+  opacity: 1;
+  color: var(--text-primary);
+  background: var(--btn-hover);
+  border-color: var(--border-strong);
+}
+

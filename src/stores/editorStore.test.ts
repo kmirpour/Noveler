@@ -100,3 +100,61 @@ describe('loadDocument', () => {
     expect(s.markdownContent).toBe('Recovered text');
   });
 });
+
+describe('WritingSlice', () => {
+  it('toggles focus mode and typewriter mode', () => {
+    const store = useEditorStore.getState();
+    expect(store.focusMode).toBe(false);
+    expect(store.typewriterMode).toBe(false);
+
+    store.toggleFocusMode();
+    expect(useEditorStore.getState().focusMode).toBe(true);
+
+    store.toggleTypewriterMode();
+    expect(useEditorStore.getState().typewriterMode).toBe(true);
+
+    store.toggleDimUnfocused();
+    expect(useEditorStore.getState().dimUnfocused).toBe(true);
+  });
+
+  it('tracks session words and resets sprint', () => {
+    const store = useEditorStore.getState();
+    store.updateCounts('First chapter begins here with seven words');
+    expect(useEditorStore.getState().wordCount).toBe(7);
+    expect(useEditorStore.getState().sessionWords).toBe(0);
+
+    store.updateCounts('First chapter begins here with seven words and now six more');
+    expect(useEditorStore.getState().wordCount).toBe(11);
+    expect(useEditorStore.getState().sessionWords).toBe(4);
+
+    store.resetSessionWords();
+    expect(useEditorStore.getState().sessionWords).toBe(0);
+    expect(useEditorStore.getState().sessionStartWordCount).toBe(11);
+  });
+
+  it('manages daily word goals and selected word count', () => {
+    const store = useEditorStore.getState();
+    store.setDailyWordGoal(1667);
+    expect(useEditorStore.getState().dailyWordGoal).toBe(1667);
+
+    store.setSelectedWordCount(42);
+    expect(useEditorStore.getState().selectedWordCount).toBe(42);
+  });
+
+  it('toggles overlay modals correctly', () => {
+    const store = useEditorStore.getState();
+    expect(store.findReplaceOpen).toBe(false);
+    expect(store.commandPaletteOpen).toBe(false);
+    expect(store.goalsModalOpen).toBe(false);
+
+    store.setFindReplaceOpen(true);
+    expect(useEditorStore.getState().findReplaceOpen).toBe(true);
+
+    store.setCommandPaletteOpen(true);
+    expect(useEditorStore.getState().commandPaletteOpen).toBe(true);
+
+    store.setGoalsModalOpen(true);
+    expect(useEditorStore.getState().goalsModalOpen).toBe(true);
+  });
+});
+

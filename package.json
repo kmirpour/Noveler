@@ -37,6 +37,7 @@
   "dependencies": {
     "@tauri-apps/api": "^2.12.1",
     "@tauri-apps/plugin-dialog": "^2.8.1",
+    "@tiptap/extension-focus": "^3.31.4",
     "@tiptap/extension-highlight": "^3.31.4",
     "@tiptap/extension-placeholder": "^3.31.4",
     "@tiptap/extension-text-align": "^3.31.4",

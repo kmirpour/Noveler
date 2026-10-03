@@ -3,8 +3,11 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import Typography from '@tiptap/extension-typography';
+import Focus from '@tiptap/extension-focus';
 import { Markdown } from '@tiptap/markdown';
 import { FictionUnderline, FictionHighlight } from '../../utils/markdown';
+import { Typewriter } from '../../extensions/typewriter';
+import { SearchAndReplace } from '../../extensions/searchAndReplace';
 import { useEditorStore } from '../../stores/editorStore';
 import { isTauri, isSupportedTextFile } from '../../services/fileService';
 import './Editor.css';
@@ -20,6 +23,8 @@ export function Editor() {
   const fontFamily = useEditorStore((s) => s.fontFamily);
   const fontSize = useEditorStore((s) => s.fontSize);
   const paragraphIndent = useEditorStore((s) => s.paragraphIndent);
+  const typewriterMode = useEditorStore((s) => s.typewriterMode);
+  const dimUnfocused = useEditorStore((s) => s.dimUnfocused);
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -37,11 +42,30 @@ export function Editor() {
         placeholder: 'Start writing your story...',
       }),
       Typography,
+      Focus.configure({
+        className: 'has-focus',
+        mode: 'shallowest',
+      }),
+      Typewriter.configure({
+        enabled: false,
+        isEnabled: () => useEditorStore.getState().typewriterMode,
+      }),
+      SearchAndReplace,
     ],
     content: initialMarkdown,
     contentType: 'markdown',
     editorProps: {
       attributes: { spellcheck: 'true' },
+    },
+    onSelectionUpdate: ({ editor }) => {
+      const { from, to } = editor.state.selection;
+      if (from !== to) {
+        const text = editor.state.doc.textBetween(from, to, ' ').trim();
+        const words = text === '' ? 0 : text.split(/\s+/).length;
+        useEditorStore.getState().setSelectedWordCount(words);
+      } else {
+        useEditorStore.getState().setSelectedWordCount(0);
+      }
     },
     onUpdate: ({ editor }) => {
       const store = useEditorStore.getState();
@@ -118,7 +142,7 @@ export function Editor() {
 
   return (
     <div
-      className={`editor-container font-${fontFamily} ${paragraphIndent ? 'indent-fiction' : 'indent-block'}`}
+      className={`editor-container font-${fontFamily} ${paragraphIndent ? 'indent-fiction' : 'indent-block'} ${typewriterMode ? 'typewriter-mode' : ''} ${dimUnfocused ? 'dim-unfocused' : ''}`}
       style={{ fontSize: `${fontSize}px` }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
@@ -127,3 +151,4 @@ export function Editor() {
     </div>
   );
 }
+

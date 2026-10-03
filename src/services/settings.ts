@@ -11,6 +11,10 @@ export interface AppSettings {
   fontFamily: FontFamily;
   fontSize: number;
   paragraphIndent: boolean;
+  focusMode: boolean;
+  typewriterMode: boolean;
+  dimUnfocused: boolean;
+  dailyWordGoal: number;
   lastProjectPath: string | null;
   recentFiles: string[];
 }
@@ -26,6 +30,10 @@ export const DEFAULT_SETTINGS: AppSettings = {
   fontFamily: 'serif',
   fontSize: 18,
   paragraphIndent: true,
+  focusMode: false,
+  typewriterMode: false,
+  dimUnfocused: false,
+  dailyWordGoal: 1000,
   lastProjectPath: null,
   recentFiles: [],
 };

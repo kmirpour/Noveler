@@ -26,6 +26,14 @@ describe('settings service', () => {
     expect(loaded.fontFamily).toBe(DEFAULT_SETTINGS.fontFamily);
   });
 
+  it('saves and loads writing preference settings', () => {
+    saveSettings({ focusMode: true, typewriterMode: true, dailyWordGoal: 2000 });
+    const loaded = loadSettings();
+    expect(loaded.focusMode).toBe(true);
+    expect(loaded.typewriterMode).toBe(true);
+    expect(loaded.dailyWordGoal).toBe(2000);
+  });
+
   it('adds recent files without duplicates and caps at 10', () => {
     for (let i = 1; i <= 15; i++) {
       addRecentFile(`C:/novel/chapter${i}.md`);

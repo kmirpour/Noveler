@@ -138,3 +138,32 @@
   padding-left: 1.8em;
   margin-bottom: 0.8em;
 }
+
+/* Typewriter Scrolling: add generous padding at the bottom so the last lines can scroll to screen center */
+.editor-container.typewriter-mode {
+  padding-bottom: 50vh;
+}
+
+/* Dim Unfocused: fade out non-active paragraphs/blocks for deep focus */
+.editor-container.dim-unfocused .tiptap > * {
+  opacity: 0.3;
+  transition: opacity 0.2s ease-in-out;
+}
+
+.editor-container.dim-unfocused .tiptap > *.has-focus {
+  opacity: 1;
+}
+
+/* Search and Replace Match Highlights */
+.search-match {
+  background-color: rgba(254, 240, 138, 0.55);
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.4);
+}
+
+.search-match-current {
+  background-color: #f59e0b !important;
+  color: #1a1a2e !important;
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px #d97706;
+}

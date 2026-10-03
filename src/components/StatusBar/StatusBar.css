@@ -52,3 +52,54 @@
     transform: translateY(0);
   }
 }
+
+.status-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.session-stat {
+  color: #10b981;
+  font-weight: 500;
+}
+
+.status-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-family: inherit;
+  transition: all 0.12s;
+}
+
+.status-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text-primary);
+}
+
+.status-btn.goal-badge {
+  background: var(--bg-subtle);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.status-btn.goal-badge.goal-met {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.4);
+  color: #10b981;
+}
+
+.status-btn.typewriter-toggle-btn.active {
+  background: var(--badge-bg);
+  color: var(--badge-text);
+  border-color: rgba(59, 130, 246, 0.3);
+}
+

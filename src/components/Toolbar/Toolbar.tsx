@@ -27,6 +27,10 @@ import {
   Sun,
   Moon,
   Coffee,
+  Search,
+  Target,
+  Command as CommandIcon,
+  Maximize2,
 } from 'lucide-react';
 import './Toolbar.css';
 
@@ -50,6 +54,11 @@ export function Toolbar() {
     cycleFontFamily,
     paragraphIndent,
     toggleParagraphIndent,
+    focusMode,
+    toggleFocusMode,
+    setFindReplaceOpen,
+    setGoalsModalOpen,
+    setCommandPaletteOpen,
   } = useEditorStore();
 
   return (
@@ -247,6 +256,40 @@ export function Toolbar() {
           </div>
         </>
       )}
+
+      <div className="toolbar-separator" />
+
+      {/* Writing Tools */}
+      <div className="toolbar-group">
+        <button
+          className="toolbar-button"
+          onClick={() => setFindReplaceOpen(true)}
+          title="Find & Replace (Ctrl+F)"
+        >
+          <Search size={16} />
+        </button>
+        <button
+          className="toolbar-button"
+          onClick={() => setGoalsModalOpen(true)}
+          title="Writing Goals & Statistics (Ctrl+G)"
+        >
+          <Target size={16} />
+        </button>
+        <button
+          className="toolbar-button"
+          onClick={() => setCommandPaletteOpen(true)}
+          title="Command Palette (Ctrl+K)"
+        >
+          <CommandIcon size={16} />
+        </button>
+        <button
+          className={`toolbar-button ${focusMode ? 'active' : ''}`}
+          onClick={toggleFocusMode}
+          title="Focus Mode (F11 / Ctrl+Shift+F)"
+        >
+          <Maximize2 size={16} />
+        </button>
+      </div>
 
       {/* Flexible Spacer */}
       <div className="toolbar-spacer" />
