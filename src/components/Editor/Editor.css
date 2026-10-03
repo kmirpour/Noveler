@@ -1,0 +1,90 @@
+.editor-container {
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  padding: 2rem 3rem;
+  max-width: 800px;
+  margin: 0 auto;
+  background: var(--editor-bg);
+}
+
+.tiptap {
+  outline: none;
+  min-height: calc(100vh - 120px);
+  font-family: Georgia, serif;
+  font-size: 18px;
+  line-height: 1.8;
+  color: var(--editor-text);
+}
+
+.tiptap h1 {
+  font-size: 2em;
+  font-weight: 700;
+  margin-bottom: 0.5em;
+  color: var(--editor-heading);
+}
+
+.tiptap h2 {
+  font-size: 1.5em;
+  font-weight: 600;
+  margin-bottom: 0.4em;
+  color: var(--editor-heading);
+}
+
+.tiptap h3 {
+  font-size: 1.25em;
+  font-weight: 600;
+  margin-bottom: 0.3em;
+  color: var(--editor-heading);
+}
+
+.tiptap p {
+  margin-bottom: 0.8em;
+}
+
+.tiptap blockquote {
+  border-left: 3px solid var(--editor-quote-border);
+  margin-left: 0;
+  padding-left: 1.5em;
+  color: var(--editor-quote);
+  font-style: italic;
+}
+
+.tiptap hr {
+  border: none;
+  border-top: 1px solid var(--border-color);
+  margin: 2em 0;
+}
+
+.tiptap code {
+  background: var(--editor-code-bg);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+
+.tiptap mark {
+  background: #fde047;
+  color: #1a1a2e;
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--text-muted);
+  pointer-events: none;
+  height: 0;
+}
+
+.tiptap strong {
+  font-weight: 700;
+}
+
+.tiptap em {
+  font-style: italic;
+}
+
+.tiptap ul, .tiptap ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.8em;
+}

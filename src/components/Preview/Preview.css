@@ -1,0 +1,133 @@
+.preview-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--preview-bg);
+  overflow: hidden;
+  border-left: 1px solid var(--border-color);
+}
+
+.preview-header {
+  padding: 6px 16px;
+  background: var(--preview-header-bg);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  user-select: none;
+}
+
+.preview-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 40px 24px 80px;
+  display: flex;
+  justify-content: center;
+}
+
+.fiction-manuscript {
+  max-width: 720px;
+  width: 100%;
+  font-family: 'Sitka Text', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  font-size: 18px;
+  line-height: 1.85;
+  color: var(--preview-text);
+}
+
+/* Headings */
+.fiction-manuscript h1 {
+  font-size: 28px;
+  font-weight: 600;
+  text-align: center;
+  margin: 36px 0 24px;
+  letter-spacing: 0.02em;
+  color: var(--preview-heading);
+}
+
+.fiction-manuscript h2 {
+  font-size: 22px;
+  font-weight: 600;
+  text-align: center;
+  margin: 32px 0 20px;
+  color: var(--preview-heading);
+  letter-spacing: 0.03em;
+}
+
+.fiction-manuscript h3 {
+  font-size: 19px;
+  font-weight: 600;
+  margin: 24px 0 14px;
+  color: var(--preview-heading);
+}
+
+/* Paragraphs & Fiction First-Line Indents */
+.fiction-manuscript p {
+  margin: 0;
+  margin-bottom: 0.3em;
+  text-align: justify;
+  hyphens: auto;
+}
+
+/* Classic fiction typesetting: first paragraph after header has no indent, following ones indent */
+.fiction-manuscript h1 + p,
+.fiction-manuscript h2 + p,
+.fiction-manuscript h3 + p,
+.fiction-manuscript hr + p,
+.fiction-manuscript blockquote + p {
+  text-indent: 0;
+}
+
+.fiction-manuscript p + p {
+  text-indent: 1.8em;
+  margin-top: 0;
+}
+
+/* Scene Breaks */
+.fiction-manuscript hr {
+  border: none;
+  text-align: center;
+  margin: 36px 0;
+  height: 20px;
+}
+
+.fiction-manuscript hr::after {
+  content: '✦   ✦   ✦';
+  font-size: 14px;
+  color: var(--preview-scene-break);
+  letter-spacing: 0.3em;
+  display: block;
+}
+
+/* Blockquotes / Letters / Epigraphs */
+.fiction-manuscript blockquote {
+  margin: 24px 32px;
+  padding: 8px 16px;
+  border-left: 2px solid var(--preview-quote-border);
+  font-style: italic;
+  color: var(--preview-quote);
+}
+
+/* Highlights */
+.fiction-manuscript mark {
+  background-color: #fde047;
+  color: #1a1a2e;
+  padding: 0 3px;
+  border-radius: 2px;
+}
+
+/* Lists */
+.fiction-manuscript ul,
+.fiction-manuscript ol {
+  margin: 16px 0 16px 32px;
+  line-height: 1.6;
+}
+
+.fiction-manuscript code {
+  font-family: monospace;
+  background: var(--editor-code-bg);
+  padding: 2px 5px;
+  border-radius: 3px;
+  font-size: 14px;
+}
