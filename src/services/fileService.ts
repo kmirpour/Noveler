@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { message, open, save } from '@tauri-apps/plugin-dialog';
 
 /** File types Noveler can open/save as text. Mirrors TEXT_EXTENSIONS in commands.rs. */
-export const TEXT_EXTENSIONS = ['md', 'markdown', 'txt'];
+export const TEXT_EXTENSIONS = ['md', 'markdown', 'txt', 'json'];
 
 export function isSupportedTextFile(path: string): boolean {
   const ext = path.split('.').pop()?.toLowerCase() ?? '';
@@ -258,3 +258,45 @@ export async function promptUnsavedChanges(fileName: string | null): Promise<Uns
   if (window.confirm(`${text}\n\nPress OK to save first.`)) return 'save';
   return window.confirm('Discard your unsaved changes?') ? 'discard' : 'cancel';
 }
+
+export interface BinderNode {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  children: BinderNode[];
+}
+
+/**
+ * Recursively read directory tree of Markdown files and subdirectories.
+ */
+export async function readDirTree(path: string): Promise<BinderNode[]> {
+  if (isTauri()) {
+    return await invoke<BinderNode[]>('read_dir_tree', { path });
+  }
+  return [];
+}
+
+export async function createFile(path: string, initialContent?: string): Promise<void> {
+  if (isTauri()) {
+    await invoke('create_file', { path, initialContent: initialContent ?? null });
+  }
+}
+
+export async function createDir(path: string): Promise<void> {
+  if (isTauri()) {
+    await invoke('create_dir', { path });
+  }
+}
+
+export async function renamePath(oldPath: string, newPath: string): Promise<void> {
+  if (isTauri()) {
+    await invoke('rename_path', { oldPath, newPath });
+  }
+}
+
+export async function deleteFile(path: string): Promise<void> {
+  if (isTauri()) {
+    await invoke('delete_file', { path });
+  }
+}
+

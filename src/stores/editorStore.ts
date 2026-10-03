@@ -13,6 +13,16 @@ import {
   saveSettings,
   addRecentFile,
 } from '../services/settings';
+import {
+  type NovelProject,
+  type SceneMetadata,
+  type BinderItem,
+  loadNovelProject,
+  saveNovelProject,
+  parseSceneMarkdown,
+  serializeSceneMarkdown,
+  flattenScenes,
+} from '../services/projectService';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 /** A document to load into the editor, replacing the current one. */
@@ -42,7 +52,6 @@ export interface DocumentSlice {
   updateCounts: (text: string) => void;
   setEditorInstance: (editor: Editor | null) => void;
   setMarkdownContent: (markdown: string) => void;
-
   confirmDiscardIfDirty: () => Promise<boolean>;
   loadDocument: (doc: LoadDocumentInput) => void;
   newFile: () => Promise<boolean>;
@@ -58,9 +67,29 @@ export interface ProjectSlice {
   projectPath: string | null;
   projectName: string | null;
   projectFiles: fileService.FileEntry[];
+  novelProject: NovelProject | null;
+  activeScenePath: string | null;
+  currentMetadata: SceneMetadata;
+  corkboardOpen: boolean;
+  inspectorOpen: boolean;
+  scriveningsMode: boolean;
 
   openProjectFolderAction: () => Promise<boolean>;
+  loadProjectByPath: (path: string) => Promise<boolean>;
   refreshProjectFiles: () => Promise<void>;
+  createSceneAction: (parentFolder: string, title: string) => Promise<boolean>;
+  createFolderAction: (parentFolder: string, name: string) => Promise<boolean>;
+  renameBinderItemAction: (oldPath: string, newTitle: string) => Promise<boolean>;
+  deleteBinderItemAction: (path: string) => Promise<boolean>;
+  updateSceneMetadata: (metadata: Partial<SceneMetadata>) => void;
+  saveProjectConfigAction: () => Promise<void>;
+  setCorkboardOpen: (open: boolean) => void;
+  toggleCorkboard: () => void;
+  setInspectorOpen: (open: boolean) => void;
+  toggleInspector: () => void;
+  setScriveningsMode: (enabled: boolean) => void;
+  toggleScriveningsMode: () => void;
+  loadSceneByPath: (path: string) => Promise<boolean>;
 }
 
 export interface SettingsSlice {
@@ -210,19 +239,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   loadDocument: ({ markdown, fileName, filePath, dirty = false, statusMessage }) => {
     const { editorInstance, updateCounts } = get();
+    const { metadata, body } = parseSceneMarkdown(markdown);
 
     if (editorInstance) {
-      editorInstance.commands.setContent(markdown, { contentType: 'markdown', emitUpdate: false });
+      editorInstance.commands.setContent(body, { contentType: 'markdown', emitUpdate: false });
       updateCounts(editorInstance.getText());
       editorInstance.commands.focus('start');
     } else {
-      updateCounts(markdown);
+      updateCounts(body);
     }
 
     set({
-      markdownContent: markdown,
+      markdownContent: body,
+      currentMetadata: metadata,
       fileName,
       filePath,
+      activeScenePath: filePath,
       isDirty: dirty,
       statusMessage: statusMessage ?? null,
       sessionStartWordCount: null,
@@ -298,19 +330,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveFileAction: async () => {
-    const { filePath, fileName, editorInstance, saveFileAsAction } = get();
+    const { filePath, fileName, editorInstance, saveFileAsAction, currentMetadata } = get();
     if (!filePath) {
       return await saveFileAsAction();
     }
 
     try {
-      const markdown = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
-      await fileService.saveFile(filePath, markdown);
+      const body = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
+      const full = serializeSceneMarkdown(currentMetadata, body);
+      await fileService.saveFile(filePath, full);
 
       const updated = addRecentFile(filePath);
 
       set({
-        markdownContent: markdown,
+        markdownContent: body,
         isDirty: false,
         recentFiles: updated.recentFiles,
         statusMessage: `Saved ${fileName || 'file'}`,
@@ -326,11 +359,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveFileAsAction: async () => {
-    const { fileName, editorInstance, refreshProjectFiles } = get();
+    const { fileName, editorInstance, refreshProjectFiles, currentMetadata } = get();
     try {
-      const markdown = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
+      const body = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
+      const full = serializeSceneMarkdown(currentMetadata, body);
       const defaultName = fileName || 'Untitled.md';
-      const saved = await fileService.saveFileAs(markdown, defaultName);
+      const saved = await fileService.saveFileAs(full, defaultName);
       if (!saved) return false;
 
       const path = fileService.isTauri() ? saved.path : null;
@@ -342,7 +376,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({
         filePath: path,
         fileName: saved.name,
-        markdownContent: markdown,
+        activeScenePath: path,
+        markdownContent: body,
         isDirty: false,
         statusMessage: `Saved as ${saved.name}`,
       });
@@ -383,25 +418,50 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   projectPath: initialSettings.lastProjectPath,
   projectName: null,
   projectFiles: [],
+  novelProject: null,
+  activeScenePath: null,
+  currentMetadata: {},
+  corkboardOpen: false,
+  inspectorOpen: false,
+  scriveningsMode: false,
 
   openProjectFolderAction: async () => {
     try {
       const res = await fileService.openFolder();
       if (!res) return false;
-
-      saveSettings({ lastProjectPath: res.path });
-
-      set({
-        projectPath: res.path,
-        projectName: res.name,
-        projectFiles: res.entries,
-        sidebarOpen: true,
-        statusMessage: `Opened project: ${res.name}`,
-      });
-      return true;
+      return await get().loadProjectByPath(res.path);
     } catch (err) {
       console.error('Error opening project folder:', err);
       set({ statusMessage: `Error opening folder: ${errorMessage(err)}` });
+      return false;
+    }
+  },
+
+  loadProjectByPath: async (path: string) => {
+    try {
+      const project = await loadNovelProject(path);
+      saveSettings({ lastProjectPath: path });
+      const name = fileService.extractFileName(path);
+
+      set({
+        projectPath: path,
+        projectName: project.title || name,
+        novelProject: project,
+        sidebarOpen: true,
+        statusMessage: `Opened project: ${project.title || name}`,
+      });
+
+      // Load first scene if current document is empty
+      if (!get().filePath && project.binder.length > 0) {
+        const scenes = flattenScenes(project.binder);
+        if (scenes.length > 0) {
+          void get().loadSceneByPath(scenes[0].path);
+        }
+      }
+      return true;
+    } catch (err) {
+      console.error('Error loading project:', err);
+      set({ statusMessage: `Error loading project: ${errorMessage(err)}` });
       return false;
     }
   },
@@ -410,12 +470,139 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { projectPath } = get();
     if (!projectPath) return;
     try {
-      const entries = await fileService.readDirectory(projectPath);
-      set({ projectFiles: entries });
+      const project = await loadNovelProject(projectPath);
+      set({ novelProject: project });
     } catch {
       // ignore
     }
   },
+
+  createSceneAction: async (parentFolder: string, title: string) => {
+    try {
+      const { projectPath, refreshProjectFiles } = get();
+      if (!projectPath) return false;
+
+      const sep = parentFolder.includes('/') ? '/' : '\\';
+      const safeTitle = title.trim() || 'Untitled Scene';
+      const fileName = safeTitle.endsWith('.md') ? safeTitle : `${safeTitle}.md`;
+      const fullPath = `${parentFolder}${sep}${fileName}`;
+
+      const initial = serializeSceneMarkdown({ status: 'draft' }, `# ${safeTitle}\n\n`);
+      await fileService.createFile(fullPath, initial);
+      await refreshProjectFiles();
+      await get().loadSceneByPath(fullPath);
+      set({ statusMessage: `Created scene "${safeTitle}"` });
+      return true;
+    } catch (err) {
+      console.error('Error creating scene:', err);
+      set({ statusMessage: `Error creating scene: ${errorMessage(err)}` });
+      return false;
+    }
+  },
+
+  createFolderAction: async (parentFolder: string, name: string) => {
+    try {
+      const { projectPath, refreshProjectFiles } = get();
+      if (!projectPath) return false;
+
+      const sep = parentFolder.includes('/') ? '/' : '\\';
+      const safeName = name.trim() || 'New Chapter';
+      const fullPath = `${parentFolder}${sep}${safeName}`;
+
+      await fileService.createDir(fullPath);
+      await refreshProjectFiles();
+      set({ statusMessage: `Created folder "${safeName}"` });
+      return true;
+    } catch (err) {
+      console.error('Error creating folder:', err);
+      set({ statusMessage: `Error creating folder: ${errorMessage(err)}` });
+      return false;
+    }
+  },
+
+  renameBinderItemAction: async (oldPath: string, newTitle: string) => {
+    try {
+      const { refreshProjectFiles } = get();
+      const parent = oldPath.substring(0, Math.max(oldPath.lastIndexOf('/'), oldPath.lastIndexOf('\\')));
+      const sep = oldPath.includes('/') ? '/' : '\\';
+      const isFile = oldPath.endsWith('.md') || oldPath.endsWith('.markdown') || oldPath.endsWith('.txt');
+      const safeTitle = newTitle.trim();
+      const newName = isFile ? (safeTitle.endsWith('.md') ? safeTitle : `${safeTitle}.md`) : safeTitle;
+      const newPath = `${parent}${sep}${newName}`;
+
+      await fileService.renamePath(oldPath, newPath);
+      if (get().filePath === oldPath) {
+        set({ filePath: newPath, fileName: newName, activeScenePath: newPath });
+      }
+      await refreshProjectFiles();
+      set({ statusMessage: `Renamed to "${newName}"` });
+      return true;
+    } catch (err) {
+      console.error('Error renaming item:', err);
+      set({ statusMessage: `Error renaming: ${errorMessage(err)}` });
+      return false;
+    }
+  },
+
+  deleteBinderItemAction: async (path: string) => {
+    try {
+      const { refreshProjectFiles, confirmDiscardIfDirty } = get();
+      if (get().filePath === path) {
+        if (!(await confirmDiscardIfDirty())) return false;
+      }
+
+      await fileService.deleteFile(path);
+      if (get().filePath === path) {
+        get().loadDocument({ markdown: '', fileName: null, filePath: null, statusMessage: 'Item deleted' });
+      }
+      await refreshProjectFiles();
+      set({ statusMessage: 'Deleted item' });
+      return true;
+    } catch (err) {
+      console.error('Error deleting item:', err);
+      set({ statusMessage: `Error deleting: ${errorMessage(err)}` });
+      return false;
+    }
+  },
+
+  updateSceneMetadata: (partial: Partial<SceneMetadata>) => {
+    const nextMeta = { ...get().currentMetadata, ...partial };
+    set({ currentMetadata: nextMeta, isDirty: true });
+
+    // Also update in novelProject state if matched
+    const { novelProject, activeScenePath, projectPath } = get();
+    if (novelProject && activeScenePath && projectPath) {
+      const updatedProject = { ...novelProject };
+      const scenes = flattenScenes(updatedProject.binder);
+      const matched = scenes.find((s: BinderItem) => s.path === activeScenePath);
+      if (matched) {
+        if (partial.synopsis !== undefined) matched.synopsis = partial.synopsis;
+        if (partial.pov !== undefined) matched.pov = partial.pov;
+        if (partial.status !== undefined) matched.status = partial.status;
+        if (partial.targetWords !== undefined) matched.targetWords = partial.targetWords;
+        set({ novelProject: updatedProject });
+        void saveNovelProject(projectPath, updatedProject);
+      }
+    }
+  },
+
+  saveProjectConfigAction: async () => {
+    const { projectPath, novelProject } = get();
+    if (!projectPath || !novelProject) return;
+    await saveNovelProject(projectPath, novelProject);
+  },
+
+  setCorkboardOpen: (corkboardOpen: boolean) => set({ corkboardOpen }),
+  toggleCorkboard: () => set({ corkboardOpen: !get().corkboardOpen }),
+  setInspectorOpen: (inspectorOpen: boolean) => set({ inspectorOpen }),
+  toggleInspector: () => set({ inspectorOpen: !get().inspectorOpen }),
+  setScriveningsMode: (scriveningsMode: boolean) => set({ scriveningsMode }),
+  toggleScriveningsMode: () => set({ scriveningsMode: !get().scriveningsMode }),
+
+  loadSceneByPath: async (path: string) => {
+    return await get().openFileByPath(path);
+  },
+
 
   // --- Settings Slice -----------------------------------------------------
   theme: initialSettings.theme,

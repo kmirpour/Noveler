@@ -17,7 +17,7 @@ export function useKeyboardShortcuts() {
         return handled(() => store.toggleFocusMode());
       }
 
-      // Escape -> dismiss open dialogs, or exit focus mode
+      // Escape -> dismiss open dialogs, corkboard, or exit focus mode
       if (e.key === 'Escape') {
         if (store.commandPaletteOpen) {
           return handled(() => store.setCommandPaletteOpen(false));
@@ -27,6 +27,9 @@ export function useKeyboardShortcuts() {
         }
         if (store.findReplaceOpen) {
           return handled(() => store.setFindReplaceOpen(false));
+        }
+        if (store.corkboardOpen) {
+          return handled(() => store.setCorkboardOpen(false));
         }
         if (store.focusMode) {
           return handled(() => store.setFocusMode(false));

@@ -31,6 +31,8 @@ import {
   Target,
   Command as CommandIcon,
   Maximize2,
+  LayoutGrid,
+  SlidersHorizontal,
 } from 'lucide-react';
 import './Toolbar.css';
 
@@ -59,6 +61,10 @@ export function Toolbar() {
     setFindReplaceOpen,
     setGoalsModalOpen,
     setCommandPaletteOpen,
+    corkboardOpen,
+    toggleCorkboard,
+    inspectorOpen,
+    toggleInspector,
   } = useEditorStore();
 
   return (
@@ -288,6 +294,20 @@ export function Toolbar() {
           title="Focus Mode (F11 / Ctrl+Shift+F)"
         >
           <Maximize2 size={16} />
+        </button>
+        <button
+          className={`toolbar-button ${corkboardOpen ? 'active' : ''}`}
+          onClick={toggleCorkboard}
+          title="Corkboard & Outline View"
+        >
+          <LayoutGrid size={16} />
+        </button>
+        <button
+          className={`toolbar-button ${inspectorOpen ? 'active' : ''}`}
+          onClick={toggleInspector}
+          title="Scene Inspector (Synopsis, POV, Status)"
+        >
+          <SlidersHorizontal size={16} />
         </button>
       </div>
 

@@ -4,15 +4,23 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct FileEntry {
     pub name: String,
     pub path: String,
     pub is_dir: bool,
 }
 
-/// Extensions the editor may read or write as UTF-8 text.
-const TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "txt"];
+#[derive(Serialize, Clone)]
+pub struct BinderNode {
+    pub name: String,
+    pub path: String,
+    pub is_dir: bool,
+    pub children: Vec<BinderNode>,
+}
+
+/// Extensions the editor may read or write as UTF-8 text (including project metadata).
+const TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "txt", "json"];
 /// Extensions that may be written as raw bytes (exports).
 const BINARY_EXTENSIONS: &[&str] = &["docx"];
 
@@ -95,6 +103,106 @@ pub fn read_dir(path: String) -> Result<Vec<FileEntry>, String> {
 
     Ok(entries)
 }
+
+fn scan_dir_recursive(path: &Path) -> Result<Vec<BinderNode>, String> {
+    let mut nodes = Vec::new();
+    let read = fs::read_dir(path).map_err(|e| format!("Failed to read directory {}: {e}", path.display()))?;
+
+    for entry in read.flatten() {
+        let file_type = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        let file_name = entry.file_name().to_string_lossy().to_string();
+
+        if file_name.starts_with('.') {
+            continue;
+        }
+
+        let is_dir = file_type.is_dir();
+        let full_path = entry.path().to_string_lossy().to_string();
+
+        if is_dir {
+            let children = scan_dir_recursive(&entry.path())?;
+            nodes.push(BinderNode {
+                name: file_name,
+                path: full_path,
+                is_dir: true,
+                children,
+            });
+        } else if has_extension(&entry.path(), TEXT_EXTENSIONS) {
+            nodes.push(BinderNode {
+                name: file_name,
+                path: full_path,
+                is_dir: false,
+                children: Vec::new(),
+            });
+        }
+    }
+
+    nodes.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+        (true, false) => std::cmp::Ordering::Less,
+        (false, true) => std::cmp::Ordering::Greater,
+        _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
+    });
+
+    Ok(nodes)
+}
+
+#[tauri::command]
+pub fn read_dir_tree(path: String) -> Result<Vec<BinderNode>, String> {
+    let p = PathBuf::from(&path);
+    ensure_absolute(&p)?;
+    scan_dir_recursive(&p)
+}
+
+#[tauri::command]
+pub fn create_file(path: String, initial_content: Option<String>) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    ensure_extension(&p, TEXT_EXTENSIONS)?;
+    ensure_absolute(&p)?;
+    if p.exists() {
+        return Err(format!("File already exists: {}", p.display()));
+    }
+    if let Some(parent) = p.parent() {
+        fs::create_dir_all(parent).map_err(|e| format!("Failed to create parent directory: {e}"))?;
+    }
+    let content = initial_content.unwrap_or_default();
+    atomic_write(&p, content.as_bytes())
+}
+
+#[tauri::command]
+pub fn create_dir(path: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    ensure_absolute(&p)?;
+    fs::create_dir_all(&p).map_err(|e| format!("Failed to create directory: {e}"))
+}
+
+#[tauri::command]
+pub fn rename_path(old_path: String, new_path: String) -> Result<(), String> {
+    let old = PathBuf::from(&old_path);
+    let new = PathBuf::from(&new_path);
+    ensure_absolute(&old)?;
+    ensure_absolute(&new)?;
+    if !old.is_dir() {
+        ensure_extension(&old, TEXT_EXTENSIONS)?;
+        ensure_extension(&new, TEXT_EXTENSIONS)?;
+    }
+    fs::rename(&old, &new).map_err(|e| format!("Failed to rename {} to {}: {e}", old.display(), new.display()))
+}
+
+#[tauri::command]
+pub fn delete_file(path: String) -> Result<(), String> {
+    let p = PathBuf::from(&path);
+    ensure_absolute(&p)?;
+    if p.is_dir() {
+        fs::remove_dir_all(&p).map_err(|e| format!("Failed to remove directory: {e}"))
+    } else {
+        ensure_extension(&p, TEXT_EXTENSIONS)?;
+        fs::remove_file(&p).map_err(|e| format!("Failed to remove file: {e}"))
+    }
+}
+
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -368,4 +476,39 @@ mod tests {
         assert!(!backup_dir_for(&file).unwrap().exists());
         fs::remove_dir_all(dir).unwrap();
     }
+
+    #[test]
+    fn test_project_tree_and_file_operations() {
+        let dir = temp_dir("project_test");
+        let act_dir = dir.join("Act 1");
+        create_dir(act_dir.to_string_lossy().into()).unwrap();
+        assert!(act_dir.is_dir());
+
+        let scene1 = act_dir.join("Scene 1.md");
+        create_file(scene1.to_string_lossy().into(), Some("# Scene 1".into())).unwrap();
+        assert!(scene1.is_file());
+        assert_eq!(read_file(scene1.to_string_lossy().into()).unwrap(), "# Scene 1");
+
+        // Test rename
+        let scene_renamed = act_dir.join("Prologue.md");
+        rename_path(scene1.to_string_lossy().into(), scene_renamed.to_string_lossy().into()).unwrap();
+        assert!(!scene1.exists());
+        assert!(scene_renamed.exists());
+
+        // Test tree scan
+        let tree = read_dir_tree(dir.to_string_lossy().into()).unwrap();
+        assert_eq!(tree.len(), 1);
+        assert_eq!(tree[0].name, "Act 1");
+        assert!(tree[0].is_dir);
+        assert_eq!(tree[0].children.len(), 1);
+        assert_eq!(tree[0].children[0].name, "Prologue.md");
+        assert!(!tree[0].children[0].is_dir);
+
+        // Test delete
+        delete_file(scene_renamed.to_string_lossy().into()).unwrap();
+        assert!(!scene_renamed.exists());
+
+        fs::remove_dir_all(dir).unwrap();
+    }
 }
+

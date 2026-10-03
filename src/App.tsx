@@ -6,6 +6,8 @@ import { StatusBar } from './components/StatusBar/StatusBar';
 import { FindReplace } from './components/FindReplace/FindReplace';
 import { CommandPalette } from './components/CommandPalette/CommandPalette';
 import { GoalsModal } from './components/GoalsModal/GoalsModal';
+import { Corkboard } from './components/Corkboard/Corkboard';
+import { Inspector } from './components/Inspector/Inspector';
 import { useEditorStore } from './stores/editorStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
@@ -35,6 +37,7 @@ function App() {
             </div>
           )}
         </main>
+        {!focusMode && <Inspector />}
       </div>
       {!focusMode && <StatusBar />}
 
@@ -54,6 +57,7 @@ function App() {
       <FindReplace />
       <CommandPalette />
       <GoalsModal />
+      <Corkboard />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 .sidebar {
-  width: 240px;
+  width: 260px;
   height: 100%;
   background: var(--sidebar-bg);
   border-right: 1px solid var(--border-color);
@@ -38,7 +38,7 @@
 
 .sidebar-icon-btn {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
   color: var(--text-muted);
   padding: 4px;
@@ -54,10 +54,17 @@
   color: var(--text-primary);
 }
 
+.sidebar-icon-btn.active {
+  background: var(--btn-active);
+  color: #3b82f6;
+  border-color: rgba(59, 130, 246, 0.3);
+}
+
 .sidebar-actions {
   display: flex;
-  gap: 6px;
-  padding: 8px 12px;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 10px;
   border-bottom: 1px solid var(--border-color);
 }
 
@@ -66,15 +73,21 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 6px 10px;
+  gap: 5px;
+  padding: 5px 8px;
   background: var(--bg-surface);
   border: 1px solid var(--border-color);
   border-radius: 5px;
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
   color: var(--text-primary);
   cursor: pointer;
   transition: all 0.15s;
+}
+
+.sidebar-btn.primary-action {
+  padding: 7px 12px;
+  font-size: 12px;
 }
 
 .sidebar-btn:hover {
@@ -85,7 +98,7 @@
 .sidebar-file-list {
   flex: 1;
   overflow-y: auto;
-  padding: 6px 8px;
+  padding: 6px 4px;
 }
 
 .sidebar-empty {
@@ -96,53 +109,168 @@
   line-height: 1.5;
 }
 
-.sidebar-file-item {
+/* Recursive Binder Tree Items */
+.binder-item-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.binder-item {
   width: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: none;
-  background: transparent;
+  gap: 6px;
+  padding-top: 5px;
+  padding-bottom: 5px;
+  padding-right: 6px;
   border-radius: 4px;
   cursor: pointer;
-  text-align: left;
   font-size: 13px;
   color: var(--text-primary);
-  transition: all 0.12s;
-  overflow: hidden;
+  transition: background 0.1s;
+  position: relative;
 }
 
-.sidebar-file-item:hover {
+.binder-item:hover {
   background: var(--sidebar-item-hover);
 }
 
-.sidebar-file-item.active {
+.binder-item.active {
   background: var(--sidebar-item-active);
   color: var(--sidebar-text-active);
   font-weight: 500;
 }
 
-.sidebar-file-item .file-icon {
+.binder-chevron-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.binder-chevron-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text-primary);
+}
+
+.scene-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
+.binder-icon {
   flex-shrink: 0;
   color: var(--text-muted);
 }
 
-.sidebar-file-item.active .file-icon {
+.binder-item.active .binder-icon {
   color: var(--sidebar-text-active);
 }
 
-.sidebar-file-item .file-name {
+.folder-icon {
+  color: #f59e0b;
+}
+
+.binder-item-title {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12.5px;
 }
 
-.sidebar-file-item.is-folder {
-  cursor: default;
-  color: var(--text-muted);
+.binder-hover-actions {
+  display: none;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }
 
-.sidebar-file-item.is-folder:hover {
+.binder-item:hover .binder-hover-actions {
+  display: flex;
+}
+
+.binder-action-mini-btn {
   background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 3px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.binder-action-mini-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text-primary);
+}
+
+.binder-menu-container {
+  position: relative;
+}
+
+.binder-dropdown-menu {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  z-index: 60;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 100px;
+}
+
+.binder-menu-option {
+  background: transparent;
+  border: none;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.binder-menu-option:hover {
+  background: var(--btn-hover);
+}
+
+.binder-menu-option.danger:hover {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+}
+
+.rename-form {
+  flex: 1;
+  display: flex;
+}
+
+.rename-input {
+  width: 100%;
+  padding: 2px 4px;
+  font-size: 12px;
+  background: var(--bg-app);
+  border: 1px solid #3b82f6;
+  border-radius: 3px;
+  color: var(--text-primary);
+  outline: none;
 }

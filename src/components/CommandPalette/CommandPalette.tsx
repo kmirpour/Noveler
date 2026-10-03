@@ -29,6 +29,8 @@ import {
   Columns2,
   BookOpen,
   PenTool,
+  LayoutGrid,
+  SlidersHorizontal,
 } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
 import './CommandPalette.css';
@@ -66,6 +68,8 @@ export function CommandPalette() {
     setFontSize,
     fontSize,
     setTheme,
+    toggleCorkboard,
+    toggleInspector,
   } = useEditorStore();
 
   const [query, setQuery] = useState('');
@@ -196,9 +200,23 @@ export function CommandPalette() {
       {
         id: 'view-sidebar',
         category: 'View & Focus',
-        title: 'Toggle Project Sidebar',
+        title: 'Toggle Project Binder Sidebar',
         icon: <FolderTree size={16} />,
         action: () => toggleSidebar(),
+      },
+      {
+        id: 'view-corkboard',
+        category: 'View & Focus',
+        title: 'Toggle Corkboard & Outline Cards',
+        icon: <LayoutGrid size={16} />,
+        action: () => toggleCorkboard(),
+      },
+      {
+        id: 'view-inspector',
+        category: 'View & Focus',
+        title: 'Toggle Scene Inspector (Synopsis & Metadata)',
+        icon: <SlidersHorizontal size={16} />,
+        action: () => toggleInspector(),
       },
 
       // Formatting
@@ -348,6 +366,8 @@ export function CommandPalette() {
       setFontSize,
       fontSize,
       setTheme,
+      toggleCorkboard,
+      toggleInspector,
     ]
   );
 
