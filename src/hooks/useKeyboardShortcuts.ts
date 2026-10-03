@@ -22,6 +22,15 @@ export function useKeyboardShortcuts() {
         if (store.commandPaletteOpen) {
           return handled(() => store.setCommandPaletteOpen(false));
         }
+        if (store.compileModalOpen) {
+          return handled(() => store.setCompileModalOpen(false));
+        }
+        if (store.codexModalOpen) {
+          return handled(() => store.setCodexModalOpen(false));
+        }
+        if (store.proseAnalysisOpen) {
+          return handled(() => store.setProseAnalysisOpen(false));
+        }
         if (store.goalsModalOpen) {
           return handled(() => store.setGoalsModalOpen(false));
         }
@@ -53,6 +62,9 @@ export function useKeyboardShortcuts() {
 
       // Ctrl+Shift+F -> Toggle Focus Mode
       if (e.shiftKey && key === 'f') return handled(() => store.toggleFocusMode());
+
+      // Ctrl+Shift+E -> Compile Novel Manuscript
+      if (e.shiftKey && key === 'e') return handled(() => store.toggleCompileModal());
 
       // Ctrl+Shift+T -> Toggle Typewriter Scrolling
       if (e.shiftKey && key === 't') return handled(() => store.toggleTypewriterMode());

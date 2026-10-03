@@ -1,4 +1,4 @@
-import type { ChangeEvent } from 'react';
+import { useState, type ChangeEvent } from 'react';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   SlidersHorizontal,
@@ -7,6 +7,9 @@ import {
   User,
   Target,
   Sparkles,
+  Camera,
+  RotateCcw,
+  Trash2,
 } from 'lucide-react';
 import type { SceneStatus } from '../../services/projectService';
 import './Inspector.css';
@@ -18,8 +21,16 @@ export function Inspector() {
     currentMetadata,
     updateSceneMetadata,
     fileName,
+    filePath,
     wordCount,
+    novelProject,
+    createSceneSnapshotAction,
+    restoreSceneSnapshotAction,
+    deleteSceneSnapshotAction,
   } = useEditorStore();
+
+  const [snapshotLabel, setSnapshotLabel] = useState('');
+  const [takingSnapshot, setTakingSnapshot] = useState(false);
 
   if (!inspectorOpen) return null;
 
@@ -42,6 +53,10 @@ export function Inspector() {
     const val = parseInt(e.target.value, 10);
     updateSceneMetadata({ targetWords: isNaN(val) ? 0 : Math.max(0, val) });
   };
+
+  const sceneSnapshots = (novelProject?.snapshots || []).filter(
+    (s) => s.scenePath === filePath
+  );
 
   return (
     <aside className="inspector-panel">
@@ -145,6 +160,115 @@ export function Inspector() {
             onChange={(e) => handleSynopsisChange(e.target.value)}
           />
         </div>
+
+        {/* Scene Snapshots & Version History */}
+        {novelProject && (
+          <div className="inspector-section">
+            <div className="snapshots-header">
+              <label className="inspector-label">Version Snapshots</label>
+              {!takingSnapshot && (
+                <button
+                  className="take-snapshot-btn"
+                  onClick={() => setTakingSnapshot(true)}
+                  title="Capture snapshot of current scene"
+                >
+                  <Camera size={12} />
+                  <span>Snapshot</span>
+                </button>
+              )}
+            </div>
+
+            {takingSnapshot && (
+              <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
+                <input
+                  type="text"
+                  className="inspector-text-input"
+                  style={{ fontSize: 12, padding: '4px 8px' }}
+                  placeholder="Snapshot label..."
+                  value={snapshotLabel}
+                  onChange={(e) => setSnapshotLabel(e.target.value)}
+                  autoFocus
+                />
+                <button
+                  className="take-snapshot-btn"
+                  style={{ background: '#3b82f6', color: '#fff', border: 'none' }}
+                  onClick={async () => {
+                    await createSceneSnapshotAction(snapshotLabel || 'Quick Snapshot');
+                    setSnapshotLabel('');
+                    setTakingSnapshot(false);
+                  }}
+                >
+                  Save
+                </button>
+                <button
+                  className="take-snapshot-btn"
+                  style={{ border: 'none' }}
+                  onClick={() => {
+                    setSnapshotLabel('');
+                    setTakingSnapshot(false);
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
+            <div className="snapshot-list">
+              {sceneSnapshots.length === 0 ? (
+                <div className="snapshot-empty">No snapshots saved for this scene.</div>
+              ) : (
+                sceneSnapshots.map((snap) => {
+                  const dateStr = new Date(snap.timestamp).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  });
+                  const diff = snap.wordCount - wordCount;
+                  const diffText = diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '0';
+
+                  return (
+                    <div key={snap.id} className="snapshot-card">
+                      <div className="snapshot-top">
+                        <span className="snapshot-label" title={snap.label}>
+                          {snap.label}
+                        </span>
+                        <span className="snapshot-time">{dateStr}</span>
+                      </div>
+                      <div className="snapshot-meta">
+                        <span>
+                          {snap.wordCount.toLocaleString()} words ({diffText})
+                        </span>
+                        <div className="snapshot-actions">
+                          <button
+                            className="snapshot-action-btn restore"
+                            onClick={() => {
+                              if (confirm(`Restore snapshot "${snap.label}"? Current edits will be replaced.`)) {
+                                void restoreSceneSnapshotAction(snap.id);
+                              }
+                            }}
+                            title="Restore this version"
+                          >
+                            <RotateCcw size={12} />
+                          </button>
+                          <button
+                            className="snapshot-action-btn delete"
+                            onClick={() => {
+                              if (confirm(`Delete snapshot "${snap.label}"?`)) {
+                                void deleteSceneSnapshotAction(snap.id);
+                              }
+                            }}
+                            title="Delete snapshot"
+                          >
+                            <Trash2 size={12} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </aside>
   );

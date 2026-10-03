@@ -4,6 +4,7 @@ import {
   serializeSceneMarkdown,
   buildBinderFromTree,
   flattenScenes,
+  findEntityMentions,
   BinderItem,
 } from './projectService';
 import { BinderNode } from './fileService';
@@ -112,5 +113,36 @@ The rain poured through the broken glass skylight. Miller stepped over the rubbl
     const flat = flattenScenes(items);
     expect(flat).toHaveLength(3);
     expect(flat.map((s) => s.title)).toEqual(['Scene 1', 'Scene 2', 'Interlude']);
+  });
+
+  it('finds entity mentions in scene text matching names and aliases', () => {
+    const entries = [
+      {
+        id: 'c1',
+        name: 'Elena Vance',
+        category: 'character' as const,
+        aliases: ['Ellie', 'The Raven'],
+        summary: 'Protagonist',
+      },
+      {
+        id: 'c2',
+        name: 'Marcus Thorne',
+        category: 'character' as const,
+        aliases: ['Thorne'],
+        summary: 'Antagonist',
+      },
+      {
+        id: 'l1',
+        name: 'Iron Citadel',
+        category: 'location' as const,
+        aliases: ['The Keep'],
+        summary: 'Ancient fortress',
+      },
+    ];
+
+    const sceneText = `Ellie adjusted her cloak and stared up at the Iron Citadel. She wondered if Thorne was inside.`;
+    const mentions = findEntityMentions(sceneText, entries);
+
+    expect(mentions.map((m) => m.name)).toEqual(['Elena Vance', 'Marcus Thorne', 'Iron Citadel']);
   });
 });

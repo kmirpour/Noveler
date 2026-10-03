@@ -1,0 +1,233 @@
+.compile-modal {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: scaleUp 0.15s ease-out;
+}
+
+.compile-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  overflow-y: auto;
+  max-height: calc(85vh - 130px);
+}
+
+.compile-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.compile-section.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.compile-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.format-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.format-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.format-card:hover {
+  border-color: var(--border-focus);
+  background: var(--btn-hover);
+}
+
+.format-card.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.format-card input[type="radio"] {
+  margin-top: 3px;
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+.format-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.format-info strong {
+  font-size: 13px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.format-info span {
+  font-size: 12px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.compile-input,
+.compile-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+
+.compile-input:focus,
+.compile-textarea:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.checklist-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.select-all-btn {
+  background: transparent;
+  border: none;
+  color: #3b82f6;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.select-all-btn:hover {
+  background: rgba(59, 130, 246, 0.1);
+}
+
+.scene-checklist {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 6px;
+  background: var(--bg-app);
+}
+
+.checklist-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.checklist-item:hover {
+  background: var(--btn-hover);
+}
+
+.checklist-item.selected {
+  color: var(--text-primary);
+}
+
+.checklist-item .check-icon {
+  color: var(--text-muted);
+}
+
+.checklist-item .check-icon.checked {
+  color: #3b82f6;
+}
+
+.checklist-item .scene-icon {
+  color: var(--text-muted);
+}
+
+.checklist-item .scene-title {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compile-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-surface);
+}
+
+.compile-cancel-btn {
+  padding: 7px 14px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.compile-cancel-btn:hover {
+  background: var(--btn-hover);
+}
+
+.compile-submit-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 16px;
+  background: #3b82f6;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  transition: opacity 0.15s;
+}
+
+.compile-submit-btn:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.compile-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

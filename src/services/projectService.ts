@@ -23,6 +23,28 @@ export interface BinderItem {
   collapsed?: boolean;
 }
 
+export type CodexCategory = 'character' | 'location' | 'item' | 'lore';
+
+export interface CodexEntry {
+  id: string;
+  name: string;
+  category: CodexCategory;
+  aliases: string[];
+  summary: string;
+  description?: string;
+  tags?: string[];
+  color?: string;
+}
+
+export interface SceneSnapshot {
+  id: string;
+  scenePath: string;
+  timestamp: string;
+  label: string;
+  wordCount: number;
+  content: string;
+}
+
 export interface NovelProject {
   version: 1;
   title: string;
@@ -32,6 +54,8 @@ export interface NovelProject {
   createdAt: string;
   updatedAt: string;
   binder: BinderItem[];
+  codex?: CodexEntry[];
+  snapshots?: SceneSnapshot[];
 }
 
 export const PROJECT_FILENAME = 'noveler.json';
@@ -186,6 +210,8 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     createdAt: existingProject?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     binder: mergedBinder,
+    codex: existingProject?.codex || [],
+    snapshots: existingProject?.snapshots || [],
   };
 
   return project;
@@ -217,4 +243,21 @@ export function flattenScenes(items: BinderItem[]): BinderItem[] {
   }
   traverse(items);
   return scenes;
+}
+
+/**
+ * Scans a scene's text for mentions of Codex entities (names and aliases).
+ */
+export function findEntityMentions(text: string, entries: CodexEntry[]): CodexEntry[] {
+  if (!text || !entries || entries.length === 0) return [];
+
+  const found: CodexEntry[] = [];
+  for (const entry of entries) {
+    const terms = [entry.name, ...(entry.aliases || [])].filter((t) => t.trim().length > 0);
+    const pattern = new RegExp(`\\b(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+    if (pattern.test(text)) {
+      found.push(entry);
+    }
+  }
+  return found;
 }

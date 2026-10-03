@@ -6,6 +6,7 @@ import {
   Save,
   SaveAll,
   FileDown,
+  BookDown,
   Printer,
   FolderTree,
   Maximize2,
@@ -37,7 +38,7 @@ import './CommandPalette.css';
 
 interface CommandItem {
   id: string;
-  category: 'File' | 'View & Focus' | 'Formatting' | 'Typography' | 'Theme';
+  category: 'File' | 'View & Focus' | 'Story Tools' | 'Formatting' | 'Typography' | 'Theme';
   title: string;
   shortcut?: string;
   icon: React.ReactNode;
@@ -70,6 +71,9 @@ export function CommandPalette() {
     setTheme,
     toggleCorkboard,
     toggleInspector,
+    toggleCompileModal,
+    toggleCodexModal,
+    toggleProseAnalysis,
   } = useEditorStore();
 
   const [query, setQuery] = useState('');
@@ -116,9 +120,17 @@ export function CommandPalette() {
       {
         id: 'file-export-docx',
         category: 'File',
-        title: 'Export Manuscript to Word (DOCX)',
+        title: 'Export Active Scene to Word (DOCX)',
         icon: <FileDown size={16} />,
         action: () => void exportDocxAction(),
+      },
+      {
+        id: 'file-compile',
+        category: 'File',
+        title: 'Compile Novel Manuscript (Standard Shunn DOCX / Markdown)...',
+        shortcut: 'Ctrl+Shift+E',
+        icon: <BookDown size={16} />,
+        action: () => toggleCompileModal(),
       },
       {
         id: 'file-print',
@@ -206,17 +218,31 @@ export function CommandPalette() {
       },
       {
         id: 'view-corkboard',
-        category: 'View & Focus',
+        category: 'Story Tools',
         title: 'Toggle Corkboard & Outline Cards',
         icon: <LayoutGrid size={16} />,
         action: () => toggleCorkboard(),
       },
       {
         id: 'view-inspector',
-        category: 'View & Focus',
+        category: 'Story Tools',
         title: 'Toggle Scene Inspector (Synopsis & Metadata)',
         icon: <SlidersHorizontal size={16} />,
         action: () => toggleInspector(),
+      },
+      {
+        id: 'story-codex',
+        category: 'Story Tools',
+        title: 'Story Bible & Codex (Characters, Locations, Lore)',
+        icon: <BookOpen size={16} />,
+        action: () => toggleCodexModal(),
+      },
+      {
+        id: 'story-prose-analysis',
+        category: 'Story Tools',
+        title: 'Prose Analysis (Adverbs, Filter Words, Readability)',
+        icon: <Eye size={16} />,
+        action: () => toggleProseAnalysis(),
       },
 
       // Formatting
@@ -368,6 +394,9 @@ export function CommandPalette() {
       setTheme,
       toggleCorkboard,
       toggleInspector,
+      toggleCompileModal,
+      toggleCodexModal,
+      toggleProseAnalysis,
     ]
   );
 

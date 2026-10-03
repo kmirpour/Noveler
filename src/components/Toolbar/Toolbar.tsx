@@ -6,6 +6,7 @@ import {
   Save,
   SaveAll,
   FileDown,
+  BookDown,
   Printer,
   Bold,
   Italic,
@@ -33,6 +34,8 @@ import {
   Maximize2,
   LayoutGrid,
   SlidersHorizontal,
+  BookMarked,
+  Sparkles,
 } from 'lucide-react';
 import './Toolbar.css';
 
@@ -65,6 +68,12 @@ export function Toolbar() {
     toggleCorkboard,
     inspectorOpen,
     toggleInspector,
+    novelProject,
+    toggleCompileModal,
+    codexModalOpen,
+    toggleCodexModal,
+    proseAnalysisOpen,
+    toggleProseAnalysis,
   } = useEditorStore();
 
   return (
@@ -118,10 +127,19 @@ export function Toolbar() {
 
       {/* Export Operations */}
       <div className="toolbar-group export-actions">
+        {novelProject && (
+          <button
+            className="toolbar-button"
+            onClick={toggleCompileModal}
+            title="Compile Novel Manuscript (Ctrl+Shift+E)"
+          >
+            <BookDown size={18} />
+          </button>
+        )}
         <button
           className="toolbar-button"
           onClick={() => void exportDocxAction()}
-          title="Export Manuscript to Word (.docx)"
+          title="Export Active Scene to Word (.docx)"
         >
           <FileDown size={18} />
         </button>
@@ -308,6 +326,22 @@ export function Toolbar() {
           title="Scene Inspector (Synopsis, POV, Status)"
         >
           <SlidersHorizontal size={16} />
+        </button>
+        {novelProject && (
+          <button
+            className={`toolbar-button ${codexModalOpen ? 'active' : ''}`}
+            onClick={toggleCodexModal}
+            title="Story Bible & Codex (Characters, Locations, Lore)"
+          >
+            <BookMarked size={16} />
+          </button>
+        )}
+        <button
+          className={`toolbar-button ${proseAnalysisOpen ? 'active' : ''}`}
+          onClick={toggleProseAnalysis}
+          title="Prose Diagnostics & Style Analysis"
+        >
+          <Sparkles size={16} />
         </button>
       </div>
 

@@ -17,6 +17,8 @@ import {
   type NovelProject,
   type SceneMetadata,
   type BinderItem,
+  type CodexEntry,
+  type SceneSnapshot,
   loadNovelProject,
   saveNovelProject,
   parseSceneMarkdown,
@@ -90,6 +92,12 @@ export interface ProjectSlice {
   setScriveningsMode: (enabled: boolean) => void;
   toggleScriveningsMode: () => void;
   loadSceneByPath: (path: string) => Promise<boolean>;
+  addCodexEntryAction: (entry: Omit<CodexEntry, 'id'>) => Promise<void>;
+  updateCodexEntryAction: (entry: CodexEntry) => Promise<void>;
+  deleteCodexEntryAction: (id: string) => Promise<void>;
+  createSceneSnapshotAction: (label: string) => Promise<void>;
+  restoreSceneSnapshotAction: (snapshotId: string) => Promise<void>;
+  deleteSceneSnapshotAction: (snapshotId: string) => Promise<void>;
 }
 
 export interface SettingsSlice {
@@ -126,6 +134,9 @@ export interface WritingSlice {
   findReplaceOpen: boolean;
   commandPaletteOpen: boolean;
   goalsModalOpen: boolean;
+  compileModalOpen: boolean;
+  codexModalOpen: boolean;
+  proseAnalysisOpen: boolean;
 
   toggleFocusMode: () => void;
   setFocusMode: (val: boolean) => void;
@@ -137,6 +148,12 @@ export interface WritingSlice {
   setFindReplaceOpen: (open: boolean) => void;
   setCommandPaletteOpen: (open: boolean) => void;
   setGoalsModalOpen: (open: boolean) => void;
+  setCompileModalOpen: (open: boolean) => void;
+  toggleCompileModal: () => void;
+  setCodexModalOpen: (open: boolean) => void;
+  toggleCodexModal: () => void;
+  setProseAnalysisOpen: (open: boolean) => void;
+  toggleProseAnalysis: () => void;
 }
 
 export type EditorState = DocumentSlice & ProjectSlice & SettingsSlice & WritingSlice;
@@ -603,6 +620,81 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     return await get().openFileByPath(path);
   },
 
+  addCodexEntryAction: async (entry: Omit<CodexEntry, 'id'>) => {
+    const { novelProject, projectPath } = get();
+    if (!novelProject || !projectPath) return;
+    const newEntry: CodexEntry = {
+      ...entry,
+      id: `codex_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    };
+    const updatedProject: NovelProject = {
+      ...novelProject,
+      codex: [...(novelProject.codex || []), newEntry],
+    };
+    set({ novelProject: updatedProject });
+    await saveNovelProject(projectPath, updatedProject);
+  },
+
+  updateCodexEntryAction: async (entry: CodexEntry) => {
+    const { novelProject, projectPath } = get();
+    if (!novelProject || !projectPath) return;
+    const codex = (novelProject.codex || []).map((e) => (e.id === entry.id ? entry : e));
+    const updatedProject: NovelProject = { ...novelProject, codex };
+    set({ novelProject: updatedProject });
+    await saveNovelProject(projectPath, updatedProject);
+  },
+
+  deleteCodexEntryAction: async (id: string) => {
+    const { novelProject, projectPath } = get();
+    if (!novelProject || !projectPath) return;
+    const codex = (novelProject.codex || []).filter((e) => e.id !== id);
+    const updatedProject: NovelProject = { ...novelProject, codex };
+    set({ novelProject: updatedProject });
+    await saveNovelProject(projectPath, updatedProject);
+  },
+
+  createSceneSnapshotAction: async (label: string) => {
+    const { novelProject, projectPath, filePath, markdownContent, wordCount, setStatusMessage } = get();
+    if (!novelProject || !projectPath || !filePath) return;
+    const newSnapshot: SceneSnapshot = {
+      id: `snap_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+      scenePath: filePath,
+      timestamp: new Date().toISOString(),
+      label: label.trim() || 'Manual Snapshot',
+      wordCount,
+      content: markdownContent,
+    };
+    const updatedProject: NovelProject = {
+      ...novelProject,
+      snapshots: [newSnapshot, ...(novelProject.snapshots || [])],
+    };
+    set({ novelProject: updatedProject });
+    await saveNovelProject(projectPath, updatedProject);
+    setStatusMessage(`Saved snapshot: "${newSnapshot.label}"`);
+  },
+
+  restoreSceneSnapshotAction: async (snapshotId: string) => {
+    const { novelProject, setMarkdownContent, editorInstance, setDirty, setStatusMessage } = get();
+    if (!novelProject) return;
+    const snap = (novelProject.snapshots || []).find((s) => s.id === snapshotId);
+    if (!snap) return;
+    setMarkdownContent(snap.content);
+    if (editorInstance) {
+      editorInstance.commands.setContent(snap.content);
+    }
+    setDirty(true);
+    setStatusMessage(`Restored snapshot from ${new Date(snap.timestamp).toLocaleTimeString()}`);
+  },
+
+  deleteSceneSnapshotAction: async (snapshotId: string) => {
+    const { novelProject, projectPath } = get();
+    if (!novelProject || !projectPath) return;
+    const snapshots = (novelProject.snapshots || []).filter((s) => s.id !== snapshotId);
+    const updatedProject: NovelProject = { ...novelProject, snapshots };
+    set({ novelProject: updatedProject });
+    await saveNovelProject(projectPath, updatedProject);
+  },
+
 
   // --- Settings Slice -----------------------------------------------------
   theme: initialSettings.theme,
@@ -680,6 +772,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   findReplaceOpen: false,
   commandPaletteOpen: false,
   goalsModalOpen: false,
+  compileModalOpen: false,
+  codexModalOpen: false,
+  proseAnalysisOpen: false,
 
   toggleFocusMode: () => {
     const next = !get().focusMode;
@@ -719,5 +814,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setFindReplaceOpen: (findReplaceOpen: boolean) => set({ findReplaceOpen }),
   setCommandPaletteOpen: (commandPaletteOpen: boolean) => set({ commandPaletteOpen }),
   setGoalsModalOpen: (goalsModalOpen: boolean) => set({ goalsModalOpen }),
+  setCompileModalOpen: (compileModalOpen: boolean) => set({ compileModalOpen }),
+  toggleCompileModal: () => set({ compileModalOpen: !get().compileModalOpen }),
+  setCodexModalOpen: (codexModalOpen: boolean) => set({ codexModalOpen }),
+  toggleCodexModal: () => set({ codexModalOpen: !get().codexModalOpen }),
+  setProseAnalysisOpen: (proseAnalysisOpen: boolean) => set({ proseAnalysisOpen }),
+  toggleProseAnalysis: () => set({ proseAnalysisOpen: !get().proseAnalysisOpen }),
 }));
 
