@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -7,20 +7,17 @@ import Underline from '@tiptap/extension-underline';
 import Highlight from '@tiptap/extension-highlight';
 import TextAlign from '@tiptap/extension-text-align';
 import { useEditorStore } from '../../stores/editorStore';
-import { markdownToHtml } from '../../utils/markdown';
+import { isTauri, isSupportedTextFile } from '../../services/fileService';
 import './Editor.css';
 
+const AUTOSAVE_DELAY_MS = 1500;
+
 export function Editor() {
-  const {
-    content,
-    setContent,
-    setDirty,
-    updateCounts,
-    setEditorInstance,
-    autoSaveEnabled,
-    filePath,
-    saveFileAction,
-  } = useEditorStore();
+  // Only the initial document is needed here; later loads go through
+  // editor.commands.setContent in the store, so don't re-render per keystroke.
+  const [initialContent] = useState(() => useEditorStore.getState().content);
+  const setEditorInstance = useEditorStore((s) => s.setEditorInstance);
+  const updateCounts = useEditorStore((s) => s.updateCounts);
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -39,21 +36,29 @@ export function Editor() {
         types: ['heading', 'paragraph'],
       }),
     ],
-    content,
+    content: initialContent,
+    editorProps: {
+      attributes: { spellcheck: 'true' },
+    },
     onUpdate: ({ editor }) => {
-      const html = editor.getHTML();
-      const text = editor.getText();
-      setContent(html);
-      setDirty(true);
-      updateCounts(text);
+      // Always read fresh state: this callback may outlive the render that created it.
+      const store = useEditorStore.getState();
+      store.setContent(editor.getHTML());
+      store.setDirty(true);
+      store.updateCounts(editor.getText());
 
-      if (autoSaveEnabled && filePath) {
-        if (autoSaveTimerRef.current) {
-          clearTimeout(autoSaveTimerRef.current);
-        }
+      if (autoSaveTimerRef.current) {
+        clearTimeout(autoSaveTimerRef.current);
+      }
+      // Autosave only to a real on-disk path. In the browser build a "save"
+      // is a download, which must never fire on its own.
+      if (store.autoSaveEnabled && store.filePath && isTauri()) {
         autoSaveTimerRef.current = setTimeout(() => {
-          void saveFileAction();
-        }, 1500);
+          const latest = useEditorStore.getState();
+          if (latest.isDirty && latest.filePath && latest.autoSaveEnabled) {
+            void latest.saveFileAction();
+          }
+        }, AUTOSAVE_DELAY_MS);
       }
     },
   });
@@ -71,30 +76,32 @@ export function Editor() {
     };
   }, [editor, setEditorInstance, updateCounts]);
 
+  // Browser-build only. In the desktop app Tauri intercepts OS file drops and
+  // delivers real paths via onDragDropEvent (see useAppLifecycle).
   const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
+    if (!isTauri() && e.dataTransfer.types.includes('Files')) {
+      e.preventDefault();
+    }
   };
 
   const handleDrop = async (e: React.DragEvent) => {
+    if (isTauri() || e.dataTransfer.files.length === 0) return;
     e.preventDefault();
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      const file = files[0];
-      const text = await file.text();
-      const html = markdownToHtml(text);
-      if (editor) {
-        editor.commands.setContent(html);
-        updateCounts(editor.getText());
-      }
-      useEditorStore.setState({
-        content: html,
-        markdownContent: text,
-        fileName: file.name,
-        filePath: (file as { path?: string }).path || file.name,
-        isDirty: false,
-        statusMessage: `Opened ${file.name}`,
-      });
+
+    const file = e.dataTransfer.files[0];
+    const store = useEditorStore.getState();
+    if (!isSupportedTextFile(file.name)) {
+      store.setStatusMessage(`Can't open ${file.name}: unsupported file type`);
+      return;
     }
+    if (!(await store.confirmDiscardIfDirty())) return;
+
+    store.loadDocument({
+      markdown: await file.text(),
+      fileName: file.name,
+      filePath: null, // the browser can't write back to the original location
+      statusMessage: `Opened ${file.name}`,
+    });
   };
 
   return (

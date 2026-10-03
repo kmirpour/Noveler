@@ -204,46 +204,39 @@ body {
   background: var(--scrollbar-thumb-hover);
 }
 
-/* Print / PDF Export Styles */
+/* Print / PDF Export Styles
+ * exportToPdf() renders the manuscript into #print-root (outside #root), so
+ * printing works in every view mode. */
+#print-root {
+  display: none;
+}
+
 @media print {
   @page {
     margin: 1in;
     size: portrait;
   }
 
-  body, .app, .app-body, .app-main {
+  html, body {
     height: auto !important;
     overflow: visible !important;
     background: #ffffff !important;
     color: #000000 !important;
   }
 
-  .toolbar,
-  .sidebar,
-  .status-bar,
-  .preview-header {
+  #root {
     display: none !important;
   }
 
-  .editor-pane {
-    display: none !important;
-  }
-
-  .preview-pane {
+  #print-root {
     display: block !important;
-    width: 100% !important;
-    height: auto !important;
-    border: none !important;
-  }
-
-  .preview-container {
-    border: none !important;
-    background: #ffffff !important;
-  }
-
-  .preview-content {
-    padding: 0 !important;
-    overflow: visible !important;
+    /* Force ink-friendly colours regardless of the active theme */
+    --preview-text: #000000;
+    --preview-heading: #000000;
+    --preview-quote: #000000;
+    --preview-quote-border: #999999;
+    --preview-scene-break: #000000;
+    --editor-code-bg: transparent;
   }
 
   .fiction-manuscript {
@@ -258,8 +251,17 @@ body {
     page-break-before: always;
   }
 
+  .fiction-manuscript > :first-child {
+    page-break-before: avoid;
+  }
+
   .fiction-manuscript p {
     orphans: 3;
     widows: 3;
+  }
+
+  .fiction-manuscript mark {
+    background: none !important;
+    color: inherit !important;
   }
 }

@@ -137,3 +137,12 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.sidebar-file-item.is-folder {
+  cursor: default;
+  color: var(--text-muted);
+}
+
+.sidebar-file-item.is-folder:hover {
+  background: transparent;
+}

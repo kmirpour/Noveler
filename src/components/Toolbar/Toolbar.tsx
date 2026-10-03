@@ -1,6 +1,4 @@
 import { useEditorStore } from '../../stores/editorStore';
-import { exportToDocx } from '../../export/docx';
-import { exportToPdf } from '../../export/pdf';
 import {
   PanelLeft,
   FilePlus,
@@ -41,6 +39,8 @@ export function Toolbar() {
     openFileAction,
     saveFileAction,
     saveFileAsAction,
+    exportDocxAction,
+    printAction,
     isDirty,
     sidebarOpen,
     toggleSidebar,
@@ -48,8 +48,6 @@ export function Toolbar() {
     setViewMode,
     theme,
     setTheme,
-    markdownContent,
-    fileName,
   } = useEditorStore();
 
   return (
@@ -105,15 +103,15 @@ export function Toolbar() {
       <div className="toolbar-group export-actions">
         <button
           className="toolbar-button"
-          onClick={() => void exportToDocx(markdownContent, fileName || 'manuscript.docx')}
+          onClick={() => void exportDocxAction()}
           title="Export Manuscript to Word (.docx)"
         >
           <FileDown size={18} />
         </button>
         <button
           className="toolbar-button"
-          onClick={() => exportToPdf()}
-          title="Print / Save as PDF (.pdf)"
+          onClick={() => printAction()}
+          title="Print / Save as PDF (Ctrl+P)"
         >
           <Printer size={18} />
         </button>

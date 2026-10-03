@@ -2,10 +2,22 @@ import { create } from 'zustand';
 import type { Editor } from '@tiptap/react';
 import { markdownToHtml, htmlToMarkdown } from '../utils/markdown';
 import * as fileService from '../services/fileService';
+import { clearRecovery } from '../services/recovery';
+import { exportToPdf } from '../export/pdf';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 export type ViewMode = 'editor' | 'split' | 'preview';
 export type Theme = 'light' | 'dark' | 'sepia';
+
+/** A document to load into the editor, replacing the current one. */
+export interface LoadDocumentInput {
+  markdown: string;
+  fileName: string | null;
+  filePath: string | null;
+  /** Mark the loaded document as having unsaved changes (e.g. restored from recovery). */
+  dirty?: boolean;
+  statusMessage?: string;
+}
 
 export interface EditorState {
   content: string; // HTML representation for TipTap
@@ -44,14 +56,27 @@ export interface EditorState {
   toggleSidebar: () => void;
   setAutoSaveEnabled: (enabled: boolean) => void;
 
+  // Document lifecycle
+  /**
+   * If the current document has unsaved changes, ask the user to save, discard
+   * or cancel. Resolves true when it is safe to replace the document.
+   */
+  confirmDiscardIfDirty: () => Promise<boolean>;
+  /** Replace the editor contents. Does NOT check for unsaved changes. */
+  loadDocument: (doc: LoadDocumentInput) => void;
+
   // File Actions
-  newFile: () => void;
+  newFile: () => Promise<boolean>;
   openFileAction: () => Promise<boolean>;
   openFileByPath: (path: string) => Promise<boolean>;
   saveFileAction: () => Promise<boolean>;
   saveFileAsAction: () => Promise<boolean>;
   openProjectFolderAction: () => Promise<boolean>;
   refreshProjectFiles: () => Promise<void>;
+
+  // Export Actions
+  exportDocxAction: () => Promise<void>;
+  printAction: () => void;
 }
 
 const initialMarkdown = `# Welcome to Noveler
@@ -98,6 +123,8 @@ const updateWindowTitle = async (fileName: string | null, isDirty: boolean) => {
   }
 };
 
+const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   content: initialHtml,
   markdownContent: initialMarkdown,
@@ -132,6 +159,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setFilePath: (filePath) => set({ filePath }),
 
   setDirty: (isDirty) => {
+    if (get().isDirty === isDirty) return;
     set({ isDirty });
     const { fileName } = get();
     updateWindowTitle(fileName, isDirty);
@@ -177,80 +205,97 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleSidebar: () => set((state) => ({ sidebarOpen: !state.sidebarOpen })),
   setAutoSaveEnabled: (autoSaveEnabled) => set({ autoSaveEnabled }),
 
-  newFile: () => {
-    const { editorInstance } = get();
-    const emptyContent = '';
-    if (editorInstance) {
-      editorInstance.commands.setContent(emptyContent);
-      editorInstance.commands.focus();
+  confirmDiscardIfDirty: async () => {
+    const { isDirty, fileName, saveFileAction } = get();
+    if (!isDirty) return true;
+
+    const choice = await fileService.promptUnsavedChanges(fileName);
+    if (choice === 'save') return await saveFileAction();
+    if (choice === 'discard') {
+      clearRecovery();
+      return true;
     }
+    return false;
+  },
+
+  loadDocument: ({ markdown, fileName, filePath, dirty = false, statusMessage }) => {
+    const html = markdownToHtml(markdown);
+    const { editorInstance, updateCounts } = get();
+
+    if (editorInstance) {
+      // emitUpdate=false so loading a file doesn't immediately mark it dirty.
+      editorInstance.commands.setContent(html, { emitUpdate: false });
+      updateCounts(editorInstance.getText());
+      editorInstance.commands.focus('start');
+    } else {
+      updateCounts(markdown);
+    }
+
     set({
-      content: emptyContent,
-      markdownContent: '',
+      content: html,
+      markdownContent: markdown,
+      fileName,
+      filePath,
+      isDirty: dirty,
+      statusMessage: statusMessage ?? null,
+    });
+    updateWindowTitle(fileName, dirty);
+  },
+
+  newFile: async () => {
+    if (!(await get().confirmDiscardIfDirty())) return false;
+    get().loadDocument({
+      markdown: '',
       fileName: null,
       filePath: null,
-      isDirty: false,
       statusMessage: 'New document created',
     });
-    updateWindowTitle(null, false);
+    return true;
   },
 
   openFileAction: async () => {
     try {
+      if (!(await get().confirmDiscardIfDirty())) return false;
+
       const opened = await fileService.openFile();
       if (!opened) return false;
 
-      const html = markdownToHtml(opened.content);
-      const { editorInstance, updateCounts } = get();
-
-      if (editorInstance) {
-        editorInstance.commands.setContent(html);
-        updateCounts(editorInstance.getText());
-      }
-
-      set({
-        content: html,
-        markdownContent: opened.content,
+      get().loadDocument({
+        markdown: opened.content,
         fileName: opened.name,
-        filePath: opened.path,
-        isDirty: false,
+        // The browser fallback only knows the bare file name, which is not a
+        // writable location. Leave it null so Save goes through Save As.
+        filePath: fileService.isTauri() ? opened.path : null,
         statusMessage: `Opened ${opened.name}`,
       });
-
-      updateWindowTitle(opened.name, false);
       return true;
     } catch (err) {
       console.error('Error opening file:', err);
-      set({ statusMessage: `Error opening file: ${(err as Error).message}` });
+      set({ statusMessage: `Error opening file: ${errorMessage(err)}` });
       return false;
     }
   },
 
   openFileByPath: async (path: string) => {
     try {
-      const opened = await fileService.readFileDirect(path);
-      const html = markdownToHtml(opened.content);
-      const { editorInstance, updateCounts } = get();
-
-      if (editorInstance) {
-        editorInstance.commands.setContent(html);
-        updateCounts(editorInstance.getText());
+      if (!fileService.isSupportedTextFile(path)) {
+        get().setStatusMessage(`Can't open ${fileService.extractFileName(path)}: unsupported file type`);
+        return false;
       }
+      if (path === get().filePath) return true; // already open
+      if (!(await get().confirmDiscardIfDirty())) return false;
 
-      set({
-        content: html,
-        markdownContent: opened.content,
+      const opened = await fileService.readFileDirect(path);
+      get().loadDocument({
+        markdown: opened.content,
         fileName: opened.name,
         filePath: opened.path,
-        isDirty: false,
         statusMessage: `Opened ${opened.name}`,
       });
-
-      updateWindowTitle(opened.name, false);
       return true;
     } catch (err) {
       console.error('Error opening file by path:', err);
-      set({ statusMessage: `Error opening file: ${(err as Error).message}` });
+      set({ statusMessage: `Error opening file: ${errorMessage(err)}` });
       return false;
     }
   },
@@ -277,7 +322,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return true;
     } catch (err) {
       console.error('Error saving file:', err);
-      set({ statusMessage: `Error saving file: ${(err as Error).message}` });
+      set({ statusMessage: `Error saving file: ${errorMessage(err)}` });
       return false;
     }
   },
@@ -293,7 +338,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!saved) return false;
 
       set({
-        filePath: saved.path,
+        filePath: fileService.isTauri() ? saved.path : null,
         fileName: saved.name,
         markdownContent: markdown,
         isDirty: false,
@@ -305,7 +350,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return true;
     } catch (err) {
       console.error('Error saving file as:', err);
-      set({ statusMessage: `Error saving file: ${(err as Error).message}` });
+      set({ statusMessage: `Error saving file: ${errorMessage(err)}` });
       return false;
     }
   },
@@ -325,7 +370,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       return true;
     } catch (err) {
       console.error('Error opening project folder:', err);
-      set({ statusMessage: `Error opening folder: ${(err as Error).message}` });
+      set({ statusMessage: `Error opening folder: ${errorMessage(err)}` });
       return false;
     }
   },
@@ -339,5 +384,26 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     } catch {
       // ignore
     }
+  },
+
+  exportDocxAction: async () => {
+    const { editorInstance, fileName, setStatusMessage } = get();
+    try {
+      // Serialize from the live editor so the export always matches the screen.
+      const markdown = editorInstance ? htmlToMarkdown(editorInstance.getHTML()) : get().markdownContent;
+      // Loaded on demand: the docx library is ~2/3 of the bundle and only needed here.
+      const { exportToDocx } = await import('../export/docx');
+      const saved = await exportToDocx(markdown, fileName || 'manuscript.docx');
+      if (saved) setStatusMessage(`Exported ${saved.name}`);
+    } catch (err) {
+      console.error('Error exporting DOCX:', err);
+      setStatusMessage(`Export failed: ${errorMessage(err)}`);
+    }
+  },
+
+  printAction: () => {
+    const { editorInstance } = get();
+    const markdown = editorInstance ? htmlToMarkdown(editorInstance.getHTML()) : get().markdownContent;
+    exportToPdf(markdown);
   },
 }));

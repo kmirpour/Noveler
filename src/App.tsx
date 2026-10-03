@@ -5,10 +5,12 @@ import { Preview } from './components/Preview/Preview';
 import { StatusBar } from './components/StatusBar/StatusBar';
 import { useEditorStore } from './stores/editorStore';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
+import { useAppLifecycle } from './hooks/useAppLifecycle';
 
 function App() {
   useKeyboardShortcuts();
-  const { viewMode } = useEditorStore();
+  useAppLifecycle();
+  const viewMode = useEditorStore((s) => s.viewMode);
 
   return (
     <div className="app">

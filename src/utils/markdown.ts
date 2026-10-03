@@ -1,5 +1,6 @@
 import { marked } from 'marked';
 import TurndownService from 'turndown';
+import DOMPurify from 'dompurify';
 
 const turndownService = new TurndownService({
   headingStyle: 'atx',
@@ -23,11 +24,16 @@ turndownService.addRule('highlight', {
 });
 
 /**
- * Converts Markdown string to HTML for TipTap editor
+ * Converts Markdown string to HTML for TipTap editor, Preview and print.
+ *
+ * Output is sanitized: Markdown files may contain raw HTML, and the app's
+ * webview has access to native file commands, so script-capable markup
+ * (`<script>`, `on*=` handlers, `javascript:` URLs, iframes...) must never reach the DOM.
  */
 export function markdownToHtml(markdown: string): string {
   if (!markdown) return '';
-  return marked.parse(markdown, { async: false, breaks: true }) as string;
+  const html = marked.parse(markdown, { async: false, breaks: true }) as string;
+  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
 }
 
 /**

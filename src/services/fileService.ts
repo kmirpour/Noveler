@@ -1,5 +1,13 @@
 import { invoke } from '@tauri-apps/api/core';
-import { open, save } from '@tauri-apps/plugin-dialog';
+import { message, open, save } from '@tauri-apps/plugin-dialog';
+
+/** File types Noveler can open/save as text. Mirrors TEXT_EXTENSIONS in commands.rs. */
+export const TEXT_EXTENSIONS = ['md', 'markdown', 'txt'];
+
+export function isSupportedTextFile(path: string): boolean {
+  const ext = path.split('.').pop()?.toLowerCase() ?? '';
+  return TEXT_EXTENSIONS.includes(ext);
+}
 
 export interface OpenedFile {
   path: string;
@@ -40,11 +48,7 @@ export async function openFile(): Promise<OpenedFile | null> {
         filters: [
           {
             name: 'Markdown & Text Files',
-            extensions: ['md', 'markdown', 'txt'],
-          },
-          {
-            name: 'All Files',
-            extensions: ['*'],
+            extensions: TEXT_EXTENSIONS,
           },
         ],
       });
@@ -173,10 +177,6 @@ export async function saveFileAs(
           name: 'Text File',
           extensions: ['txt'],
         },
-        {
-          name: 'All Files',
-          extensions: ['*'],
-        },
       ],
     });
 
@@ -198,4 +198,63 @@ export async function saveFileAs(
   a.click();
   URL.revokeObjectURL(url);
   return { path: a.download, name: a.download };
+}
+
+export interface BinaryFilter {
+  name: string;
+  extensions: string[];
+}
+
+/**
+ * Open a Save dialog and write raw bytes (e.g. a .docx export) without any
+ * text re-encoding. Returns null if the user cancels.
+ */
+export async function saveBinaryAs(
+  data: Blob,
+  defaultName: string,
+  filter: BinaryFilter
+): Promise<SavedFile | null> {
+  if (isTauri()) {
+    const targetPath = await save({ defaultPath: defaultName, filters: [filter] });
+    if (!targetPath) return null;
+
+    const bytes = new Uint8Array(await data.arrayBuffer());
+    // Tauri serializes command args as JSON, so send a plain number[] -> Vec<u8>.
+    await invoke('write_binary_file', { path: targetPath, bytes: Array.from(bytes) });
+    return { path: targetPath, name: extractFileName(targetPath) };
+  }
+
+  // Browser Fallback: download
+  const url = URL.createObjectURL(data);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = defaultName;
+  a.click();
+  URL.revokeObjectURL(url);
+  return { path: defaultName, name: defaultName };
+}
+
+export type UnsavedChoice = 'save' | 'discard' | 'cancel';
+
+/**
+ * Ask the user what to do with unsaved changes before a destructive action.
+ */
+export async function promptUnsavedChanges(fileName: string | null): Promise<UnsavedChoice> {
+  const doc = fileName || 'Untitled';
+  const text = `Do you want to save the changes you made to "${doc}"?\n\nYour changes will be lost if you don't save them.`;
+
+  if (isTauri()) {
+    const result = await message(text, {
+      title: 'Unsaved Changes',
+      kind: 'warning',
+      buttons: { yes: 'Save', no: "Don't Save", cancel: 'Cancel' },
+    });
+    if (result === 'Save' || result === 'Yes') return 'save';
+    if (result === "Don't Save" || result === 'No') return 'discard';
+    return 'cancel';
+  }
+
+  // Browser fallback: two-step confirm
+  if (window.confirm(`${text}\n\nPress OK to save first.`)) return 'save';
+  return window.confirm('Discard your unsaved changes?') ? 'discard' : 'cancel';
 }

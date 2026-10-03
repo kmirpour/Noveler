@@ -83,6 +83,19 @@ export function Sidebar() {
           </div>
         ) : (
           projectFiles.map((file) => {
+            if (file.is_dir) {
+              // Folder navigation arrives with the binder tree (roadmap Phase 4).
+              return (
+                <div
+                  key={file.path}
+                  className="sidebar-file-item is-folder"
+                  title={`${file.path}\n(Sub-folders aren't browsable yet)`}
+                >
+                  <Folder size={15} className="file-icon" />
+                  <span className="file-name">{file.name}</span>
+                </div>
+              );
+            }
             const isActive = filePath === file.path;
             return (
               <button
