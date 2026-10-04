@@ -1,5 +1,5 @@
-export type Theme = 'light' | 'dark' | 'sepia';
-export type ViewMode = 'editor' | 'split' | 'preview';
+export type Theme = 'sepia' | 'light' | 'dark' | 'forest' | 'nord';
+export type ViewMode = 'editor' | 'split' | 'preview' | 'scratchpad';
 export type FontFamily = 'serif' | 'sans' | 'mono';
 
 export interface AppSettings {
@@ -22,7 +22,7 @@ export interface AppSettings {
 const SETTINGS_KEY = 'noveler-settings';
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  theme: 'light',
+  theme: 'sepia',
   viewMode: 'editor',
   sidebarOpen: false,
   autoSaveEnabled: true,
@@ -45,7 +45,14 @@ export function loadSettings(): AppSettings {
     if (!raw) {
       // Check legacy theme key
       const legacyTheme = localStorage.getItem('noveler-theme') as Theme | null;
-      if (legacyTheme && (legacyTheme === 'light' || legacyTheme === 'dark' || legacyTheme === 'sepia')) {
+      if (
+        legacyTheme &&
+        (legacyTheme === 'sepia' ||
+          legacyTheme === 'light' ||
+          legacyTheme === 'dark' ||
+          legacyTheme === 'forest' ||
+          legacyTheme === 'nord')
+      ) {
         return { ...DEFAULT_SETTINGS, theme: legacyTheme };
       }
       return { ...DEFAULT_SETTINGS };

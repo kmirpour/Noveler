@@ -11,7 +11,9 @@ import { Inspector } from './components/Inspector/Inspector';
 import { CompileModal } from './components/CompileModal/CompileModal';
 import { CodexModal } from './components/Codex/CodexModal';
 import { ProseAnalysisModal } from './components/ProseAnalysis/ProseAnalysisModal';
+import { Scratchpad } from './components/Scratchpad/Scratchpad';
 import { useEditorStore } from './stores/editorStore';
+import { useEffect } from 'react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { Minimize2 } from 'lucide-react';
@@ -19,9 +21,15 @@ import { Minimize2 } from 'lucide-react';
 function App() {
   useKeyboardShortcuts();
   useAppLifecycle();
+  const theme = useEditorStore((s) => s.theme);
   const viewMode = useEditorStore((s) => s.viewMode);
   const focusMode = useEditorStore((s) => s.focusMode);
   const setFocusMode = useEditorStore((s) => s.setFocusMode);
+
+  // Sync theme with root DOM attribute for zero-re-render CSS variable cascade
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   return (
     <div className={`app ${focusMode ? 'focus-mode' : ''}`}>
@@ -30,13 +38,20 @@ function App() {
         {!focusMode && <Sidebar />}
         <main className="app-main">
           {viewMode !== 'preview' && (
-            <div className={`pane editor-pane ${viewMode === 'split' ? 'split' : 'full'}`}>
+            <div
+              className={`pane editor-pane ${viewMode === 'split' || viewMode === 'scratchpad' ? 'split' : 'full'}`}
+            >
               <Editor />
             </div>
           )}
-          {viewMode !== 'editor' && (
+          {viewMode !== 'editor' && viewMode !== 'scratchpad' && (
             <div className={`pane preview-pane ${viewMode === 'split' ? 'split' : 'full'}`}>
               <Preview />
+            </div>
+          )}
+          {viewMode === 'scratchpad' && (
+            <div className="pane scratchpad-pane split">
+              <Scratchpad />
             </div>
           )}
         </main>

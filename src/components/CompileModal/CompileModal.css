@@ -27,6 +27,35 @@
   gap: 8px;
 }
 
+.scope-pills {
+  display: flex;
+  gap: 8px;
+}
+
+.scope-pill {
+  flex: 1;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-card);
+  color: var(--text-color);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.scope-pill:hover {
+  background: var(--btn-hover);
+  border-color: var(--accent-color);
+}
+
+.scope-pill.active {
+  background: var(--accent-color);
+  color: #ffffff;
+  border-color: var(--accent-color);
+}
+
 .compile-section.grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;

@@ -15,6 +15,8 @@ export function GoalsModal() {
     charCount,
     markdownContent,
     editorInstance,
+    novelWordCount,
+    projectPath,
   } = useEditorStore();
 
   const [customGoal, setCustomGoal] = useState<string>(String(dailyWordGoal));
@@ -24,8 +26,10 @@ export function GoalsModal() {
   // Calculate detailed fiction manuscript stats
   const content = editorInstance ? editorInstance.getMarkdown() : markdownContent;
   const charsNoSpaces = content.replace(/\s+/g, '').length;
-  const readingTimeMin = Math.max(1, Math.ceil(wordCount / 225));
-  const estimatedPages = Math.max(1, Math.round((wordCount / 250) * 10) / 10);
+  const totalNovelWords = projectPath ? (novelWordCount || wordCount) : wordCount;
+  // Per GUIDE.md Section 5: standard of 250 words per paperback page & 250 wpm reading pace
+  const readingTimeMin = Math.max(1, Math.ceil(totalNovelWords / 250));
+  const estimatedPages = Math.max(1, Math.round(totalNovelWords / 250));
   
   // Count scenes by standard Markdown horizontal rules / scene breaks
   const sceneCount = (content.match(/^(?:---|\*\*\*|___)\s*$/gm) || []).length + 1;
@@ -137,8 +141,14 @@ export function GoalsModal() {
               <div className="metric-box">
                 <FileText size={18} className="metric-icon" />
                 <div className="metric-data">
-                  <span className="metric-value">{wordCount.toLocaleString()}</span>
-                  <span className="metric-label">Total Words</span>
+                  <span className="metric-value">
+                    {projectPath && novelWordCount > 0
+                      ? `${novelWordCount.toLocaleString()}`
+                      : wordCount.toLocaleString()}
+                  </span>
+                  <span className="metric-label">
+                    {projectPath && novelWordCount > 0 ? 'Novel Total Words' : 'Chapter Words'}
+                  </span>
                 </div>
               </div>
 

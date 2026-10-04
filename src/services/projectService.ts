@@ -1,4 +1,9 @@
 import * as fileService from './fileService';
+import {
+  getNextChapterFileName,
+  sortChapterFiles,
+  extractChapterDisplayTitle,
+} from '../utils/chapterNaming';
 
 export type SceneStatus = 'idea' | 'draft' | 'revised' | 'final';
 
@@ -54,6 +59,9 @@ export interface NovelProject {
   createdAt: string;
   updatedAt: string;
   binder: BinderItem[];
+  chapterMetadata?: Record<string, SceneMetadata>;
+  scratchpad?: string;
+  tagCategories?: string[];
   codex?: CodexEntry[];
   snapshots?: SceneSnapshot[];
 }
@@ -61,7 +69,8 @@ export interface NovelProject {
 export const PROJECT_FILENAME = 'noveler.json';
 
 /**
- * Parses front-matter metadata from scene markdown without breaking content
+ * Parses front-matter metadata from scene markdown if present.
+ * Preserves clean body text for standard markdown rendering.
  */
 export function parseSceneMarkdown(raw: string): { metadata: SceneMetadata; body: string } {
   const frontMatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/;
@@ -101,9 +110,19 @@ export function parseSceneMarkdown(raw: string): { metadata: SceneMetadata; body
 }
 
 /**
- * Serializes scene metadata as YAML front-matter
+ * Serializes scene markdown.
+ * Per GUIDE.md: Markdown files remain 100% clean standard markdown without
+ * non-standard YAML frontmatter unless embedFrontMatter is explicitly set to true.
  */
-export function serializeSceneMarkdown(metadata: SceneMetadata, body: string): string {
+export function serializeSceneMarkdown(
+  metadata: SceneMetadata,
+  body: string,
+  embedFrontMatter = false
+): string {
+  if (!embedFrontMatter) {
+    return body;
+  }
+
   const hasMeta = Boolean(
     metadata.synopsis?.trim() ||
       metadata.pov?.trim() ||
@@ -133,15 +152,18 @@ export function serializeSceneMarkdown(metadata: SceneMetadata, body: string): s
 }
 
 /**
- * Converts filesystem binder tree into BinderItem hierarchy
+ * Converts filesystem binder tree into BinderItem hierarchy.
  */
-export function buildBinderFromTree(nodes: fileService.BinderNode[], existingMap?: Map<string, BinderItem>): BinderItem[] {
+export function buildBinderFromTree(
+  nodes: fileService.BinderNode[],
+  existingMap?: Map<string, BinderItem>
+): BinderItem[] {
   return nodes
     .filter((n) => n.name !== PROJECT_FILENAME && !n.name.startsWith('.'))
     .map((node) => {
       const existing = existingMap?.get(node.path);
       const isDir = node.is_dir;
-      const cleanTitle = isDir ? node.name : node.name.replace(/\.(md|markdown|txt)$/i, '');
+      const cleanTitle = isDir ? node.name : extractChapterDisplayTitle(node.name);
 
       const item: BinderItem = {
         id: existing?.id || `node-${Math.random().toString(36).substring(2, 9)}`,
@@ -181,7 +203,11 @@ export function normalizeProjectFilePath(projectPath: string): string {
 }
 
 /**
- * Loads noveler.json or scans the project folder to create a new project structure
+ * Loads noveler.json or scans the project folder to create a new project structure.
+ * Enforces the single-folder sequential chapter model per GUIDE.md:
+ * - Scans folder for .md files
+ * - If empty, generates 01-chapter.md immediately
+ * - Sorts chapters ascending by numeric prefix (01-chapter.md, 02-the-beginning.md)
  */
 export async function loadNovelProject(projectPath: string): Promise<NovelProject> {
   const projectConfigPath = normalizeProjectFilePath(projectPath);
@@ -196,8 +222,60 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
 
   // Scan current folder on disk to reflect real files
   const treeNodes = await fileService.readDirTree(projectPath);
+  const sep = projectPath.includes('/') ? '/' : '\\';
+
+  // Filter markdown files directly in project folder (exclude subdirectories per GUIDE.md)
+  let mdNodes = treeNodes.filter(
+    (n) =>
+      !n.is_dir &&
+      n.name !== PROJECT_FILENAME &&
+      !n.name.startsWith('.') &&
+      (n.name.endsWith('.md') || n.name.endsWith('.markdown'))
+  );
+
+  // If folder contains no markdown files, auto-generate 01-chapter.md per GUIDE.md Section 1.3
+  if (mdNodes.length === 0) {
+    const firstChapterName = '01-chapter.md';
+    const firstChapterPath = `${projectPath}${sep}${firstChapterName}`;
+    const initialContent = `# Chapter One\n\nStart writing your story here...\n`;
+    try {
+      await fileService.createFile(firstChapterPath, initialContent);
+      mdNodes = [
+        {
+          name: firstChapterName,
+          path: firstChapterPath,
+          is_dir: false,
+          children: [],
+        },
+      ];
+    } catch (err) {
+      console.warn('Could not auto-generate initial chapter file:', err);
+    }
+  }
+
+  // Naturally sort chapter files in ascending order (01-, 02-, 10-)
+  const sortedNodes = sortChapterFiles(mdNodes);
+
   const existingMap = existingProject ? createMapByPath(existingProject.binder) : undefined;
-  const mergedBinder = buildBinderFromTree(treeNodes, existingMap);
+  const chapterMetadata = existingProject?.chapterMetadata || {};
+
+  const binderItems: BinderItem[] = sortedNodes.map((node) => {
+    const existing = existingMap?.get(node.path);
+    const meta = chapterMetadata[node.name] || chapterMetadata[node.path] || {};
+    const displayTitle = extractChapterDisplayTitle(node.name);
+
+    return {
+      id: existing?.id || `node-${Math.random().toString(36).substring(2, 9)}`,
+      type: 'scene',
+      title: existing?.title || displayTitle,
+      path: node.path,
+      synopsis: meta.synopsis || existing?.synopsis || '',
+      pov: meta.pov || existing?.pov || '',
+      status: meta.status || existing?.status || 'draft',
+      targetWords: meta.targetWords || existing?.targetWords || 0,
+      collapsed: false,
+    };
+  });
 
   const projectName = fileService.extractFileName(projectPath);
 
@@ -209,12 +287,34 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     dailyTarget: existingProject?.dailyTarget || 1000,
     createdAt: existingProject?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    binder: mergedBinder,
+    binder: binderItems,
+    chapterMetadata,
+    scratchpad: existingProject?.scratchpad || '',
+    tagCategories: existingProject?.tagCategories || ['characters', 'locations', 'items', 'scenes'],
     codex: existingProject?.codex || [],
     snapshots: existingProject?.snapshots || [],
   };
 
   return project;
+}
+
+/**
+ * Creates the next sequential chapter file in the novel folder.
+ * Example: if 01-chapter.md exists, creates 02-chapter.md.
+ */
+export async function createSequentialChapter(
+  projectPath: string,
+  existingFileNames: string[],
+  customTitle?: string
+): Promise<{ path: string; name: string; title: string }> {
+  const fileName = getNextChapterFileName(existingFileNames, customTitle);
+  const sep = projectPath.includes('/') ? '/' : '\\';
+  const fullPath = `${projectPath}${sep}${fileName}`;
+  const displayTitle = extractChapterDisplayTitle(fileName);
+  const initialContent = `# ${displayTitle}\n\n`;
+
+  await fileService.createFile(fullPath, initialContent);
+  return { path: fullPath, name: fileName, title: displayTitle };
 }
 
 /**
@@ -254,7 +354,10 @@ export function findEntityMentions(text: string, entries: CodexEntry[]): CodexEn
   const found: CodexEntry[] = [];
   for (const entry of entries) {
     const terms = [entry.name, ...(entry.aliases || [])].filter((t) => t.trim().length > 0);
-    const pattern = new RegExp(`\\b(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`, 'i');
+    const pattern = new RegExp(
+      `\\b(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`,
+      'i'
+    );
     if (pattern.test(text)) {
       found.push(entry);
     }

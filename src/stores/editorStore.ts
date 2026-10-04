@@ -21,8 +21,8 @@ import {
   type SceneSnapshot,
   loadNovelProject,
   saveNovelProject,
+  createSequentialChapter,
   parseSceneMarkdown,
-  serializeSceneMarkdown,
   flattenScenes,
 } from '../services/projectService';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -72,6 +72,10 @@ export interface ProjectSlice {
   novelProject: NovelProject | null;
   activeScenePath: string | null;
   currentMetadata: SceneMetadata;
+  novelWordCount: number;
+  scratchpadContent: string;
+  tagCategories: string[];
+  tagAssignments: Record<string, string>;
   corkboardOpen: boolean;
   inspectorOpen: boolean;
   scriveningsMode: boolean;
@@ -79,12 +83,16 @@ export interface ProjectSlice {
   openProjectFolderAction: () => Promise<boolean>;
   loadProjectByPath: (path: string) => Promise<boolean>;
   refreshProjectFiles: () => Promise<void>;
+  createChapterAction: (customTitle?: string) => Promise<boolean>;
   createSceneAction: (parentFolder: string, title: string) => Promise<boolean>;
   createFolderAction: (parentFolder: string, name: string) => Promise<boolean>;
   renameBinderItemAction: (oldPath: string, newTitle: string) => Promise<boolean>;
   deleteBinderItemAction: (path: string) => Promise<boolean>;
   updateSceneMetadata: (metadata: Partial<SceneMetadata>) => void;
   saveProjectConfigAction: () => Promise<void>;
+  setScratchpadContent: (content: string) => void;
+  addTagCategoryAction: (category: string) => Promise<void>;
+  assignTagCategoryAction: (tagName: string, category: string) => Promise<void>;
   setCorkboardOpen: (open: boolean) => void;
   toggleCorkboard: () => void;
   setInspectorOpen: (open: boolean) => void;
@@ -234,7 +242,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     const sessionStart = state.sessionStartWordCount ?? wordCount;
     const sessionWords = Math.max(0, wordCount - sessionStart);
-    set({ wordCount, charCount, sessionStartWordCount: sessionStart, sessionWords });
+
+    let novelWordCount = wordCount;
+    if (state.novelProject && state.novelProject.binder.length > 0) {
+      let otherWords = 0;
+      for (const item of state.novelProject.binder) {
+        if (item.path !== state.filePath) {
+          otherWords += item.wordCount || 0;
+        }
+      }
+      novelWordCount = otherWords + wordCount;
+    }
+
+    set({ wordCount, charCount, sessionStartWordCount: sessionStart, sessionWords, novelWordCount });
   },
 
   setEditorInstance: (editorInstance) => set({ editorInstance }),
@@ -282,6 +302,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   newFile: async () => {
+    if (get().projectPath) {
+      return await get().createChapterAction();
+    }
     if (!(await get().confirmDiscardIfDirty())) return false;
     get().loadDocument({
       markdown: '',
@@ -347,15 +370,23 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveFileAction: async () => {
-    const { filePath, fileName, editorInstance, saveFileAsAction, currentMetadata } = get();
+    const { filePath, fileName, editorInstance, saveFileAsAction, currentMetadata, projectPath, novelProject } = get();
     if (!filePath) {
       return await saveFileAsAction();
     }
 
     try {
       const body = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
-      const full = serializeSceneMarkdown(currentMetadata, body);
-      await fileService.saveFile(filePath, full);
+      // Per GUIDE.md: Save clean standard markdown without YAML front-matter
+      await fileService.saveFile(filePath, body);
+
+      // Persist metadata cleanly into novelProject / noveler.json
+      if (projectPath && novelProject && fileName) {
+        const updatedMeta = { ...(novelProject.chapterMetadata || {}), [fileName]: currentMetadata };
+        const updatedProject: NovelProject = { ...novelProject, chapterMetadata: updatedMeta };
+        set({ novelProject: updatedProject });
+        void saveNovelProject(projectPath, updatedProject);
+      }
 
       const updated = addRecentFile(filePath);
 
@@ -376,12 +407,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   saveFileAsAction: async () => {
-    const { fileName, editorInstance, refreshProjectFiles, currentMetadata } = get();
+    const { fileName, editorInstance, refreshProjectFiles } = get();
     try {
       const body = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
-      const full = serializeSceneMarkdown(currentMetadata, body);
-      const defaultName = fileName || 'Untitled.md';
-      const saved = await fileService.saveFileAs(full, defaultName);
+      const defaultName = fileName || '01-chapter.md';
+      const saved = await fileService.saveFileAs(body, defaultName);
       if (!saved) return false;
 
       const path = fileService.isTauri() ? saved.path : null;
@@ -438,6 +468,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   novelProject: null,
   activeScenePath: null,
   currentMetadata: {},
+  novelWordCount: 0,
+  scratchpadContent: '',
+  tagCategories: ['characters', 'locations', 'items', 'scenes'],
+  tagAssignments: {},
   corkboardOpen: false,
   inspectorOpen: false,
   scriveningsMode: false,
@@ -460,15 +494,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       saveSettings({ lastProjectPath: path });
       const name = fileService.extractFileName(path);
 
+      let totalWords = 0;
+      for (const item of project.binder) {
+        try {
+          const f = await fileService.readFileDirect(item.path);
+          const words = f.content.trim() === '' ? 0 : f.content.trim().split(/\s+/).length;
+          item.wordCount = words;
+          totalWords += words;
+        } catch {
+          // ignore
+        }
+      }
+
       set({
         projectPath: path,
         projectName: project.title || name,
         novelProject: project,
+        novelWordCount: totalWords,
+        scratchpadContent: project.scratchpad || '',
+        tagCategories: project.tagCategories || ['characters', 'locations', 'items', 'scenes'],
         sidebarOpen: true,
         statusMessage: `Opened project: ${project.title || name}`,
       });
 
-      // Load first scene if current document is empty
+      // Load first chapter if current document is empty
       if (!get().filePath && project.binder.length > 0) {
         const scenes = flattenScenes(project.binder);
         if (scenes.length > 0) {
@@ -484,57 +533,57 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   refreshProjectFiles: async () => {
-    const { projectPath } = get();
+    const { projectPath, filePath, wordCount } = get();
     if (!projectPath) return;
     try {
       const project = await loadNovelProject(projectPath);
-      set({ novelProject: project });
+      let totalWords = 0;
+      for (const item of project.binder) {
+        if (item.path === filePath) {
+          item.wordCount = wordCount;
+          totalWords += wordCount;
+        } else {
+          try {
+            const f = await fileService.readFileDirect(item.path);
+            const words = f.content.trim() === '' ? 0 : f.content.trim().split(/\s+/).length;
+            item.wordCount = words;
+            totalWords += words;
+          } catch {
+            // ignore
+          }
+        }
+      }
+      set({ novelProject: project, novelWordCount: totalWords });
     } catch {
       // ignore
     }
   },
 
-  createSceneAction: async (parentFolder: string, title: string) => {
+  createChapterAction: async (customTitle?: string) => {
     try {
-      const { projectPath, refreshProjectFiles } = get();
+      const { projectPath, novelProject, confirmDiscardIfDirty, refreshProjectFiles } = get();
       if (!projectPath) return false;
+      if (!(await confirmDiscardIfDirty())) return false;
 
-      const sep = parentFolder.includes('/') ? '/' : '\\';
-      const safeTitle = title.trim() || 'Untitled Scene';
-      const fileName = safeTitle.endsWith('.md') ? safeTitle : `${safeTitle}.md`;
-      const fullPath = `${parentFolder}${sep}${fileName}`;
-
-      const initial = serializeSceneMarkdown({ status: 'draft' }, `# ${safeTitle}\n\n`);
-      await fileService.createFile(fullPath, initial);
+      const existingNames = (novelProject?.binder || []).map((b) => fileService.extractFileName(b.path));
+      const res = await createSequentialChapter(projectPath, existingNames, customTitle);
       await refreshProjectFiles();
-      await get().loadSceneByPath(fullPath);
-      set({ statusMessage: `Created scene "${safeTitle}"` });
+      await get().loadSceneByPath(res.path);
+      set({ statusMessage: `Created ${res.name}` });
       return true;
     } catch (err) {
-      console.error('Error creating scene:', err);
-      set({ statusMessage: `Error creating scene: ${errorMessage(err)}` });
+      console.error('Error creating chapter:', err);
+      set({ statusMessage: `Error creating chapter: ${errorMessage(err)}` });
       return false;
     }
   },
 
-  createFolderAction: async (parentFolder: string, name: string) => {
-    try {
-      const { projectPath, refreshProjectFiles } = get();
-      if (!projectPath) return false;
+  createSceneAction: async (_parentFolder: string, title: string) => {
+    return await get().createChapterAction(title);
+  },
 
-      const sep = parentFolder.includes('/') ? '/' : '\\';
-      const safeName = name.trim() || 'New Chapter';
-      const fullPath = `${parentFolder}${sep}${safeName}`;
-
-      await fileService.createDir(fullPath);
-      await refreshProjectFiles();
-      set({ statusMessage: `Created folder "${safeName}"` });
-      return true;
-    } catch (err) {
-      console.error('Error creating folder:', err);
-      set({ statusMessage: `Error creating folder: ${errorMessage(err)}` });
-      return false;
-    }
+  createFolderAction: async (_parentFolder: string, name: string) => {
+    return await get().createChapterAction(name);
   },
 
   renameBinderItemAction: async (oldPath: string, newTitle: string) => {
@@ -607,6 +656,36 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { projectPath, novelProject } = get();
     if (!projectPath || !novelProject) return;
     await saveNovelProject(projectPath, novelProject);
+  },
+
+  setScratchpadContent: (content: string) => {
+    set({ scratchpadContent: content });
+    const { projectPath, novelProject } = get();
+    if (projectPath && novelProject) {
+      const updated = { ...novelProject, scratchpad: content };
+      set({ novelProject: updated });
+      void saveNovelProject(projectPath, updated);
+    }
+  },
+
+  addTagCategoryAction: async (category: string) => {
+    const { projectPath, novelProject, tagCategories } = get();
+    const clean = category.trim().toLowerCase().replace(/^#/, '');
+    if (!clean || tagCategories.includes(clean)) return;
+    const updatedCats = [...tagCategories, clean];
+    set({ tagCategories: updatedCats });
+    if (projectPath && novelProject) {
+      const updated = { ...novelProject, tagCategories: updatedCats };
+      set({ novelProject: updated });
+      await saveNovelProject(projectPath, updated);
+    }
+  },
+
+  assignTagCategoryAction: async (tagName: string, category: string) => {
+    const { tagAssignments } = get();
+    const cleanTag = tagName.toLowerCase().replace(/^#/, '');
+    const updatedAssignments = { ...tagAssignments, [cleanTag]: category };
+    set({ tagAssignments: updatedAssignments });
   },
 
   setCorkboardOpen: (corkboardOpen: boolean) => set({ corkboardOpen }),
@@ -713,9 +792,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   cycleTheme: () => {
+    const THEME_ORDER: Theme[] = ['sepia', 'light', 'dark', 'forest', 'nord'];
     const current = get().theme;
-    const next: Theme = current === 'light' ? 'dark' : current === 'dark' ? 'sepia' : 'light';
-    get().setTheme(next);
+    const currentIndex = THEME_ORDER.indexOf(current);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % THEME_ORDER.length;
+    get().setTheme(THEME_ORDER[nextIndex]);
   },
 
   setViewMode: (viewMode: ViewMode) => {

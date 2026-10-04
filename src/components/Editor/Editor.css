@@ -87,13 +87,12 @@
 }
 
 .tiptap hr::after {
-  content: '* * *';
+  content: '✦   ✦   ✦';
   display: block;
-  font-family: Georgia, serif;
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.5em;
-  color: var(--preview-scene-break, var(--text-muted));
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.35em;
+  color: var(--accent-color, var(--text-muted));
   text-align: center;
 }
 

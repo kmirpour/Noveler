@@ -35,7 +35,16 @@ The rain poured through the broken glass skylight. Miller stepped over the rubbl
     expect(body).toBe(raw);
   });
 
-  it('serializes scene metadata back to YAML front-matter', () => {
+  it('produces clean standard markdown by default without YAML front-matter', () => {
+    const body = 'A simple clean body paragraph without non-standard YAML tags.';
+    const clean = serializeSceneMarkdown(
+      { synopsis: 'A brief note.', pov: 'Sarah', status: 'revised', targetWords: 800 },
+      body
+    );
+    expect(clean).toBe(body);
+  });
+
+  it('serializes scene metadata back to YAML front-matter when embedFrontMatter is true', () => {
     const body = 'A simple body paragraph.';
     const serialized = serializeSceneMarkdown(
       {
@@ -44,7 +53,8 @@ The rain poured through the broken glass skylight. Miller stepped over the rubbl
         status: 'revised',
         targetWords: 800,
       },
-      body
+      body,
+      true
     );
 
     expect(serialized).toContain('synopsis: "A brief note."');

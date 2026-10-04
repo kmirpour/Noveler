@@ -1,0 +1,89 @@
+.scratchpad-container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--bg-card);
+  border-left: 1px solid var(--border-color);
+  overflow: hidden;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.scratchpad-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  background: var(--bg-toolbar);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.scratchpad-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--heading-color);
+}
+
+.scratchpad-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.scratchpad-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.scratchpad-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.scratchpad-btn:hover {
+  background: var(--btn-hover);
+  color: var(--text-color);
+  border-color: var(--border-color);
+}
+
+.scratchpad-body {
+  flex: 1;
+  display: flex;
+  padding: 16px;
+  overflow: hidden;
+}
+
+.scratchpad-textarea {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--text-color);
+  padding: 0;
+}
+
+.scratchpad-textarea::placeholder {
+  color: var(--text-muted);
+  opacity: 0.6;
+}

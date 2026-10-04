@@ -5,7 +5,6 @@ import {
   FolderOpen,
   Save,
   SaveAll,
-  FileDown,
   BookDown,
   Printer,
   Bold,
@@ -25,9 +24,6 @@ import {
   Columns2,
   BookOpen,
   PenTool,
-  Sun,
-  Moon,
-  Coffee,
   Search,
   Target,
   Command as CommandIcon,
@@ -36,7 +32,9 @@ import {
   SlidersHorizontal,
   BookMarked,
   Sparkles,
+  StickyNote,
 } from 'lucide-react';
+import { ThemeToggle } from '../ThemeToggle/ThemeToggle';
 import './Toolbar.css';
 
 export function Toolbar() {
@@ -46,15 +44,12 @@ export function Toolbar() {
     openFileAction,
     saveFileAction,
     saveFileAsAction,
-    exportDocxAction,
     printAction,
     isDirty,
     sidebarOpen,
     toggleSidebar,
     viewMode,
     setViewMode,
-    theme,
-    setTheme,
     fontFamily,
     cycleFontFamily,
     paragraphIndent,
@@ -127,21 +122,12 @@ export function Toolbar() {
 
       {/* Export Operations */}
       <div className="toolbar-group export-actions">
-        {novelProject && (
-          <button
-            className="toolbar-button"
-            onClick={toggleCompileModal}
-            title="Compile Novel Manuscript (Ctrl+Shift+E)"
-          >
-            <BookDown size={18} />
-          </button>
-        )}
         <button
           className="toolbar-button"
-          onClick={() => void exportDocxAction()}
-          title="Export Active Scene to Word (.docx)"
+          onClick={toggleCompileModal}
+          title="Export Manuscript (Ctrl+E)"
         >
-          <FileDown size={18} />
+          <BookDown size={18} />
         </button>
         <button
           className="toolbar-button"
@@ -349,28 +335,8 @@ export function Toolbar() {
       <div className="toolbar-spacer" />
 
       {/* Theme Switcher */}
-      <div className="toolbar-group segmented-control theme-switcher">
-        <button
-          className={`toolbar-button ${theme === 'light' ? 'active' : ''}`}
-          onClick={() => setTheme('light')}
-          title="Light Theme"
-        >
-          <Sun size={15} />
-        </button>
-        <button
-          className={`toolbar-button ${theme === 'dark' ? 'active' : ''}`}
-          onClick={() => setTheme('dark')}
-          title="Dark Theme"
-        >
-          <Moon size={15} />
-        </button>
-        <button
-          className={`toolbar-button ${theme === 'sepia' ? 'active' : ''}`}
-          onClick={() => setTheme('sepia')}
-          title="Sepia Theme (Warm Parchment)"
-        >
-          <Coffee size={15} />
-        </button>
+      <div className="toolbar-group">
+        <ThemeToggle />
       </div>
 
       <div className="toolbar-separator" />
@@ -380,23 +346,30 @@ export function Toolbar() {
         <button
           className={`toolbar-button ${viewMode === 'editor' ? 'active' : ''}`}
           onClick={() => setViewMode('editor')}
-          title="Write (Editor Only)"
+          title="Pen Mode (Editor Only)"
         >
           <PenTool size={15} />
         </button>
         <button
           className={`toolbar-button ${viewMode === 'split' ? 'active' : ''}`}
           onClick={() => setViewMode('split')}
-          title="Split View (Editor + Live Preview)"
+          title="Split Mode (Editor + Live Preview)"
         >
           <Columns2 size={15} />
         </button>
         <button
           className={`toolbar-button ${viewMode === 'preview' ? 'active' : ''}`}
           onClick={() => setViewMode('preview')}
-          title="Read (Preview Only)"
+          title="Eye Mode (Preview Only)"
         >
           <BookOpen size={15} />
+        </button>
+        <button
+          className={`toolbar-button ${viewMode === 'scratchpad' ? 'active' : ''}`}
+          onClick={() => setViewMode('scratchpad')}
+          title="Pen & Scratchpad Mode (Editor + Scratchpad)"
+        >
+          <StickyNote size={15} />
         </button>
       </div>
     </div>

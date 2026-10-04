@@ -156,5 +156,38 @@ describe('WritingSlice', () => {
     store.setGoalsModalOpen(true);
     expect(useEditorStore.getState().goalsModalOpen).toBe(true);
   });
+
+  it('cycles across all 5 themes per THEMES_SPECIFICATION.md', () => {
+    const store = useEditorStore.getState();
+    store.setTheme('sepia');
+    expect(useEditorStore.getState().theme).toBe('sepia');
+
+    store.cycleTheme();
+    expect(useEditorStore.getState().theme).toBe('light');
+
+    store.cycleTheme();
+    expect(useEditorStore.getState().theme).toBe('dark');
+
+    store.cycleTheme();
+    expect(useEditorStore.getState().theme).toBe('forest');
+
+    store.cycleTheme();
+    expect(useEditorStore.getState().theme).toBe('nord');
+
+    store.cycleTheme();
+    expect(useEditorStore.getState().theme).toBe('sepia');
+  });
+
+  it('manages scratchpad and tag categories in ProjectSlice', async () => {
+    const store = useEditorStore.getState();
+    store.setScratchpadContent('Important plot clues for mystery novel');
+    expect(useEditorStore.getState().scratchpadContent).toBe('Important plot clues for mystery novel');
+
+    await store.addTagCategoryAction('suspects');
+    expect(useEditorStore.getState().tagCategories).toContain('suspects');
+
+    await store.assignTagCategoryAction('morse', 'suspects');
+    expect(useEditorStore.getState().tagAssignments['morse']).toBe('suspects');
+  });
 });
 

@@ -5,55 +5,40 @@ import {
   FolderOpen,
   FileText,
   FilePlus,
-  FolderPlus,
   X,
   RefreshCw,
-  ChevronDown,
-  ChevronRight,
   MoreVertical,
   LayoutGrid,
   SlidersHorizontal,
   Trash2,
   Edit2,
-  Plus,
+  BookText,
+  Hash,
 } from 'lucide-react';
 import type { BinderItem, SceneStatus } from '../../services/projectService';
+import { TagsTab } from './TagsTab';
 import './Sidebar.css';
 
-interface TreeItemProps {
+interface ChapterItemProps {
   item: BinderItem;
-  depth: number;
 }
 
-function BinderTreeItem({ item, depth }: TreeItemProps) {
+function ChapterItem({ item }: ChapterItemProps) {
   const {
     activeScenePath,
     loadSceneByPath,
-    createSceneAction,
-    createFolderAction,
     renameBinderItemAction,
     deleteBinderItemAction,
   } = useEditorStore();
 
-  const [expanded, setExpanded] = useState(!item.collapsed);
   const [showMenu, setShowMenu] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(item.title);
 
-  const isFolder = item.type === 'folder';
   const isActive = activeScenePath === item.path;
 
-  const handleToggleExpand = (e: MouseEvent) => {
-    e.stopPropagation();
-    setExpanded(!expanded);
-  };
-
   const handleClick = () => {
-    if (isFolder) {
-      setExpanded(!expanded);
-    } else {
-      void loadSceneByPath(item.path);
-    }
+    void loadSceneByPath(item.path);
   };
 
   const handleRenameSubmit = async (e: FormEvent) => {
@@ -62,24 +47,6 @@ function BinderTreeItem({ item, depth }: TreeItemProps) {
       await renameBinderItemAction(item.path, renameValue.trim());
     }
     setIsRenaming(false);
-  };
-
-  const handleAddScene = async (e: MouseEvent) => {
-    e.stopPropagation();
-    const title = prompt('Scene Title:');
-    if (title?.trim()) {
-      await createSceneAction(item.path, title.trim());
-      setExpanded(true);
-    }
-  };
-
-  const handleAddFolder = async (e: MouseEvent) => {
-    e.stopPropagation();
-    const name = prompt('Folder Name:');
-    if (name?.trim()) {
-      await createFolderAction(item.path, name.trim());
-      setExpanded(true);
-    }
   };
 
   const handleDelete = async (e: MouseEvent) => {
@@ -106,31 +73,16 @@ function BinderTreeItem({ item, depth }: TreeItemProps) {
   return (
     <div className="binder-item-wrapper">
       <div
-        className={`binder-item ${isActive ? 'active' : ''} ${isFolder ? 'is-folder' : 'is-scene'}`}
-        style={{ paddingLeft: `${depth * 14 + 8}px` }}
+        className={`binder-item is-scene ${isActive ? 'active' : ''}`}
         onClick={handleClick}
       >
-        {isFolder ? (
-          <button className="binder-chevron-btn" onClick={handleToggleExpand}>
-            {expanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
-          </button>
-        ) : (
-          <span
-            className="scene-status-dot"
-            style={{ backgroundColor: getStatusColor(item.status) }}
-            title={`Status: ${item.status || 'draft'}`}
-          />
-        )}
+        <span
+          className="scene-status-dot"
+          style={{ backgroundColor: getStatusColor(item.status) }}
+          title={`Status: ${item.status || 'draft'}`}
+        />
 
-        {isFolder ? (
-          expanded ? (
-            <FolderOpen size={15} className="binder-icon folder-icon" />
-          ) : (
-            <Folder size={15} className="binder-icon folder-icon" />
-          )
-        ) : (
-          <FileText size={14} className="binder-icon scene-icon" />
-        )}
+        <FileText size={14} className="binder-icon scene-icon" />
 
         {isRenaming ? (
           <form className="rename-form" onSubmit={handleRenameSubmit} onClick={(e) => e.stopPropagation()}>
@@ -152,29 +104,10 @@ function BinderTreeItem({ item, depth }: TreeItemProps) {
           </span>
         )}
 
-        {/* Hover action menu buttons */}
         <div className="binder-hover-actions" onClick={(e) => e.stopPropagation()}>
-          {isFolder && (
-            <>
-              <button
-                className="binder-action-mini-btn"
-                onClick={handleAddScene}
-                title="Add Scene inside folder"
-              >
-                <Plus size={12} />
-              </button>
-              <button
-                className="binder-action-mini-btn"
-                onClick={handleAddFolder}
-                title="Add Subfolder"
-              >
-                <FolderPlus size={12} />
-              </button>
-            </>
-          )}
-
           <div className="binder-menu-container">
             <button
+              type="button"
               className="binder-action-mini-btn"
               onClick={() => setShowMenu(!showMenu)}
               title="More options"
@@ -185,6 +118,7 @@ function BinderTreeItem({ item, depth }: TreeItemProps) {
             {showMenu && (
               <div className="binder-dropdown-menu" onMouseLeave={() => setShowMenu(false)}>
                 <button
+                  type="button"
                   className="binder-menu-option"
                   onClick={() => {
                     setShowMenu(false);
@@ -195,6 +129,7 @@ function BinderTreeItem({ item, depth }: TreeItemProps) {
                   Rename
                 </button>
                 <button
+                  type="button"
                   className="binder-menu-option danger"
                   onClick={(e) => {
                     setShowMenu(false);
@@ -209,14 +144,6 @@ function BinderTreeItem({ item, depth }: TreeItemProps) {
           </div>
         </div>
       </div>
-
-      {isFolder && expanded && item.children && item.children.length > 0 && (
-        <div className="binder-children">
-          {item.children.map((child) => (
-            <BinderTreeItem key={child.id || child.path} item={child} depth={depth + 1} />
-          ))}
-        </div>
-      )}
     </div>
   );
 }
@@ -229,8 +156,7 @@ export function Sidebar() {
     projectPath,
     novelProject,
     openProjectFolderAction,
-    createSceneAction,
-    createFolderAction,
+    createChapterAction,
     refreshProjectFiles,
     toggleCorkboard,
     corkboardOpen,
@@ -238,25 +164,11 @@ export function Sidebar() {
     inspectorOpen,
   } = useEditorStore();
 
+  const [activeTab, setActiveTab] = useState<'chapters' | 'tags'>('chapters');
+
   if (!sidebarOpen) {
     return null;
   }
-
-  const handleNewTopScene = async () => {
-    if (!projectPath) return;
-    const title = prompt('Scene Title:');
-    if (title?.trim()) {
-      await createSceneAction(projectPath, title.trim());
-    }
-  };
-
-  const handleNewTopFolder = async () => {
-    if (!projectPath) return;
-    const name = prompt('Folder / Chapter Name:');
-    if (name?.trim()) {
-      await createFolderAction(projectPath, name.trim());
-    }
-  };
 
   const binderItems = novelProject?.binder || [];
 
@@ -265,12 +177,13 @@ export function Sidebar() {
       {/* Sidebar Header */}
       <div className="sidebar-header">
         <div className="sidebar-title" title={projectName || 'Project Binder'}>
-          <Folder size={16} />
-          <span>{projectName || 'Novel Binder'}</span>
+          <Folder size={15} />
+          <span>{projectName || 'Novel Folder'}</span>
         </div>
         <div className="sidebar-header-actions">
           {projectPath && (
             <button
+              type="button"
               className="sidebar-icon-btn"
               onClick={() => void refreshProjectFiles()}
               title="Refresh Binder"
@@ -279,52 +192,94 @@ export function Sidebar() {
             </button>
           )}
           <button
+            type="button"
             className="sidebar-icon-btn"
             onClick={toggleSidebar}
-            title="Close Binder"
+            title="Close Sidebar"
           >
             <X size={14} />
           </button>
         </div>
       </div>
 
-      {/* Primary Project Actions */}
-      <div className="sidebar-actions">
-        {projectPath ? (
-          <>
+      {projectPath ? (
+        <>
+          {/* Tab Navigation: Chapters vs Tags */}
+          <div className="sidebar-tab-switcher">
             <button
-              className="sidebar-btn"
-              onClick={handleNewTopScene}
-              title="New Scene"
+              type="button"
+              className={`sidebar-tab-btn ${activeTab === 'chapters' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chapters')}
             >
-              <FilePlus size={14} />
-              <span>Scene</span>
+              <BookText size={13} />
+              <span>Chapters ({binderItems.length})</span>
             </button>
             <button
-              className="sidebar-btn"
-              onClick={handleNewTopFolder}
-              title="New Folder / Chapter"
+              type="button"
+              className={`sidebar-tab-btn ${activeTab === 'tags' ? 'active' : ''}`}
+              onClick={() => setActiveTab('tags')}
             >
-              <FolderPlus size={14} />
-              <span>Chapter</span>
+              <Hash size={13} />
+              <span>Tags</span>
             </button>
-            <button
-              className={`sidebar-icon-btn ${corkboardOpen ? 'active' : ''}`}
-              onClick={toggleCorkboard}
-              title="Corkboard / Outline View"
-            >
-              <LayoutGrid size={15} />
-            </button>
-            <button
-              className={`sidebar-icon-btn ${inspectorOpen ? 'active' : ''}`}
-              onClick={toggleInspector}
-              title="Scene Inspector (Metadata & Synopsis)"
-            >
-              <SlidersHorizontal size={15} />
-            </button>
-          </>
-        ) : (
+          </div>
+
+          {activeTab === 'chapters' ? (
+            <>
+              {/* Primary Chapter Actions */}
+              <div className="sidebar-actions">
+                <button
+                  type="button"
+                  className="sidebar-btn primary-chapter-btn"
+                  onClick={() => void createChapterAction()}
+                  title="Add Next Chapter sequentially (Ctrl+N)"
+                >
+                  <FilePlus size={13} />
+                  <span>+ Chapter</span>
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-icon-btn ${corkboardOpen ? 'active' : ''}`}
+                  onClick={toggleCorkboard}
+                  title="Corkboard / Outline View"
+                >
+                  <LayoutGrid size={15} />
+                </button>
+                <button
+                  type="button"
+                  className={`sidebar-icon-btn ${inspectorOpen ? 'active' : ''}`}
+                  onClick={toggleInspector}
+                  title="Chapter Inspector (Metadata & Synopsis)"
+                >
+                  <SlidersHorizontal size={15} />
+                </button>
+              </div>
+
+              {/* Sequential Chapters List */}
+              <div className="sidebar-file-list">
+                {binderItems.length === 0 ? (
+                  <div className="sidebar-empty">
+                    <p>No chapters found. Click <strong>+ Chapter</strong> above to begin your novel!</p>
+                  </div>
+                ) : (
+                  binderItems.map((item) => (
+                    <ChapterItem key={item.id || item.path} item={item} />
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            /* Narrative Tags Panel */
+            <div className="sidebar-tab-content">
+              <TagsTab />
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="sidebar-empty-project">
+          <p>Noveler treats an entire folder as your novel. Open or create a folder to begin writing.</p>
           <button
+            type="button"
             className="sidebar-btn primary-action"
             onClick={() => void openProjectFolderAction()}
             title="Open Folder"
@@ -332,25 +287,8 @@ export function Sidebar() {
             <FolderOpen size={15} />
             <span>Open Project Folder</span>
           </button>
-        )}
-      </div>
-
-      {/* Binder Tree */}
-      <div className="sidebar-file-list">
-        {!projectPath ? (
-          <div className="sidebar-empty">
-            <p>Open a folder to organize your manuscript chapters, scenes, and characters in the binder.</p>
-          </div>
-        ) : binderItems.length === 0 ? (
-          <div className="sidebar-empty">
-            <p>No scenes found. Click <strong>+ Scene</strong> above to begin your manuscript!</p>
-          </div>
-        ) : (
-          binderItems.map((item) => (
-            <BinderTreeItem key={item.id || item.path} item={item} depth={0} />
-          ))
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 }

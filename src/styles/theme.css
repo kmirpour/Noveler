@@ -1,0 +1,284 @@
+/* ==========================================================================
+   MODULAR IDE THEME SYSTEM — 16-TOKEN SPECIFICATION
+   Reference: THEMES_SPECIFICATION.md
+   ========================================================================== */
+
+/* ==========================================================================
+   THEME 1: SEPIA (Warm Book Paper - Default)
+   Best for: Multi-hour writing, reading, reducing blue-light fatigue
+   ========================================================================== */
+:root,
+[data-theme='sepia'] {
+  --bg-app: #f7f5ef;
+  --bg-editor: #fcfbf9;
+  --bg-preview: #f5f3ec;
+  --bg-sidebar: #f2efe7;
+  --bg-toolbar: #ede9df;
+  --bg-card: #ffffff;
+  --text-color: #2e2c29;
+  --text-muted: #736f68;
+  --heading-color: #1f1d1a;
+  --border-color: #e0dacf;
+  --accent-color: #8b683e;
+  --accent-light: #e5ded2;
+  --accent-hover: #73532e;
+  --btn-hover: #e5e0d4;
+  --tag-bg: #e6ded1;
+  --tag-color: #634725;
+
+  /* Backward-compatibility aliases for legacy styles */
+  --bg-surface: var(--bg-card);
+  --bg-subtle: var(--bg-toolbar);
+  --border-strong: var(--border-color);
+  --text-primary: var(--text-color);
+  --text-secondary: var(--text-muted);
+  --editor-bg: var(--bg-editor);
+  --editor-text: var(--text-color);
+  --editor-heading: var(--heading-color);
+  --editor-quote: var(--text-muted);
+  --editor-quote-border: var(--border-color);
+  --editor-code-bg: var(--accent-light);
+  --preview-bg: var(--bg-preview);
+  --preview-header-bg: var(--bg-toolbar);
+  --preview-border: var(--border-color);
+  --preview-text: var(--text-color);
+  --preview-heading: var(--heading-color);
+  --preview-quote: var(--text-muted);
+  --preview-quote-border: var(--border-color);
+  --preview-scene-break: var(--accent-color);
+  --sidebar-bg: var(--bg-sidebar);
+  --sidebar-header-bg: var(--bg-toolbar);
+  --sidebar-item-hover: var(--btn-hover);
+  --sidebar-item-active: var(--accent-light);
+  --sidebar-text-active: var(--accent-hover);
+  --statusbar-bg: var(--bg-toolbar);
+  --badge-bg: var(--tag-bg);
+  --badge-text: var(--tag-color);
+  --selection-bg: var(--accent-light);
+  --scrollbar-thumb: var(--border-color);
+  --scrollbar-thumb-hover: var(--text-muted);
+}
+
+/* ==========================================================================
+   THEME 2: LIGHT (Crisp Modern Paper)
+   Best for: Daytime editing, high-contrast proofreading
+   ========================================================================== */
+[data-theme='light'] {
+  --bg-app: #ffffff;
+  --bg-editor: #ffffff;
+  --bg-preview: #fafafa;
+  --bg-sidebar: #f8f9fa;
+  --bg-toolbar: #f1f3f5;
+  --bg-card: #ffffff;
+  --text-color: #1a1a2e;
+  --text-muted: #6c757d;
+  --heading-color: #16213e;
+  --border-color: #e2e4ea;
+  --accent-color: #2b579a;
+  --accent-light: #e6edf8;
+  --accent-hover: #1e3f70;
+  --btn-hover: #e9ecef;
+  --tag-bg: #e3ebf7;
+  --tag-color: #1c3b6c;
+
+  /* Backward-compatibility aliases */
+  --bg-surface: var(--bg-card);
+  --bg-subtle: var(--bg-toolbar);
+  --border-strong: var(--border-color);
+  --text-primary: var(--text-color);
+  --text-secondary: var(--text-muted);
+  --editor-bg: var(--bg-editor);
+  --editor-text: var(--text-color);
+  --editor-heading: var(--heading-color);
+  --editor-quote: var(--text-muted);
+  --editor-quote-border: var(--border-color);
+  --editor-code-bg: var(--accent-light);
+  --preview-bg: var(--bg-preview);
+  --preview-header-bg: var(--bg-toolbar);
+  --preview-border: var(--border-color);
+  --preview-text: var(--text-color);
+  --preview-heading: var(--heading-color);
+  --preview-quote: var(--text-muted);
+  --preview-quote-border: var(--border-color);
+  --preview-scene-break: var(--accent-color);
+  --sidebar-bg: var(--bg-sidebar);
+  --sidebar-header-bg: var(--bg-toolbar);
+  --sidebar-item-hover: var(--btn-hover);
+  --sidebar-item-active: var(--accent-light);
+  --sidebar-text-active: var(--accent-hover);
+  --statusbar-bg: var(--bg-toolbar);
+  --badge-bg: var(--tag-bg);
+  --badge-text: var(--tag-color);
+  --selection-bg: var(--accent-light);
+  --scrollbar-thumb: var(--border-color);
+  --scrollbar-thumb-hover: var(--text-muted);
+}
+
+/* ==========================================================================
+   THEME 3: DARK / MIDNIGHT (Deep Slate & Navy)
+   Best for: Late-night drafting, low-light environments
+   ========================================================================== */
+[data-theme='dark'] {
+  --bg-app: #12141a;
+  --bg-editor: #161821;
+  --bg-preview: #13151c;
+  --bg-sidebar: #181a24;
+  --bg-toolbar: #1c1e2a;
+  --bg-card: #1f2230;
+  --text-color: #d8dbe2;
+  --text-muted: #8c92a4;
+  --heading-color: #f0f2f8;
+  --border-color: #272a3b;
+  --accent-color: #d4a373;
+  --accent-light: #2c2824;
+  --accent-hover: #e8b686;
+  --btn-hover: #262938;
+  --tag-bg: #2b2520;
+  --tag-color: #e0b080;
+
+  /* Backward-compatibility aliases */
+  --bg-surface: var(--bg-card);
+  --bg-subtle: var(--bg-toolbar);
+  --border-strong: var(--border-color);
+  --text-primary: var(--text-color);
+  --text-secondary: var(--text-muted);
+  --editor-bg: var(--bg-editor);
+  --editor-text: var(--text-color);
+  --editor-heading: var(--heading-color);
+  --editor-quote: var(--text-muted);
+  --editor-quote-border: var(--border-color);
+  --editor-code-bg: var(--accent-light);
+  --preview-bg: var(--bg-preview);
+  --preview-header-bg: var(--bg-toolbar);
+  --preview-border: var(--border-color);
+  --preview-text: var(--text-color);
+  --preview-heading: var(--heading-color);
+  --preview-quote: var(--text-muted);
+  --preview-quote-border: var(--border-color);
+  --preview-scene-break: var(--accent-color);
+  --sidebar-bg: var(--bg-sidebar);
+  --sidebar-header-bg: var(--bg-toolbar);
+  --sidebar-item-hover: var(--btn-hover);
+  --sidebar-item-active: var(--accent-light);
+  --sidebar-text-active: var(--accent-hover);
+  --statusbar-bg: var(--bg-toolbar);
+  --badge-bg: var(--tag-bg);
+  --badge-text: var(--tag-color);
+  --selection-bg: var(--accent-light);
+  --scrollbar-thumb: var(--border-color);
+  --scrollbar-thumb-hover: var(--text-muted);
+}
+
+/* ==========================================================================
+   THEME 4 (BONUS): FOREST / SAGE (Calming Organic Greens)
+   ========================================================================== */
+[data-theme='forest'] {
+  --bg-app: #19201d;
+  --bg-editor: #1f2824;
+  --bg-preview: #1b2320;
+  --bg-sidebar: #161d1a;
+  --bg-toolbar: #232d29;
+  --bg-card: #28332e;
+  --text-color: #dbe4df;
+  --text-muted: #879990;
+  --heading-color: #edf3f0;
+  --border-color: #2b3933;
+  --accent-color: #79a88d;
+  --accent-light: #23342b;
+  --accent-hover: #92bfa6;
+  --btn-hover: #2a3731;
+  --tag-bg: #23342b;
+  --tag-color: #92bfa6;
+
+  /* Backward-compatibility aliases */
+  --bg-surface: var(--bg-card);
+  --bg-subtle: var(--bg-toolbar);
+  --border-strong: var(--border-color);
+  --text-primary: var(--text-color);
+  --text-secondary: var(--text-muted);
+  --editor-bg: var(--bg-editor);
+  --editor-text: var(--text-color);
+  --editor-heading: var(--heading-color);
+  --editor-quote: var(--text-muted);
+  --editor-quote-border: var(--border-color);
+  --editor-code-bg: var(--accent-light);
+  --preview-bg: var(--bg-preview);
+  --preview-header-bg: var(--bg-toolbar);
+  --preview-border: var(--border-color);
+  --preview-text: var(--text-color);
+  --preview-heading: var(--heading-color);
+  --preview-quote: var(--text-muted);
+  --preview-quote-border: var(--border-color);
+  --preview-scene-break: var(--accent-color);
+  --sidebar-bg: var(--bg-sidebar);
+  --sidebar-header-bg: var(--bg-toolbar);
+  --sidebar-item-hover: var(--btn-hover);
+  --sidebar-item-active: var(--accent-light);
+  --sidebar-text-active: var(--accent-hover);
+  --statusbar-bg: var(--bg-toolbar);
+  --badge-bg: var(--tag-bg);
+  --badge-text: var(--tag-color);
+  --selection-bg: var(--accent-light);
+  --scrollbar-thumb: var(--border-color);
+  --scrollbar-thumb-hover: var(--text-muted);
+}
+
+/* ==========================================================================
+   THEME 5 (BONUS): NORD (Cold Arctic Frost)
+   ========================================================================== */
+[data-theme='nord'] {
+  --bg-app: #242933;
+  --bg-editor: #2e3440;
+  --bg-preview: #292f3b;
+  --bg-sidebar: #222630;
+  --bg-toolbar: #2b303c;
+  --bg-card: #3b4252;
+  --text-color: #eceff4;
+  --text-muted: #7d899f;
+  --heading-color: #88c0d0;
+  --border-color: #3b4252;
+  --accent-color: #88c0d0;
+  --accent-light: #2d3844;
+  --accent-hover: #8fbcbb;
+  --btn-hover: #3b4252;
+  --tag-bg: #2d3844;
+  --tag-color: #88c0d0;
+
+  /* Backward-compatibility aliases */
+  --bg-surface: var(--bg-card);
+  --bg-subtle: var(--bg-toolbar);
+  --border-strong: var(--border-color);
+  --text-primary: var(--text-color);
+  --text-secondary: var(--text-muted);
+  --editor-bg: var(--bg-editor);
+  --editor-text: var(--text-color);
+  --editor-heading: var(--heading-color);
+  --editor-quote: var(--text-muted);
+  --editor-quote-border: var(--border-color);
+  --editor-code-bg: var(--accent-light);
+  --preview-bg: var(--bg-preview);
+  --preview-header-bg: var(--bg-toolbar);
+  --preview-border: var(--border-color);
+  --preview-text: var(--text-color);
+  --preview-heading: var(--heading-color);
+  --preview-quote: var(--text-muted);
+  --preview-quote-border: var(--border-color);
+  --preview-scene-break: var(--accent-color);
+  --sidebar-bg: var(--bg-sidebar);
+  --sidebar-header-bg: var(--bg-toolbar);
+  --sidebar-item-hover: var(--btn-hover);
+  --sidebar-item-active: var(--accent-light);
+  --sidebar-text-active: var(--accent-hover);
+  --statusbar-bg: var(--bg-toolbar);
+  --badge-bg: var(--tag-bg);
+  --badge-text: var(--tag-color);
+  --selection-bg: var(--accent-light);
+  --scrollbar-thumb: var(--border-color);
+  --scrollbar-thumb-hover: var(--text-muted);
+}
+
+/* Global smoothing & selection color */
+::selection {
+  background: var(--accent-light);
+  color: var(--text-color);
+}

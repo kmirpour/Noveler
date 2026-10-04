@@ -63,8 +63,11 @@ export function useKeyboardShortcuts() {
       // Ctrl+Shift+F -> Toggle Focus Mode
       if (e.shiftKey && key === 'f') return handled(() => store.toggleFocusMode());
 
-      // Ctrl+Shift+E -> Compile Novel Manuscript
-      if (e.shiftKey && key === 'e') return handled(() => store.toggleCompileModal());
+      // Ctrl+E or Ctrl+Shift+E -> Export Modal (per GUIDE.md Section 7)
+      if (key === 'e') return handled(() => store.toggleCompileModal());
+
+      // Ctrl+\ -> Toggle Sidebar (per GUIDE.md Section 8)
+      if (key === '\\') return handled(() => store.toggleSidebar());
 
       // Ctrl+Shift+T -> Toggle Typewriter Scrolling
       if (e.shiftKey && key === 't') return handled(() => store.toggleTypewriterMode());
