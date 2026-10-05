@@ -155,4 +155,11 @@ The rain poured through the broken glass skylight. Miller stepped over the rubbl
 
     expect(mentions.map((m) => m.name)).toEqual(['Elena Vance', 'Marcus Thorne', 'Iron Citadel']);
   });
+
+  it('flushes scratchpad content into a timestamped graveyard file', async () => {
+    const { flushScratchpadToGraveyard } = await import('./projectService');
+    const res = await flushScratchpadToGraveyard('/my-novel', 'My scrapped scene notes');
+    expect(res.fileName).toMatch(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.md$/);
+    expect(res.filePath).toContain('graveyard');
+  });
 });

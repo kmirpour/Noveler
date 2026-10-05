@@ -203,6 +203,236 @@ pub fn delete_file(path: String) -> Result<(), String> {
     }
 }
 
+#[derive(Serialize, Clone)]
+pub struct GitRepoStatus {
+    pub git_installed: bool,
+    pub is_repo: bool,
+    pub remote_url: Option<String>,
+    pub current_branch: Option<String>,
+}
+
+#[tauri::command]
+pub fn git_get_status(path: String) -> Result<GitRepoStatus, String> {
+    let p = PathBuf::from(&path);
+    ensure_absolute(&p)?;
+
+    let git_check = std::process::Command::new("git")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .output();
+
+    if git_check.is_err() || !git_check.as_ref().unwrap().status.success() {
+        return Ok(GitRepoStatus {
+            git_installed: false,
+            is_repo: false,
+            remote_url: None,
+            current_branch: None,
+        });
+    }
+
+    let is_repo = p.join(".git").exists();
+    if !is_repo {
+        return Ok(GitRepoStatus {
+            git_installed: true,
+            is_repo: false,
+            remote_url: None,
+            current_branch: None,
+        });
+    }
+
+    let remote_output = std::process::Command::new("git")
+        .current_dir(&p)
+        .stdin(std::process::Stdio::null())
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .args(["remote", "get-url", "origin"])
+        .output();
+
+    let remote_url = match remote_output {
+        Ok(out) if out.status.success() => {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if s.is_empty() { None } else { Some(s) }
+        }
+        _ => None,
+    };
+
+    let branch_output = std::process::Command::new("git")
+        .current_dir(&p)
+        .stdin(std::process::Stdio::null())
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output();
+
+    let current_branch = match branch_output {
+        Ok(out) if out.status.success() => {
+            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if s.is_empty() || s == "HEAD" { Some("main".to_string()) } else { Some(s) }
+        }
+        _ => None,
+    };
+
+    Ok(GitRepoStatus {
+        git_installed: true,
+        is_repo: true,
+        remote_url,
+        current_branch,
+    })
+}
+
+#[tauri::command]
+pub fn git_sync(
+    path: String,
+    remote_url: Option<String>,
+    commit_msg: Option<String>,
+) -> Result<String, String> {
+    let p = PathBuf::from(&path);
+    ensure_absolute(&p)?;
+
+    let git_check = std::process::Command::new("git")
+        .arg("--version")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .map_err(|_| "Git is not installed on this system. Please install Git to use GitHub sync.".to_string())?;
+
+    if !git_check.status.success() {
+        return Err("Git is not functional on this system.".to_string());
+    }
+
+    let gitignore_path = p.join(".gitignore");
+    if !gitignore_path.exists() {
+        let _ = fs::write(&gitignore_path, ".noveler/\n.*.noveler-tmp\n");
+    }
+
+    let is_repo = p.join(".git").exists();
+    if !is_repo {
+        let init_res = std::process::Command::new("git")
+            .current_dir(&p)
+            .stdin(std::process::Stdio::null())
+            .args(["init", "-b", "main"])
+            .output();
+
+        let need_branch_rename = match init_res {
+            Ok(out) if out.status.success() => false,
+            _ => {
+                let init_fallback = std::process::Command::new("git")
+                    .current_dir(&p)
+                    .stdin(std::process::Stdio::null())
+                    .arg("init")
+                    .output()
+                    .map_err(|e| format!("Failed to initialize git repository: {e}"))?;
+                if !init_fallback.status.success() {
+                    return Err(format!("git init failed: {}", String::from_utf8_lossy(&init_fallback.stderr)));
+                }
+                true
+            }
+        };
+
+        if need_branch_rename {
+            let _ = std::process::Command::new("git")
+                .current_dir(&p)
+                .stdin(std::process::Stdio::null())
+                .args(["branch", "-M", "main"])
+                .output();
+        }
+    }
+
+    if let Some(ref url) = remote_url {
+        let url = url.trim();
+        if !url.is_empty() {
+            let check_remote = std::process::Command::new("git")
+                .current_dir(&p)
+                .stdin(std::process::Stdio::null())
+                .env("GIT_TERMINAL_PROMPT", "0")
+                .args(["remote", "get-url", "origin"])
+                .output();
+
+            match check_remote {
+                Ok(out) if out.status.success() => {
+                    let _ = std::process::Command::new("git")
+                        .current_dir(&p)
+                        .stdin(std::process::Stdio::null())
+                        .args(["remote", "set-url", "origin", url])
+                        .output();
+                }
+                _ => {
+                    let add_remote = std::process::Command::new("git")
+                        .current_dir(&p)
+                        .stdin(std::process::Stdio::null())
+                        .args(["remote", "add", "origin", url])
+                        .output()
+                        .map_err(|e| format!("Failed to add remote: {e}"))?;
+                    if !add_remote.status.success() {
+                        return Err(format!("git remote add failed: {}", String::from_utf8_lossy(&add_remote.stderr)));
+                    }
+                }
+            }
+        }
+    }
+
+    let add_out = std::process::Command::new("git")
+        .current_dir(&p)
+        .stdin(std::process::Stdio::null())
+        .args(["add", "-A"])
+        .output()
+        .map_err(|e| format!("Failed to stage files: {e}"))?;
+
+    if !add_out.status.success() {
+        return Err(format!("git add failed: {}", String::from_utf8_lossy(&add_out.stderr)));
+    }
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_secs();
+    let default_msg = format!("Manuscript update: {}", format_stamp(now));
+    let msg = commit_msg
+        .map(|m| m.trim().to_string())
+        .filter(|m| !m.is_empty())
+        .unwrap_or(default_msg);
+
+    let commit_out = std::process::Command::new("git")
+        .current_dir(&p)
+        .stdin(std::process::Stdio::null())
+        .args(["commit", "-m", &msg])
+        .output()
+        .map_err(|e| format!("Failed to commit changes: {e}"))?;
+
+    if !commit_out.status.success() {
+        let stderr = String::from_utf8_lossy(&commit_out.stderr);
+        let stdout = String::from_utf8_lossy(&commit_out.stdout);
+        if !stderr.contains("nothing to commit") && !stdout.contains("nothing to commit") {
+            return Err(format!("git commit failed: {}", stderr.trim()));
+        }
+    }
+
+    let branch_out = std::process::Command::new("git")
+        .current_dir(&p)
+        .stdin(std::process::Stdio::null())
+        .args(["rev-parse", "--abbrev-ref", "HEAD"])
+        .output();
+
+    let branch = match branch_out {
+        Ok(out) if out.status.success() => {
+            let b = String::from_utf8_lossy(&out.stdout).trim().to_string();
+            if b.is_empty() || b == "HEAD" { "main".to_string() } else { b }
+        }
+        _ => "main".to_string(),
+    };
+
+    let push_out = std::process::Command::new("git")
+        .current_dir(&p)
+        .stdin(std::process::Stdio::null())
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .args(["push", "-u", "origin", &branch])
+        .output()
+        .map_err(|e| format!("Failed to push to GitHub: {e}"))?;
+
+    if !push_out.status.success() {
+        let stderr = String::from_utf8_lossy(&push_out.stderr);
+        return Err(format!("git push failed: {}", stderr.trim()));
+    }
+
+    Ok(format!("Successfully pushed to origin/{}", branch))
+}
+
 
 // ---------------------------------------------------------------------------
 // Helpers

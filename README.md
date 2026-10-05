@@ -29,7 +29,7 @@ All chapter files remain **100% clean, standard Markdown** on disk—no propriet
 - **Smart Typography**: Automatic transformation of straight quotes to curved smart quotes (`“ ”`, `‘ ’`), double hyphens to em-dashes (`—`), and triple periods to ellipses (`…`).
 - **Scene Breaks (`✦   ✦   ✦`)**: Type `---` or use the toolbar button to insert centered decorative scene breaks rendered consistently across editor, preview, and exports.
 - **Focus Modes**:
-  - **Paragraph Focus**: Dims surrounding text to highlight the active paragraph.
+  - **Paragraph Focus (`Ctrl+Shift+P`)**: Keeps the active paragraph at 100% opacity while gently dimming surrounding text to 25% (hover reveals surrounding text at 65%).
   - **Typewriter Scrolling (`Ctrl+Shift+T`)**: Keeps the active line centered vertically on the screen.
   - **Distraction-Free Mode (`F11` / `Ctrl+Shift+F`)**: Hides sidebar, status bar, and toolbar for an immersive, centered canvas.
 
@@ -46,6 +46,13 @@ All chapter files remain **100% clean, standard Markdown** on disk—no propriet
 - **Pen & Scratchpad Mode**: Split canvas featuring your chapter editor alongside a free-form scratchpad for brainstorming, character voices, and rough outlines.
   - Scratchpad contents persist per project in `noveler.json`.
   - Strictly isolated from your novel manuscript and exports.
+  - **Flush to Graveyard**: One-click archive button flushes all current scratchpad notes into a `graveyard/` subfolder as an immutable timestamped Markdown file (`YYYY-MM-DD_HH-mm-ss.md`) and clears the scratchpad for fresh brainstorming.
+
+### 🌿 Native Git & GitHub Cloud Sync
+- **One-Click Push**: Push all chapters, notes, and settings directly to GitHub via the toolbar (`GitBranch` icon).
+- **Automatic Repository Setup**: Initializes `git init -b main` if needed and creates a `.gitignore` to exclude internal `.noveler/` cache while preserving all manuscripts.
+- **Timestamped Commits**: Commits all project changes with an automated timestamp (`Manuscript sync: YYYY-MM-DD HH:mm:ss`).
+- **Safe & Non-Blocking**: Disables terminal interactive prompts (`GIT_TERMINAL_PROMPT=0`) to ensure background syncs never hang the UI. Prompts cleanly for remote URL on first sync.
 
 ### 🎨 Modular 16-Token Theme System
 - Five handcrafted writer palettes defined with 16 unified CSS custom properties:
@@ -102,6 +109,7 @@ All chapter files remain **100% clean, standard Markdown** on disk—no propriet
 | `Ctrl + F` | Find and Replace |
 | `Ctrl + K` | Open Command Palette |
 | `Ctrl + G` | Open Goals & Statistics Modal |
+| `Ctrl + Shift + P` | Toggle Paragraph Focus Mode (dims unfocused paragraphs) |
 | `Ctrl + Shift + T` | Toggle Typewriter Scrolling |
 | `Ctrl + Shift + F` / `F11` | Toggle Distraction-Free Focus Mode |
 | `Escape` | Close modals / Exit focus mode |
@@ -191,7 +199,7 @@ Noveler/
 │   │   └── Toolbar/          # Formatting tools & view mode selectors
 │   ├── export/               # Shunn DOCX compiler & print stylesheet
 │   ├── hooks/                # Keyboard shortcuts, close guard, recovery
-│   ├── services/             # File system IPC, project loader, backups
+│   ├── services/             # File system IPC, project loader, backups, Git sync
 │   ├── stores/               # Zustand editor & project state store
 │   ├── styles/
 │   │   ├── global.css        # Layout, typography, transitions
@@ -201,7 +209,7 @@ Noveler/
     ├── Cargo.toml            # Rust dependencies (tauri, serde, dirs)
     ├── tauri.conf.json       # Window setup, permissions, bundle config
     └── src/
-        ├── commands.rs       # Native file operations, atomic write, backups
+        ├── commands.rs       # Native file operations, atomic write, backups, Git sync
         └── lib.rs            # Tauri application entry point
 ```
 
@@ -217,6 +225,7 @@ MyNovel/
 ├── 02-the-investigation.md   # 100% clean Markdown (Chapter 2)
 ├── 03-the-confrontation.md   # 100% clean Markdown (Chapter 3)
 ├── noveler.json              # Project settings, scratchpad, tag categories, chapter titles
+├── graveyard/                # Flushed scratchpad snapshots (YYYY-MM-DD_HH-mm-ss.md)
 └── .noveler/
     └── backups/              # Rolling chapter backups (up to 20 snapshots per chapter)
 ```

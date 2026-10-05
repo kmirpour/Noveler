@@ -145,11 +145,20 @@
 
 /* Dim Unfocused: fade out non-active paragraphs/blocks for deep focus */
 .editor-container.dim-unfocused .tiptap > * {
-  opacity: 0.3;
+  opacity: 0.25;
   transition: opacity 0.2s ease-in-out;
 }
 
+.editor-container.dim-unfocused .tiptap > *:hover {
+  opacity: 0.65;
+}
+
 .editor-container.dim-unfocused .tiptap > *.has-focus {
+  opacity: 1;
+}
+
+/* If the editor doesn't have an active focused element yet, don't dim everything */
+.editor-container.dim-unfocused .tiptap:not(:has(.has-focus)) > * {
   opacity: 1;
 }
 

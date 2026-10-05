@@ -188,6 +188,9 @@ describe('WritingSlice', () => {
 
     await store.assignTagCategoryAction('morse', 'suspects');
     expect(useEditorStore.getState().tagAssignments['morse']).toBe('suspects');
+
+    // flushScratchpadAction returns false when no project is open or content is empty
+    expect(await store.flushScratchpadAction()).toBe(false);
   });
 });
 

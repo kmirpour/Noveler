@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useEditorStore } from '../../stores/editorStore';
-import { StickyNote, Eraser } from 'lucide-react';
+import { StickyNote, Eraser, Archive } from 'lucide-react';
 import './Scratchpad.css';
 
 const SCRATCHPAD_AUTOSAVE_MS = 800;
@@ -8,6 +8,7 @@ const SCRATCHPAD_AUTOSAVE_MS = 800;
 export function Scratchpad() {
   const scratchpadContent = useEditorStore((s) => s.scratchpadContent);
   const setScratchpadContent = useEditorStore((s) => s.setScratchpadContent);
+  const flushScratchpadAction = useEditorStore((s) => s.flushScratchpadAction);
 
   const [text, setText] = useState(scratchpadContent);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -25,6 +26,20 @@ export function Scratchpad() {
     timerRef.current = setTimeout(() => {
       setScratchpadContent(val);
     }, SCRATCHPAD_AUTOSAVE_MS);
+  };
+
+  const handleFlushToGraveyard = async () => {
+    if (!text.trim()) return;
+    if (
+      window.confirm(
+        'Flush all scratchpad notes to the project graveyard folder as a timestamped markdown file?'
+      )
+    ) {
+      const ok = await flushScratchpadAction();
+      if (ok) {
+        setText('');
+      }
+    }
   };
 
   const handleClear = () => {
@@ -46,13 +61,22 @@ export function Scratchpad() {
         <div className="scratchpad-actions">
           <span className="scratchpad-count">{wordCount} words</span>
           {text.trim() && (
-            <button
-              className="scratchpad-btn"
-              onClick={handleClear}
-              title="Clear Scratchpad"
-            >
-              <Eraser size={13} />
-            </button>
+            <>
+              <button
+                className="scratchpad-btn"
+                onClick={() => void handleFlushToGraveyard()}
+                title="Flush to Graveyard (archive to graveyard/ folder as timestamped .md)"
+              >
+                <Archive size={13} />
+              </button>
+              <button
+                className="scratchpad-btn"
+                onClick={handleClear}
+                title="Clear Scratchpad"
+              >
+                <Eraser size={13} />
+              </button>
+            </>
           )}
         </div>
       </div>

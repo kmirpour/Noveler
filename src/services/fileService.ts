@@ -91,6 +91,10 @@ export async function openFile(): Promise<OpenedFile | null> {
   });
 }
 
+// In-memory virtual storage for browser environment (testing & dev without Tauri)
+const browserVirtualFiles = new Map<string, string>();
+let browserVirtualFolder: { path: string; name: string; entries: FileEntry[] } | null = null;
+
 /**
  * Direct file read by path (used by sidebar)
  */
@@ -99,6 +103,13 @@ export async function readFileDirect(path: string): Promise<OpenedFile> {
     const content = await invoke<string>('read_file', { path });
     const name = extractFileName(path);
     return { path, name, content };
+  }
+  if (browserVirtualFiles.has(path)) {
+    return {
+      path,
+      name: extractFileName(path),
+      content: browserVirtualFiles.get(path)!,
+    };
   }
   throw new Error('Direct file path reading requires desktop app mode');
 }
@@ -114,18 +125,65 @@ export async function openFolder(): Promise<{ path: string; name: string; entrie
         multiple: false,
       });
 
-      if (!selected || typeof selected !== 'string') {
+      if (!selected) {
         return null;
       }
 
-      const entries = await invoke<FileEntry[]>('read_dir', { path: selected });
-      const name = extractFileName(selected);
-      return { path: selected, name, entries };
+      const folderPath =
+        typeof selected === 'string' ? selected : Array.isArray(selected) ? (selected[0] as string) : null;
+      if (!folderPath) {
+        return null;
+      }
+
+      const entries = await invoke<FileEntry[]>('read_dir', { path: folderPath });
+      const name = extractFileName(folderPath);
+      return { path: folderPath, name, entries };
     } catch (err) {
       console.error('Failed to open folder via Tauri:', err);
       throw err;
     }
   }
+
+  // Browser Fallback (e.g. testing in browser or npm run dev)
+  if (typeof window !== 'undefined') {
+    return new Promise((resolve) => {
+      const input = document.createElement('input');
+      input.type = 'file';
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (input as any).webkitdirectory = true;
+      input.multiple = true;
+      input.onchange = async () => {
+        const fileList = input.files;
+        if (!fileList || fileList.length === 0) {
+          resolve(null);
+          return;
+        }
+
+        const first = fileList[0];
+        const relativeParts = (first.webkitRelativePath || first.name).split('/');
+        const folderName = relativeParts.length > 1 ? relativeParts[0] : 'Novel';
+        const folderPath = `/${folderName}`;
+
+        const entries: FileEntry[] = [];
+        for (let i = 0; i < fileList.length; i++) {
+          const file = fileList[i];
+          const path = `/${file.webkitRelativePath || file.name}`;
+          const content = await file.text();
+          browserVirtualFiles.set(path, content);
+          entries.push({
+            name: file.name,
+            path,
+            is_dir: false,
+          });
+        }
+
+        browserVirtualFolder = { path: folderPath, name: folderName, entries };
+        resolve(browserVirtualFolder);
+      };
+      input.click();
+    });
+  }
+
   return null;
 }
 
@@ -143,6 +201,7 @@ export async function readDirectory(path: string): Promise<FileEntry[]> {
  * Save content to an existing file path
  */
 export async function saveFile(path: string, content: string): Promise<void> {
+  browserVirtualFiles.set(path, content);
   if (isTauri()) {
     await invoke('write_file', { path, content });
     return;
@@ -273,12 +332,29 @@ export async function readDirTree(path: string): Promise<BinderNode[]> {
   if (isTauri()) {
     return await invoke<BinderNode[]>('read_dir_tree', { path });
   }
+  if (browserVirtualFolder && browserVirtualFolder.path === path) {
+    return browserVirtualFolder.entries.map((entry) => ({
+      name: entry.name,
+      path: entry.path,
+      is_dir: entry.is_dir,
+      children: [],
+    }));
+  }
   return [];
 }
 
 export async function createFile(path: string, initialContent?: string): Promise<void> {
   if (isTauri()) {
     await invoke('create_file', { path, initialContent: initialContent ?? null });
+    return;
+  }
+  browserVirtualFiles.set(path, initialContent ?? '');
+  if (browserVirtualFolder) {
+    browserVirtualFolder.entries.push({
+      name: extractFileName(path),
+      path,
+      is_dir: false,
+    });
   }
 }
 

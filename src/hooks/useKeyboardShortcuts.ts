@@ -81,11 +81,14 @@ export function useKeyboardShortcuts() {
       // Ctrl+S -> Save
       if (!e.shiftKey && key === 's') return handled(() => void store.saveFileAction());
 
-      // Ctrl+O -> Open
-      if (!e.shiftKey && key === 'o') return handled(() => void store.openFileAction());
+      // Ctrl+O -> Open Novel Folder
+      if (!e.shiftKey && key === 'o') return handled(() => void store.openProjectFolderAction());
 
       // Ctrl+N -> New
       if (!e.shiftKey && key === 'n') return handled(() => void store.newFile());
+
+      // Ctrl+Shift+P -> Toggle Paragraph Focus Mode
+      if (e.shiftKey && key === 'p') return handled(() => store.toggleDimUnfocused());
 
       // Ctrl+P -> Print / Save as PDF
       if (!e.shiftKey && key === 'p') return handled(() => store.printAction());

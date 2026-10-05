@@ -64,6 +64,7 @@ export interface NovelProject {
   tagCategories?: string[];
   codex?: CodexEntry[];
   snapshots?: SceneSnapshot[];
+  gitRemoteUrl?: string;
 }
 
 export const PROJECT_FILENAME = 'noveler.json';
@@ -293,6 +294,7 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     tagCategories: existingProject?.tagCategories || ['characters', 'locations', 'items', 'scenes'],
     codex: existingProject?.codex || [],
     snapshots: existingProject?.snapshots || [],
+    gitRemoteUrl: existingProject?.gitRemoteUrl,
   };
 
   return project;
@@ -363,4 +365,27 @@ export function findEntityMentions(text: string, entries: CodexEntry[]): CodexEn
     }
   }
   return found;
+}
+
+/**
+ * Flushes scratchpad contents into a timestamped markdown file inside the project's
+ * `graveyard/` subfolder.
+ */
+export async function flushScratchpadToGraveyard(
+  projectPath: string,
+  content: string
+): Promise<{ fileName: string; filePath: string }> {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  const fileName = `${timestamp}.md`;
+  const sep = projectPath.includes('/') ? '/' : '\\';
+  const graveyardDir = `${projectPath}${sep}graveyard`;
+  const filePath = `${graveyardDir}${sep}${fileName}`;
+
+  await fileService.createDir(graveyardDir);
+  await fileService.createFile(filePath, content);
+  await fileService.saveFile(filePath, content);
+
+  return { fileName, filePath };
 }

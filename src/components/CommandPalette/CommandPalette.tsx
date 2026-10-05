@@ -8,7 +8,8 @@ import {
   FileDown,
   BookDown,
   Printer,
-  FolderTree,
+  FileText,
+  PanelLeft,
   Maximize2,
   ScrollText,
   Eye,
@@ -32,6 +33,9 @@ import {
   PenTool,
   LayoutGrid,
   SlidersHorizontal,
+  GitBranch,
+  Archive,
+  Focus,
 } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
 import './CommandPalette.css';
@@ -56,6 +60,8 @@ export function CommandPalette() {
     saveFileAsAction,
     exportDocxAction,
     printAction,
+    syncGitAction,
+    flushScratchpadAction,
     openProjectFolderAction,
     toggleFocusMode,
     toggleTypewriterMode,
@@ -94,11 +100,18 @@ export function CommandPalette() {
         action: () => void newFile(),
       },
       {
-        id: 'file-open',
+        id: 'file-open-project',
         category: 'File',
-        title: 'Open File...',
+        title: 'Open Novel Folder...',
         shortcut: 'Ctrl+O',
         icon: <FolderOpen size={16} />,
+        action: () => void openProjectFolderAction(),
+      },
+      {
+        id: 'file-open',
+        category: 'File',
+        title: 'Open Single Markdown File...',
+        icon: <FileText size={16} />,
         action: () => void openFileAction(),
       },
       {
@@ -128,7 +141,7 @@ export function CommandPalette() {
         id: 'file-compile',
         category: 'File',
         title: 'Compile Novel Manuscript (Standard Shunn DOCX / Markdown)...',
-        shortcut: 'Ctrl+Shift+E',
+        shortcut: 'Ctrl+E',
         icon: <BookDown size={16} />,
         action: () => toggleCompileModal(),
       },
@@ -141,11 +154,11 @@ export function CommandPalette() {
         action: () => printAction(),
       },
       {
-        id: 'file-open-project',
+        id: 'file-git-push',
         category: 'File',
-        title: 'Open Project Folder...',
-        icon: <FolderTree size={16} />,
-        action: () => void openProjectFolderAction(),
+        title: 'Push Manuscript to GitHub',
+        icon: <GitBranch size={16} />,
+        action: () => void syncGitAction(),
       },
 
       // View & Focus
@@ -168,8 +181,9 @@ export function CommandPalette() {
       {
         id: 'dim-toggle',
         category: 'View & Focus',
-        title: 'Toggle Dim Inactive Paragraphs',
-        icon: <Eye size={16} />,
+        title: 'Toggle Paragraph Focus Mode',
+        shortcut: 'Ctrl+Shift+P',
+        icon: <Focus size={16} />,
         action: () => toggleDimUnfocused(),
       },
       {
@@ -212,8 +226,9 @@ export function CommandPalette() {
       {
         id: 'view-sidebar',
         category: 'View & Focus',
-        title: 'Toggle Project Binder Sidebar',
-        icon: <FolderTree size={16} />,
+        title: 'Toggle Chapters Sidebar',
+        shortcut: 'Ctrl+\\',
+        icon: <PanelLeft size={16} />,
         action: () => toggleSidebar(),
       },
       {
@@ -243,6 +258,13 @@ export function CommandPalette() {
         title: 'Prose Analysis (Adverbs, Filter Words, Readability)',
         icon: <Eye size={16} />,
         action: () => toggleProseAnalysis(),
+      },
+      {
+        id: 'scratchpad-flush',
+        category: 'Story Tools',
+        title: 'Flush Scratchpad Notes to Graveyard Folder',
+        icon: <Archive size={16} />,
+        action: () => void flushScratchpadAction(),
       },
 
       // Formatting
@@ -397,6 +419,8 @@ export function CommandPalette() {
       toggleCompileModal,
       toggleCodexModal,
       toggleProseAnalysis,
+      flushScratchpadAction,
+      syncGitAction,
     ]
   );
 

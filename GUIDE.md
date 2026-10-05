@@ -128,9 +128,10 @@ As you type, Noveler automatically enhances standard keyboard characters:
 
 Noveler includes three distinct focus features designed to keep your mind locked in the story:
 
-### 1. Paragraph Focus Mode
-- Click the **Underline / Focus** icon in the toolbar.
-- The active paragraph you are writing remains fully opaque and sharp, while preceding and succeeding paragraphs gently dim.
+### 1. Paragraph Focus Mode (`Ctrl + Shift + P`)
+- Click the **Paragraph Focus** (viewfinder) icon in the toolbar or press `Ctrl + Shift + P`.
+- The active paragraph you are editing remains fully opaque and sharp (100%), while preceding and succeeding paragraphs gently dim (to 25% opacity).
+- Hovering your mouse over any dimmed paragraph provides a preview at 65% opacity.
 - Allows you to concentrate on the immediate rhythm of the current line without losing your place.
 
 ### 2. Typewriter Scrolling Mode (`Ctrl + Shift + T`)
@@ -158,12 +159,16 @@ Noveler offers four workspace view modes accessible via the view pills in the to
 | **Eye Mode** | 👁️ Eye | Read-only book reader for proofreading and immersion. |
 | **Pen & Scratchpad** | 📝 Note | Split canvas with active chapter editor on the left and persistent Scratchpad on the right. |
 
-### Using the Scratchpad
+### Using the Scratchpad & Flushing to Graveyard
 The **Scratchpad** is an integrated free-form notepad designed for spontaneous notes that shouldn't interrupt your drafting flow:
 - **What to put here**: Snippets of dialogue, alternate phrasing, reminders for later chapters, sensory details, or beat outlines.
 - **Project-Scoped & Persistent**: Notes written in the scratchpad are saved automatically in `noveler.json` and remain accessible whenever you open this novel.
 - **Manuscript Isolation**: Scratchpad text is **never** added to your `.md` chapter files and is completely excluded from manuscript compilation and exports.
-- **Scratchpad Tools**: Includes a live word counter and a **Clear** button.
+- **Flush to Graveyard (`Archive` icon)**: 
+  - When your scratchpad is full or you want to archive scrap scenes and research notes, click the **Flush to Graveyard** button in the scratchpad header.
+  - Noveler automatically creates a `graveyard/` subfolder in your novel project and writes your notes to a timestamped Markdown file (e.g. `graveyard/2026-10-04_22-45-00.md`).
+  - Clears the active scratchpad so you can start fresh with a clean slate while preserving all past notes on disk forever.
+- **Word Counter & Clear**: Includes a live word counter and an **Eraser** button for quick clearing.
 
 ---
 
@@ -314,6 +319,13 @@ Writing a novel represents hundreds of hours of creative labor. Noveler includes
 - Keeps the last 20 revisions of each chapter (at most one snapshot per 10-minute interval).
 - If you accidentally delete text or want to recover an earlier revision, previous drafts are preserved locally on disk.
 
+### 5. Git & GitHub Cloud Synchronization
+- Noveler includes built-in Git integration to back up and version your entire novel to GitHub:
+  - Click the **Git / GitHub** (`GitBranch`) icon in the toolbar or run **Push Manuscript to GitHub** via the Command Palette (`Ctrl + K`).
+  - **Automated Repository Initialization**: If your novel folder is not yet a git repository, Noveler initializes a git repository on branch `main` and creates a `.gitignore` ignoring internal backups.
+  - **Remote Origin Setup**: If no remote URL is configured, Noveler prompts once for your repository URL (e.g., `https://github.com/username/my-novel.git`).
+  - **Instant Snapshot**: Noveler automatically stages all chapter files, writes an automated timestamped commit (e.g. `Manuscript update: 2026-10-04_224500`), and pushes to your GitHub remote.
+
 ---
 
 ## 13. Keyboard Shortcuts Reference
@@ -336,6 +348,7 @@ Keep your hands on the keyboard with these shortcuts:
 | `Ctrl + \` | Toggle Sidebar (collapse / expand) |
 | `Ctrl + Shift + D` | Cycle Theme (Sepia → Light → Dark → Forest → Nord) |
 | `Ctrl + Shift + T` | Toggle Typewriter Scrolling Mode |
+| `Ctrl + Shift + P` | Toggle Paragraph Focus Mode |
 | `Ctrl + Shift + F` / `F11` | Toggle Fullscreen Distraction-Free Focus Mode |
 | `Escape` | Dismiss open dialogs or exit focus mode |
 

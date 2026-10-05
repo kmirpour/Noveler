@@ -24,7 +24,9 @@ import {
   createSequentialChapter,
   parseSceneMarkdown,
   flattenScenes,
+  flushScratchpadToGraveyard,
 } from '../services/projectService';
+import { getGitStatus, syncGit } from '../services/gitService';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 /** A document to load into the editor, replacing the current one. */
@@ -106,6 +108,8 @@ export interface ProjectSlice {
   createSceneSnapshotAction: (label: string) => Promise<void>;
   restoreSceneSnapshotAction: (snapshotId: string) => Promise<void>;
   deleteSceneSnapshotAction: (snapshotId: string) => Promise<void>;
+  syncGitAction: () => Promise<boolean>;
+  flushScratchpadAction: () => Promise<boolean>;
 }
 
 export interface SettingsSlice {
@@ -478,6 +482,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   openProjectFolderAction: async () => {
     try {
+      if (!(await get().confirmDiscardIfDirty())) return false;
       const res = await fileService.openFolder();
       if (!res) return false;
       return await get().loadProjectByPath(res.path);
@@ -514,13 +519,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         scratchpadContent: project.scratchpad || '',
         tagCategories: project.tagCategories || ['characters', 'locations', 'items', 'scenes'],
         sidebarOpen: true,
-        statusMessage: `Opened project: ${project.title || name}`,
+        statusMessage: `Opened folder: ${project.title || name}`,
       });
 
-      // Load first chapter if current document is empty
-      if (!get().filePath && project.binder.length > 0) {
+      // Load first chapter if current document is empty or not in this project
+      if (project.binder.length > 0) {
         const scenes = flattenScenes(project.binder);
-        if (scenes.length > 0) {
+        const currentInProject = scenes.some((s) => s.path === get().filePath);
+        if (!currentInProject && scenes.length > 0) {
           void get().loadSceneByPath(scenes[0].path);
         }
       }
@@ -665,6 +671,78 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const updated = { ...novelProject, scratchpad: content };
       set({ novelProject: updated });
       void saveNovelProject(projectPath, updated);
+    }
+  },
+
+  flushScratchpadAction: async () => {
+    const { projectPath, scratchpadContent, novelProject } = get();
+    if (!projectPath) {
+      get().setStatusMessage('Open a novel folder to flush scratchpad to graveyard');
+      return false;
+    }
+    if (!scratchpadContent.trim()) return false;
+
+    try {
+      const res = await flushScratchpadToGraveyard(projectPath, scratchpadContent);
+      set({ scratchpadContent: '' });
+      if (novelProject) {
+        const updated = { ...novelProject, scratchpad: '' };
+        set({ novelProject: updated });
+        void saveNovelProject(projectPath, updated);
+      }
+      get().setStatusMessage(`Flushed notes to graveyard/${res.fileName}`);
+      return true;
+    } catch (err) {
+      console.error('Error flushing scratchpad:', err);
+      get().setStatusMessage(`Error archiving notes: ${errorMessage(err)}`);
+      return false;
+    }
+  },
+
+  syncGitAction: async () => {
+    const { projectPath, novelProject, saveFileAction, isDirty } = get();
+    if (!projectPath) {
+      get().setStatusMessage('Open a novel folder to push to GitHub');
+      return false;
+    }
+
+    if (isDirty) {
+      await saveFileAction();
+    }
+
+    try {
+      get().setStatusMessage('Checking Git status...');
+      const status = await getGitStatus(projectPath);
+      if (!status.git_installed) {
+        get().setStatusMessage('Git is not installed on this system. Install Git to push to GitHub.');
+        return false;
+      }
+
+      let remoteUrl = status.remote_url || novelProject?.gitRemoteUrl || null;
+      if (!remoteUrl) {
+        const entered = window.prompt(
+          'Enter your GitHub repository URL (e.g. https://github.com/username/my-novel.git):'
+        );
+        if (!entered || !entered.trim()) {
+          get().setStatusMessage('GitHub push cancelled (no repository URL provided)');
+          return false;
+        }
+        remoteUrl = entered.trim();
+        if (novelProject) {
+          const updated = { ...novelProject, gitRemoteUrl: remoteUrl };
+          set({ novelProject: updated });
+          void saveNovelProject(projectPath, updated);
+        }
+      }
+
+      get().setStatusMessage('Pushing manuscript to GitHub...');
+      const resultMsg = await syncGit(projectPath, remoteUrl);
+      get().setStatusMessage(resultMsg);
+      return true;
+    } catch (err) {
+      console.error('Git sync error:', err);
+      get().setStatusMessage(`Git push failed: ${errorMessage(err)}`);
+      return false;
     }
   },
 
@@ -878,6 +956,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = !get().dimUnfocused;
     saveSettings({ dimUnfocused: next });
     set({ dimUnfocused: next });
+    if (next) {
+      get().editorInstance?.commands.focus();
+    }
   },
 
   setDailyWordGoal: (dailyWordGoal: number) => {

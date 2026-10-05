@@ -1,7 +1,6 @@
 import { useState, type MouseEvent, type FormEvent } from 'react';
 import { useEditorStore } from '../../stores/editorStore';
 import {
-  Folder,
   FolderOpen,
   FileText,
   FilePlus,
@@ -176,9 +175,9 @@ export function Sidebar() {
     <aside className="sidebar">
       {/* Sidebar Header */}
       <div className="sidebar-header">
-        <div className="sidebar-title" title={projectName || 'Project Binder'}>
-          <Folder size={15} />
-          <span>{projectName || 'Novel Folder'}</span>
+        <div className="sidebar-title" title={projectName || 'Manuscript'}>
+          <BookText size={15} />
+          <span>{projectName || 'Manuscript'}</span>
         </div>
         <div className="sidebar-header-actions">
           {projectPath && (
@@ -186,7 +185,7 @@ export function Sidebar() {
               type="button"
               className="sidebar-icon-btn"
               onClick={() => void refreshProjectFiles()}
-              title="Refresh Binder"
+              title="Refresh Chapters"
             >
               <RefreshCw size={13} />
             </button>
@@ -277,15 +276,15 @@ export function Sidebar() {
         </>
       ) : (
         <div className="sidebar-empty-project">
-          <p>Noveler treats an entire folder as your novel. Open or create a folder to begin writing.</p>
+          <p>Open a novel folder to see all chapters in your manuscript.</p>
           <button
             type="button"
             className="sidebar-btn primary-action"
             onClick={() => void openProjectFolderAction()}
-            title="Open Folder"
+            title="Open Folder (Ctrl+O)"
           >
             <FolderOpen size={15} />
-            <span>Open Project Folder</span>
+            <span>Open Folder</span>
           </button>
         </div>
       )}

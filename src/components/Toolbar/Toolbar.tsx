@@ -33,6 +33,8 @@ import {
   BookMarked,
   Sparkles,
   StickyNote,
+  Focus,
+  GitBranch,
 } from 'lucide-react';
 import { ThemeToggle } from '../ThemeToggle/ThemeToggle';
 import './Toolbar.css';
@@ -41,10 +43,11 @@ export function Toolbar() {
   const {
     editorInstance: editor,
     newFile,
-    openFileAction,
+    openProjectFolderAction,
     saveFileAction,
     saveFileAsAction,
     printAction,
+    syncGitAction,
     isDirty,
     sidebarOpen,
     toggleSidebar,
@@ -56,6 +59,8 @@ export function Toolbar() {
     toggleParagraphIndent,
     focusMode,
     toggleFocusMode,
+    dimUnfocused,
+    toggleDimUnfocused,
     setFindReplaceOpen,
     setGoalsModalOpen,
     setCommandPaletteOpen,
@@ -91,14 +96,14 @@ export function Toolbar() {
         <button
           className="toolbar-button"
           onClick={() => void newFile()}
-          title="New File (Ctrl+N)"
+          title="New Chapter (Ctrl+N)"
         >
           <FilePlus size={18} />
         </button>
         <button
           className="toolbar-button"
-          onClick={() => void openFileAction()}
-          title="Open Markdown File (Ctrl+O)"
+          onClick={() => void openProjectFolderAction()}
+          title="Open Novel Folder (Ctrl+O)"
         >
           <FolderOpen size={18} />
         </button>
@@ -135,6 +140,13 @@ export function Toolbar() {
           title="Print / Save as PDF (Ctrl+P)"
         >
           <Printer size={18} />
+        </button>
+        <button
+          className="toolbar-button"
+          onClick={() => void syncGitAction()}
+          title="Push Manuscript to GitHub"
+        >
+          <GitBranch size={18} />
         </button>
       </div>
 
@@ -293,9 +305,16 @@ export function Toolbar() {
           <CommandIcon size={16} />
         </button>
         <button
+          className={`toolbar-button ${dimUnfocused ? 'active' : ''}`}
+          onClick={toggleDimUnfocused}
+          title={`Paragraph Focus Mode (${dimUnfocused ? 'Active' : 'Inactive'}) (Ctrl+Shift+P)`}
+        >
+          <Focus size={16} />
+        </button>
+        <button
           className={`toolbar-button ${focusMode ? 'active' : ''}`}
           onClick={toggleFocusMode}
-          title="Focus Mode (F11 / Ctrl+Shift+F)"
+          title="Distraction-Free Focus Mode (F11 / Ctrl+Shift+F)"
         >
           <Maximize2 size={16} />
         </button>

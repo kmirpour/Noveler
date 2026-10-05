@@ -15,7 +15,9 @@ pub fn run() {
       commands::create_file,
       commands::create_dir,
       commands::rename_path,
-      commands::delete_file
+      commands::delete_file,
+      commands::git_get_status,
+      commands::git_sync
     ])
     .setup(|app| {
       if let Some(window) = app.get_webview_window("main") {
