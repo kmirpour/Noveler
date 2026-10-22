@@ -19,6 +19,7 @@ This handbook explains how Noveler works, the principles behind its architecture
    - [The Codex (Worldbuilding)](#the-codex-worldbuilding)
    - [The Corkboard (Outlining & Synopses)](#the-corkboard-outlining--synopses)
    - [Prose Analysis](#prose-analysis)
+   - [Right-Click Thesaurus & Spellcheck Suggestions](#right-click-thesaurus--spellcheck-suggestions)
    - [Goals & Word Targets](#goals--word-targets)
    - [Find & Replace & Command Palette](#find--replace--command-palette)
 9. [Publishing Metrics & Book Calculations](#9-publishing-metrics--book-calculations)
@@ -220,6 +221,16 @@ Open the Prose Analysis panel from the toolbar to analyze the linguistic quality
 - **Passive Voice Detector**: Highlights passive constructions to help strengthen action beats.
 - **Dialogue Ratio**: Visualizes the percentage of spoken dialogue versus descriptive narrative prose.
 - **Filler Word & Adverb Detector**: Identifies overused adverbs (`-ly`) and filter words (*felt, heard, noticed, seemed*) that weaken point-of-view immediacy.
+
+### Right-Click Thesaurus & Spellcheck Suggestions
+Right-click on any word or highlighted text in the editor to open a themed context menu:
+- **Spelling Corrections**: If a word is misspelled, high-confidence spelling replacement suggestions appear at the very top of the menu in bold. Clicking any suggestion immediately replaces the typo with the correct word and matching casing.
+- **Thesaurus Flyout**: Hovering over **Thesaurus ▶** displays high-relevance **Synonyms** and **Antonyms**.
+- **1-Click Replacement**: Clicking any suggestion immediately replaces the word in your manuscript.
+- **Smart Casing & Punctuation**: Automatically preserves original casing (e.g., `"Brilliant"` ➔ `"Radiant"`, `"Misspeled"` ➔ `"Misspelled"`) and preserves punctuation (quotes, commas, periods) around the word.
+- **Hybrid Online/Offline Architecture**: Powered by the Datamuse API backed by in-memory session caching and comprehensive offline fallback dictionaries for both typos and synonyms when writing without an internet connection.
+- **Standard Clipboard Actions**: Includes Cut (`Ctrl + X`), Copy (`Ctrl + C`), and Paste (`Ctrl + V`).
+- **Native Context Menu Access**: Hold `Shift + Right Click` at any time to bypass the custom menu and open the native operating system/browser context menu (for system-level actions like adding custom words to the OS dictionary).
 
 ### Goals & Word Targets (`Ctrl + G`)
 Open the Goals modal to configure your writing milestones:

@@ -80,6 +80,7 @@ All chapter files remain **100% clean, standard Markdown** on disk—no propriet
   - **Clean Combined Markdown (`.md`)**: Merges all chapters into a clean, portable Markdown document.
 
 ### 🗂️ Novelist's Auxiliary Suite
+- **Right-Click Thesaurus & Spellcheck**: Right-click any word or selected phrase to open a themed context menu. Features high-accuracy **Spelling Suggestions** for typos at the top of the menu and a nested **Thesaurus ▶** flyout for synonyms & antonyms. Replaces words in 1 click, automatically matching original casing (Title Case, UPPERCASE, lowercase) and leaving punctuation intact. Supports both the Datamuse API and offline dictionaries. Native OS context menu is accessible at any time via `Shift + Right Click`.
 - **Codex**: Full worldbuilding reference bible for Characters, Locations, Lore, and Plot Notes.
 - **Corkboard**: Visual index card board displaying chapter cards and synopses.
 - **Prose Analysis**: Deep linguistic analysis including Flesch-Kincaid readability grade, passive voice detection, dialogue-to-narrative balance, and filler word detection.
