@@ -67,13 +67,22 @@ export function useAppLifecycle() {
     })
   );
 
-  // --- Crash recovery: offer restore on startup ----------------------------
+  // --- Auto-load last project on startup & check crash recovery -------------
   const editorInstance = useEditorStore((s) => s.editorInstance);
   const recoveryChecked = useRef(false);
 
   useEffect(() => {
     if (!editorInstance || recoveryChecked.current) return;
     recoveryChecked.current = true;
+
+    const store = useEditorStore.getState();
+    if (isTauri() && store.projectPath && !store.novelProject) {
+      void store.loadProjectByPath(store.projectPath).then((ok) => {
+        if (!ok) {
+          useEditorStore.setState({ projectPath: null, projectName: null });
+        }
+      });
+    }
 
     const snapshot = loadRecovery();
     if (!snapshot || snapshot.markdown.trim() === '') {

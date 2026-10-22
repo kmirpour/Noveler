@@ -66,4 +66,11 @@ describe('spellingService', () => {
     const res = await fetchSpellingSuggestions('unknownword123');
     expect(res).toEqual([]);
   });
+
+  it('ignores words present in custom project dictionary or Codex ignore list', async () => {
+    const fetchSpy = vi.spyOn(globalThis, 'fetch');
+    const res = await fetchSpellingSuggestions('Valyria', ['valyria', 'winterfell']);
+    expect(res).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

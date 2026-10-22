@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   X,
@@ -16,15 +17,38 @@ export function ProseAnalysisModal() {
   const {
     proseAnalysisOpen,
     setProseAnalysisOpen,
+    setFindReplaceOpen,
+    editorInstance,
     markdownContent,
     fileName,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      proseAnalysisOpen: s.proseAnalysisOpen,
+      setProseAnalysisOpen: s.setProseAnalysisOpen,
+      setFindReplaceOpen: s.setFindReplaceOpen,
+      editorInstance: s.editorInstance,
+      markdownContent: s.markdownContent,
+      fileName: s.fileName,
+    }))
+  );
 
   const metrics = useMemo(() => {
     return analyzeProse(markdownContent);
   }, [markdownContent]);
 
   if (!proseAnalysisOpen) return null;
+
+  const jumpToWordInEditor = (term: string, wholeWord = true) => {
+    setProseAnalysisOpen(false);
+    setFindReplaceOpen(true);
+    if (editorInstance) {
+      editorInstance.commands.setCaseSensitive(false);
+      editorInstance.commands.setUseRegex(false);
+      editorInstance.commands.setWholeWord(wholeWord);
+      editorInstance.commands.setSearchTerm(term);
+      editorInstance.commands.nextSearchResult();
+    }
+  };
 
   const totalS = Math.max(1, metrics.totalSentences);
   const shortPct = Math.round((metrics.shortSentences / totalS) * 100);
@@ -157,10 +181,16 @@ export function ProseAnalysisModal() {
               ) : (
                 <div className="tag-cloud">
                   {metrics.adverbs.map((item) => (
-                    <span key={item.word} className="prose-tag">
+                    <button
+                      type="button"
+                      key={item.word}
+                      className="prose-tag clickable-prose-tag"
+                      onClick={() => jumpToWordInEditor(item.word, true)}
+                      title={`Click to highlight "${item.word}" in manuscript`}
+                    >
                       <span>{item.word}</span>
                       <span className="count">×{item.count}</span>
-                    </span>
+                    </button>
                   ))}
                 </div>
               )}
@@ -180,10 +210,16 @@ export function ProseAnalysisModal() {
               ) : (
                 <div className="tag-cloud">
                   {metrics.filterWords.map((item) => (
-                    <span key={item.word} className="prose-tag alert">
+                    <button
+                      type="button"
+                      key={item.word}
+                      className="prose-tag alert clickable-prose-tag"
+                      onClick={() => jumpToWordInEditor(item.word, true)}
+                      title={`Click to highlight "${item.word}" in manuscript`}
+                    >
                       <span>{item.word}</span>
                       <span className="count">×{item.count}</span>
-                    </span>
+                    </button>
                   ))}
                 </div>
               )}
@@ -206,9 +242,15 @@ export function ProseAnalysisModal() {
               ) : (
                 <div className="passive-list">
                   {metrics.passiveVoiceInstances.map((pv, idx) => (
-                    <div key={idx} className="passive-item">
+                    <button
+                      type="button"
+                      key={idx}
+                      className="passive-item clickable-prose-tag"
+                      onClick={() => jumpToWordInEditor(pv, false)}
+                      title={`Click to find "${pv}" in manuscript`}
+                    >
                       "{pv}"
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}
@@ -228,10 +270,16 @@ export function ProseAnalysisModal() {
               ) : (
                 <div className="tag-cloud">
                   {metrics.topRepeatedWords.map((item) => (
-                    <span key={item.word} className="prose-tag">
+                    <button
+                      type="button"
+                      key={item.word}
+                      className="prose-tag clickable-prose-tag"
+                      onClick={() => jumpToWordInEditor(item.word, true)}
+                      title={`Click to highlight "${item.word}" in manuscript`}
+                    >
                       <span>{item.word}</span>
                       <span className="count">×{item.count}</span>
-                    </span>
+                    </button>
                   ))}
                 </div>
               )}

@@ -131,13 +131,21 @@ export function sanitizeSpellWord(word: string): string {
 
 /**
  * Fetches spelling replacement suggestions for a given word.
- * Returns an empty array if the word is spelled correctly or if no suggestions exist.
+ * Returns an empty array if the word is spelled correctly, is in the custom ignore list,
+ * or if no suggestions exist.
  */
-export async function fetchSpellingSuggestions(rawWord: string): Promise<string[]> {
+export async function fetchSpellingSuggestions(
+  rawWord: string,
+  ignoreWords: string[] = []
+): Promise<string[]> {
   const clean = sanitizeSpellWord(rawWord);
   if (!clean || clean.length < 2) return [];
 
   const lower = clean.toLowerCase();
+
+  if (ignoreWords.some((w) => w.toLowerCase() === lower)) {
+    return [];
+  }
 
   // Check in-memory cache
   if (spellingCache.has(lower)) {

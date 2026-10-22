@@ -1,3 +1,4 @@
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import { Target, ScrollText, BookOpen, Clock } from 'lucide-react';
 import './StatusBar.css';
@@ -17,7 +18,23 @@ export function StatusBar() {
     setGoalsModalOpen,
     statusMessage,
     projectPath,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      fileName: s.fileName,
+      filePath: s.filePath,
+      isDirty: s.isDirty,
+      wordCount: s.wordCount,
+      selectedWordCount: s.selectedWordCount,
+      novelWordCount: s.novelWordCount,
+      sessionWords: s.sessionWords,
+      dailyWordGoal: s.dailyWordGoal,
+      typewriterMode: s.typewriterMode,
+      toggleTypewriterMode: s.toggleTypewriterMode,
+      setGoalsModalOpen: s.setGoalsModalOpen,
+      statusMessage: s.statusMessage,
+      projectPath: s.projectPath,
+    }))
+  );
 
   const totalWords = projectPath ? (novelWordCount || wordCount) : wordCount;
   const estimatedPages = Math.max(1, Math.round(totalWords / 250));

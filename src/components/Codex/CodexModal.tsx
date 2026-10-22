@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   BookOpen,
@@ -23,7 +24,17 @@ export function CodexModal() {
     updateCodexEntryAction,
     deleteCodexEntryAction,
     markdownContent,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      novelProject: s.novelProject,
+      codexModalOpen: s.codexModalOpen,
+      setCodexModalOpen: s.setCodexModalOpen,
+      addCodexEntryAction: s.addCodexEntryAction,
+      updateCodexEntryAction: s.updateCodexEntryAction,
+      deleteCodexEntryAction: s.deleteCodexEntryAction,
+      markdownContent: s.markdownContent,
+    }))
+  );
 
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<CodexCategory | 'all'>('all');

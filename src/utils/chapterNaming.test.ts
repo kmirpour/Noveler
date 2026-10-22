@@ -6,6 +6,7 @@ import {
   sortChapterFiles,
   extractChapterDisplayTitle,
   slugifyTitle,
+  buildRenamedChapterFileName,
 } from './chapterNaming';
 
 describe('chapterNaming utility', () => {
@@ -55,5 +56,11 @@ describe('chapterNaming utility', () => {
     expect(extractChapterDisplayTitle('01-chapter.md')).toBe('Chapter 1');
     expect(extractChapterDisplayTitle('02-the-beginning.md')).toBe('Chapter 2: The beginning');
     expect(extractChapterDisplayTitle('epilogue.md')).toBe('epilogue');
+  });
+
+  it('builds renamed chapter filenames while preserving numeric prefix', () => {
+    expect(buildRenamedChapterFileName('01-chapter.md', 'The Harbor')).toBe('01-the-harbor.md');
+    expect(buildRenamedChapterFileName('02-the-beginning.md', 'Chapter 2: The Departure')).toBe('02-the-departure.md');
+    expect(buildRenamedChapterFileName('epilogue.md', 'Final Note')).toBe('Final Note.md');
   });
 });

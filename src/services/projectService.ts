@@ -62,6 +62,8 @@ export interface NovelProject {
   chapterMetadata?: Record<string, SceneMetadata>;
   scratchpad?: string;
   tagCategories?: string[];
+  tagAssignments?: Record<string, string>;
+  customDictionary?: string[];
   codex?: CodexEntry[];
   snapshots?: SceneSnapshot[];
   gitRemoteUrl?: string;
@@ -292,6 +294,8 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     chapterMetadata,
     scratchpad: existingProject?.scratchpad || '',
     tagCategories: existingProject?.tagCategories || ['characters', 'locations', 'items', 'scenes'],
+    tagAssignments: existingProject?.tagAssignments || {},
+    customDictionary: existingProject?.customDictionary || [],
     codex: existingProject?.codex || [],
     snapshots: existingProject?.snapshots || [],
     gitRemoteUrl: existingProject?.gitRemoteUrl,

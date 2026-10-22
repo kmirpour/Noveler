@@ -212,7 +212,13 @@ pub struct GitRepoStatus {
 }
 
 #[tauri::command]
-pub fn git_get_status(path: String) -> Result<GitRepoStatus, String> {
+pub async fn git_get_status(path: String) -> Result<GitRepoStatus, String> {
+    tauri::async_runtime::spawn_blocking(move || git_get_status_sync(path))
+        .await
+        .map_err(|e| format!("Git status task error: {e}"))?
+}
+
+fn git_get_status_sync(path: String) -> Result<GitRepoStatus, String> {
     let p = PathBuf::from(&path);
     ensure_absolute(&p)?;
 
@@ -278,7 +284,17 @@ pub fn git_get_status(path: String) -> Result<GitRepoStatus, String> {
 }
 
 #[tauri::command]
-pub fn git_sync(
+pub async fn git_sync(
+    path: String,
+    remote_url: Option<String>,
+    commit_msg: Option<String>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || git_sync_sync(path, remote_url, commit_msg))
+        .await
+        .map_err(|e| format!("Git sync task error: {e}"))?
+}
+
+fn git_sync_sync(
     path: String,
     remote_url: Option<String>,
     commit_msg: Option<String>,

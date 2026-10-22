@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import {
   Search,
   FilePlus,
@@ -26,6 +27,8 @@ import {
   Sun,
   Moon,
   Coffee,
+  TreePine,
+  Compass,
   Type,
   AlignLeft,
   Columns2,
@@ -36,13 +39,24 @@ import {
   GitBranch,
   Archive,
   Focus,
+  StickyNote,
 } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
+import { flattenScenes } from '../../services/projectService';
+import { extractFileName } from '../../services/fileService';
 import './CommandPalette.css';
 
 interface CommandItem {
   id: string;
-  category: 'File' | 'View & Focus' | 'Story Tools' | 'Formatting' | 'Typography' | 'Theme';
+  category:
+    | 'File'
+    | 'Chapters'
+    | 'Recent Files'
+    | 'View & Focus'
+    | 'Story Tools'
+    | 'Formatting'
+    | 'Typography'
+    | 'Theme';
   title: string;
   shortcut?: string;
   icon: React.ReactNode;
@@ -56,6 +70,7 @@ export function CommandPalette() {
     editorInstance,
     newFile,
     openFileAction,
+    openFileByPath,
     saveFileAction,
     saveFileAsAction,
     exportDocxAction,
@@ -63,6 +78,9 @@ export function CommandPalette() {
     syncGitAction,
     flushScratchpadAction,
     openProjectFolderAction,
+    loadSceneByPath,
+    novelProject,
+    recentFiles,
     toggleFocusMode,
     toggleTypewriterMode,
     toggleDimUnfocused,
@@ -80,7 +98,43 @@ export function CommandPalette() {
     toggleCompileModal,
     toggleCodexModal,
     toggleProseAnalysis,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      commandPaletteOpen: s.commandPaletteOpen,
+      setCommandPaletteOpen: s.setCommandPaletteOpen,
+      editorInstance: s.editorInstance,
+      newFile: s.newFile,
+      openFileAction: s.openFileAction,
+      openFileByPath: s.openFileByPath,
+      saveFileAction: s.saveFileAction,
+      saveFileAsAction: s.saveFileAsAction,
+      exportDocxAction: s.exportDocxAction,
+      printAction: s.printAction,
+      syncGitAction: s.syncGitAction,
+      flushScratchpadAction: s.flushScratchpadAction,
+      openProjectFolderAction: s.openProjectFolderAction,
+      loadSceneByPath: s.loadSceneByPath,
+      novelProject: s.novelProject,
+      recentFiles: s.recentFiles,
+      toggleFocusMode: s.toggleFocusMode,
+      toggleTypewriterMode: s.toggleTypewriterMode,
+      toggleDimUnfocused: s.toggleDimUnfocused,
+      setGoalsModalOpen: s.setGoalsModalOpen,
+      setFindReplaceOpen: s.setFindReplaceOpen,
+      setViewMode: s.setViewMode,
+      toggleSidebar: s.toggleSidebar,
+      cycleFontFamily: s.cycleFontFamily,
+      toggleParagraphIndent: s.toggleParagraphIndent,
+      setFontSize: s.setFontSize,
+      fontSize: s.fontSize,
+      setTheme: s.setTheme,
+      toggleCorkboard: s.toggleCorkboard,
+      toggleInspector: s.toggleInspector,
+      toggleCompileModal: s.toggleCompileModal,
+      toggleCodexModal: s.toggleCodexModal,
+      toggleProseAnalysis: s.toggleProseAnalysis,
+    }))
+  );
 
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -222,6 +276,13 @@ export function CommandPalette() {
         title: 'View: Read (Preview Only)',
         icon: <BookOpen size={16} />,
         action: () => setViewMode('preview'),
+      },
+      {
+        id: 'view-scratchpad',
+        category: 'View & Focus',
+        title: 'View: Pen & Scratchpad (Editor + Notes)',
+        icon: <StickyNote size={16} />,
+        action: () => setViewMode('scratchpad'),
       },
       {
         id: 'view-sidebar',
@@ -372,6 +433,13 @@ export function CommandPalette() {
 
       // Theme
       {
+        id: 'theme-sepia',
+        category: 'Theme',
+        title: 'Theme: Sepia (Warm Book Paper)',
+        icon: <Coffee size={16} />,
+        action: () => setTheme('sepia'),
+      },
+      {
         id: 'theme-light',
         category: 'Theme',
         title: 'Theme: Light (Clean Studio)',
@@ -386,22 +454,56 @@ export function CommandPalette() {
         action: () => setTheme('dark'),
       },
       {
-        id: 'theme-sepia',
+        id: 'theme-forest',
         category: 'Theme',
-        title: 'Theme: Sepia (Warm Parchment)',
-        icon: <Coffee size={16} />,
-        action: () => setTheme('sepia'),
+        title: 'Theme: Forest (Calming Moss & Pine)',
+        icon: <TreePine size={16} />,
+        action: () => setTheme('forest'),
       },
+      {
+        id: 'theme-nord',
+        category: 'Theme',
+        title: 'Theme: Nord (Arctic Frost)',
+        icon: <Compass size={16} />,
+        action: () => setTheme('nord'),
+      },
+      // Dynamic Chapter Quick Switcher
+      ...(novelProject
+        ? flattenScenes(novelProject.binder).map(
+            (scene, idx): CommandItem => ({
+              id: `chapter-jump-${scene.path}`,
+              category: 'Chapters',
+              title: `Open Chapter: ${scene.title}`,
+              shortcut: `#${idx + 1}`,
+              icon: <FileText size={16} />,
+              action: () => void loadSceneByPath(scene.path),
+            })
+          )
+        : []),
+      // Recent Files
+      ...(recentFiles || []).slice(0, 5).map(
+        (path): CommandItem => ({
+          id: `recent-file-${path}`,
+          category: 'Recent Files',
+          title: `Recent: ${extractFileName(path)}`,
+          icon: <FileText size={16} />,
+          action: () => void openFileByPath(path),
+        })
+      ),
     ],
     [
       editorInstance,
       newFile,
       openFileAction,
+      openFileByPath,
       saveFileAction,
       saveFileAsAction,
       exportDocxAction,
       printAction,
       openProjectFolderAction,
+      loadSceneByPath,
+      novelProject,
+      recentFiles,
       toggleFocusMode,
       toggleTypewriterMode,
       toggleDimUnfocused,

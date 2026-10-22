@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   extractNarrativeTags,
@@ -17,7 +18,16 @@ export function TagsTab() {
     tagAssignments,
     addTagCategoryAction,
     assignTagCategoryAction,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      markdownContent: s.markdownContent,
+      editorInstance: s.editorInstance,
+      tagCategories: s.tagCategories,
+      tagAssignments: s.tagAssignments,
+      addTagCategoryAction: s.addTagCategoryAction,
+      assignTagCategoryAction: s.assignTagCategoryAction,
+    }))
+  );
 
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<string | null>(null);
   const [isAddingCategory, setIsAddingCategory] = useState(false);

@@ -192,5 +192,45 @@ describe('WritingSlice', () => {
     // flushScratchpadAction returns false when no project is open or content is empty
     expect(await store.flushScratchpadAction()).toBe(false);
   });
+
+  it('synchronizes scene metadata across currentMetadata, binder, and chapterMetadata', () => {
+    useEditorStore.setState({
+      projectPath: 'C:/novel',
+      filePath: 'C:/novel/01-chapter.md',
+      fileName: '01-chapter.md',
+      activeScenePath: 'C:/novel/01-chapter.md',
+      novelProject: {
+        version: 1,
+        title: 'Test Novel',
+        author: 'Author',
+        targetWordCount: 80000,
+        dailyTarget: 1000,
+        createdAt: '',
+        updatedAt: '',
+        binder: [
+          {
+            id: 'b1',
+            type: 'scene',
+            title: 'Chapter 1',
+            path: 'C:/novel/01-chapter.md',
+            status: 'draft',
+          },
+        ],
+        chapterMetadata: {},
+      },
+    });
+
+    useEditorStore.getState().updateSceneMetadataByPath('C:/novel/01-chapter.md', {
+      synopsis: 'Updated from corkboard',
+      pov: 'Alice',
+      status: 'revised',
+    });
+
+    const state = useEditorStore.getState();
+    expect(state.currentMetadata.synopsis).toBe('Updated from corkboard');
+    expect(state.currentMetadata.pov).toBe('Alice');
+    expect(state.novelProject?.binder[0].synopsis).toBe('Updated from corkboard');
+    expect(state.novelProject?.chapterMetadata?.['01-chapter.md']?.synopsis).toBe('Updated from corkboard');
+  });
 });
 

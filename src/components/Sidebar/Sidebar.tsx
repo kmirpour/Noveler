@@ -1,4 +1,5 @@
-import { useState, type MouseEvent, type FormEvent } from 'react';
+import { useState, type MouseEvent, type FormEvent, type DragEvent } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   FolderOpen,
@@ -13,6 +14,7 @@ import {
   Edit2,
   BookText,
   Hash,
+  GripVertical,
 } from 'lucide-react';
 import type { BinderItem, SceneStatus } from '../../services/projectService';
 import { TagsTab } from './TagsTab';
@@ -20,15 +22,36 @@ import './Sidebar.css';
 
 interface ChapterItemProps {
   item: BinderItem;
+  index: number;
+  isDragOver: boolean;
+  onDragStart: (e: DragEvent, index: number) => void;
+  onDragOver: (e: DragEvent, index: number) => void;
+  onDrop: (e: DragEvent, index: number) => void;
+  onDragEnd: () => void;
 }
 
-function ChapterItem({ item }: ChapterItemProps) {
+function ChapterItem({
+  item,
+  index,
+  isDragOver,
+  onDragStart,
+  onDragOver,
+  onDrop,
+  onDragEnd,
+}: ChapterItemProps) {
   const {
     activeScenePath,
     loadSceneByPath,
     renameBinderItemAction,
     deleteBinderItemAction,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      activeScenePath: s.activeScenePath,
+      loadSceneByPath: s.loadSceneByPath,
+      renameBinderItemAction: s.renameBinderItemAction,
+      deleteBinderItemAction: s.deleteBinderItemAction,
+    }))
+  );
 
   const [showMenu, setShowMenu] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
@@ -70,11 +93,19 @@ function ChapterItem({ item }: ChapterItemProps) {
   };
 
   return (
-    <div className="binder-item-wrapper">
+    <div
+      className="binder-item-wrapper"
+      draggable={!isRenaming}
+      onDragStart={(e) => onDragStart(e, index)}
+      onDragOver={(e) => onDragOver(e, index)}
+      onDrop={(e) => onDrop(e, index)}
+      onDragEnd={onDragEnd}
+    >
       <div
-        className={`binder-item is-scene ${isActive ? 'active' : ''}`}
+        className={`binder-item is-scene ${isActive ? 'active' : ''} ${isDragOver ? 'drag-over' : ''}`}
         onClick={handleClick}
       >
+        <GripVertical size={12} className="binder-drag-handle" />
         <span
           className="scene-status-dot"
           style={{ backgroundColor: getStatusColor(item.status) }}
@@ -157,19 +188,65 @@ export function Sidebar() {
     openProjectFolderAction,
     createChapterAction,
     refreshProjectFiles,
+    reorderBinderItemsAction,
     toggleCorkboard,
     corkboardOpen,
     toggleInspector,
     inspectorOpen,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      sidebarOpen: s.sidebarOpen,
+      toggleSidebar: s.toggleSidebar,
+      projectName: s.projectName,
+      projectPath: s.projectPath,
+      novelProject: s.novelProject,
+      openProjectFolderAction: s.openProjectFolderAction,
+      createChapterAction: s.createChapterAction,
+      refreshProjectFiles: s.refreshProjectFiles,
+      reorderBinderItemsAction: s.reorderBinderItemsAction,
+      toggleCorkboard: s.toggleCorkboard,
+      corkboardOpen: s.corkboardOpen,
+      toggleInspector: s.toggleInspector,
+      inspectorOpen: s.inspectorOpen,
+    }))
+  );
 
   const [activeTab, setActiveTab] = useState<'chapters' | 'tags'>('chapters');
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
 
   if (!sidebarOpen) {
     return null;
   }
 
   const binderItems = novelProject?.binder || [];
+
+  const handleDragStart = (e: DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIdx !== index) {
+      setDragOverIdx(index);
+    }
+  };
+
+  const handleDrop = (e: DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIdx !== null && draggedIdx !== index) {
+      void reorderBinderItemsAction(draggedIdx, index);
+    }
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  };
 
   return (
     <aside className="sidebar">
@@ -261,8 +338,17 @@ export function Sidebar() {
                     <p>No chapters found. Click <strong>+ Chapter</strong> above to begin your novel!</p>
                   </div>
                 ) : (
-                  binderItems.map((item) => (
-                    <ChapterItem key={item.id || item.path} item={item} />
+                  binderItems.map((item, idx) => (
+                    <ChapterItem
+                      key={item.id || item.path}
+                      item={item}
+                      index={idx}
+                      isDragOver={dragOverIdx === idx && draggedIdx !== idx}
+                      onDragStart={handleDragStart}
+                      onDragOver={handleDragOver}
+                      onDrop={handleDrop}
+                      onDragEnd={handleDragEnd}
+                    />
                   ))
                 )}
               </div>

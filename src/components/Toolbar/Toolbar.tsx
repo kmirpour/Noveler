@@ -1,3 +1,5 @@
+import { useShallow } from 'zustand/react/shallow';
+import { useEditorState } from '@tiptap/react';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   PanelLeft,
@@ -74,7 +76,79 @@ export function Toolbar() {
     toggleCodexModal,
     proseAnalysisOpen,
     toggleProseAnalysis,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      editorInstance: s.editorInstance,
+      newFile: s.newFile,
+      openProjectFolderAction: s.openProjectFolderAction,
+      saveFileAction: s.saveFileAction,
+      saveFileAsAction: s.saveFileAsAction,
+      printAction: s.printAction,
+      syncGitAction: s.syncGitAction,
+      isDirty: s.isDirty,
+      sidebarOpen: s.sidebarOpen,
+      toggleSidebar: s.toggleSidebar,
+      viewMode: s.viewMode,
+      setViewMode: s.setViewMode,
+      fontFamily: s.fontFamily,
+      cycleFontFamily: s.cycleFontFamily,
+      paragraphIndent: s.paragraphIndent,
+      toggleParagraphIndent: s.toggleParagraphIndent,
+      focusMode: s.focusMode,
+      toggleFocusMode: s.toggleFocusMode,
+      dimUnfocused: s.dimUnfocused,
+      toggleDimUnfocused: s.toggleDimUnfocused,
+      setFindReplaceOpen: s.setFindReplaceOpen,
+      setGoalsModalOpen: s.setGoalsModalOpen,
+      setCommandPaletteOpen: s.setCommandPaletteOpen,
+      corkboardOpen: s.corkboardOpen,
+      toggleCorkboard: s.toggleCorkboard,
+      inspectorOpen: s.inspectorOpen,
+      toggleInspector: s.toggleInspector,
+      novelProject: s.novelProject,
+      toggleCompileModal: s.toggleCompileModal,
+      codexModalOpen: s.codexModalOpen,
+      toggleCodexModal: s.toggleCodexModal,
+      proseAnalysisOpen: s.proseAnalysisOpen,
+      toggleProseAnalysis: s.toggleProseAnalysis,
+    }))
+  );
+
+  // Reactive active formatting state from TipTap cursor position
+  const activeFormats = useEditorState({
+    editor,
+    selector: (ctx) => {
+      const ed = ctx.editor;
+      if (!ed) {
+        return {
+          bold: false,
+          italic: false,
+          underline: false,
+          strike: false,
+          h1: false,
+          h2: false,
+          h3: false,
+          bulletList: false,
+          orderedList: false,
+          blockquote: false,
+          highlight: false,
+        };
+      }
+      return {
+        bold: ed.isActive('bold'),
+        italic: ed.isActive('italic'),
+        underline: ed.isActive('underline'),
+        strike: ed.isActive('strike'),
+        h1: ed.isActive('heading', { level: 1 }),
+        h2: ed.isActive('heading', { level: 2 }),
+        h3: ed.isActive('heading', { level: 3 }),
+        bulletList: ed.isActive('bulletList'),
+        orderedList: ed.isActive('orderedList'),
+        blockquote: ed.isActive('blockquote'),
+        highlight: ed.isActive('highlight'),
+      };
+    },
+  });
 
   return (
     <div className="toolbar">
@@ -157,28 +231,28 @@ export function Toolbar() {
         <>
           <div className="toolbar-group">
             <button
-              className={`toolbar-button ${editor.isActive('bold') ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.bold ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleBold().run()}
               title="Bold"
             >
               <Bold size={18} />
             </button>
             <button
-              className={`toolbar-button ${editor.isActive('italic') ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.italic ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleItalic().run()}
               title="Italic"
             >
               <Italic size={18} />
             </button>
             <button
-              className={`toolbar-button ${editor.isActive('underline') ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.underline ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleUnderline().run()}
               title="Underline"
             >
               <Underline size={18} />
             </button>
             <button
-              className={`toolbar-button ${editor.isActive('strike') ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.strike ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleStrike().run()}
               title="Strikethrough"
             >
@@ -190,21 +264,21 @@ export function Toolbar() {
 
           <div className="toolbar-group">
             <button
-              className={`toolbar-button ${editor.isActive('heading', { level: 1 }) ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.h1 ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
               title="Heading 1 (Book / Part Title)"
             >
               <Heading1 size={18} />
             </button>
             <button
-              className={`toolbar-button ${editor.isActive('heading', { level: 2 }) ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.h2 ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
               title="Heading 2 (Chapter Title)"
             >
               <Heading2 size={18} />
             </button>
             <button
-              className={`toolbar-button ${editor.isActive('heading', { level: 3 }) ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.h3 ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
               title="Heading 3 (Section Title)"
             >
@@ -216,14 +290,14 @@ export function Toolbar() {
 
           <div className="toolbar-group">
             <button
-              className={`toolbar-button ${editor.isActive('bulletList') ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.bulletList ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleBulletList().run()}
               title="Bullet List"
             >
               <List size={18} />
             </button>
             <button
-              className={`toolbar-button ${editor.isActive('orderedList') ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.orderedList ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleOrderedList().run()}
               title="Ordered List"
             >
@@ -235,7 +309,7 @@ export function Toolbar() {
 
           <div className="toolbar-group">
             <button
-              className={`toolbar-button ${editor.isActive('blockquote') ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.blockquote ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleBlockquote().run()}
               title="Blockquote (Letter / Excerpt)"
             >
@@ -249,7 +323,7 @@ export function Toolbar() {
               <Minus size={18} />
             </button>
             <button
-              className={`toolbar-button ${editor.isActive('highlight') ? 'active' : ''}`}
+              className={`toolbar-button ${activeFormats?.highlight ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHighlight().run()}
               title="Highlight"
             >

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, useLayoutEffect } from 'react';
+import { useEffect, useRef, useState, useLayoutEffect, useMemo } from 'react';
 import { fetchThesaurus, applyCasing, type ThesaurusResult } from '../../services/thesaurusService';
-import { fetchSpellingSuggestions } from '../../services/spellingService';
-import { BookOpen, Scissors, Copy, Clipboard, ChevronRight, Loader2, Check } from 'lucide-react';
+import { fetchSpellingSuggestions, sanitizeSpellWord } from '../../services/spellingService';
+import { useEditorStore } from '../../stores/editorStore';
+import { BookOpen, Scissors, Copy, Clipboard, ChevronRight, Loader2, Check, BookPlus } from 'lucide-react';
 import './EditorContextMenu.css';
 
 export interface EditorContextMenuProps {
@@ -33,6 +34,26 @@ export function EditorContextMenu({
   const [thesaurusData, setThesaurusData] = useState<ThesaurusResult | null>(null);
   const [spellingSuggestions, setSpellingSuggestions] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  const novelProject = useEditorStore((s) => s.novelProject);
+  const addCustomDictionaryWordAction = useEditorStore((s) => s.addCustomDictionaryWordAction);
+
+  const projectIgnoreWords = useMemo(() => {
+    const words = new Set<string>(novelProject?.customDictionary || []);
+    for (const entry of novelProject?.codex || []) {
+      for (const part of entry.name.split(/\s+/)) {
+        const clean = sanitizeSpellWord(part);
+        if (clean) words.add(clean.toLowerCase());
+      }
+      for (const alias of entry.aliases || []) {
+        for (const part of alias.split(/\s+/)) {
+          const clean = sanitizeSpellWord(part);
+          if (clean) words.add(clean.toLowerCase());
+        }
+      }
+    }
+    return Array.from(words);
+  }, [novelProject]);
 
   // Position adjustment to avoid viewport overflow
   useLayoutEffect(() => {
@@ -81,7 +102,7 @@ export function EditorContextMenu({
         }
       });
 
-    fetchSpellingSuggestions(targetWord)
+    fetchSpellingSuggestions(targetWord, projectIgnoreWords)
       .then((suggestions) => {
         if (isMounted) {
           setSpellingSuggestions(suggestions);
@@ -96,7 +117,7 @@ export function EditorContextMenu({
     return () => {
       isMounted = false;
     };
-  }, [targetWord]);
+  }, [targetWord, projectIgnoreWords]);
 
   // Click outside and escape key listeners
   useEffect(() => {
@@ -167,6 +188,19 @@ export function EditorContextMenu({
               </span>
             </button>
           ))}
+          {novelProject && targetWord && (
+            <button
+              type="button"
+              className="context-menu-item"
+              onClick={() => {
+                void addCustomDictionaryWordAction(sanitizeSpellWord(targetWord));
+                onClose();
+              }}
+            >
+              <BookPlus size={13} className="menu-icon" />
+              <span className="menu-label">Add "{displayWord}" to Project Dictionary</span>
+            </button>
+          )}
           <div className="context-menu-divider" />
         </div>
       )}

@@ -198,6 +198,28 @@
   font-weight: 500;
 }
 
+.binder-item.drag-over {
+  border-top: 2px solid var(--accent-color);
+  background: var(--btn-hover);
+}
+
+.binder-drag-handle {
+  color: var(--text-muted);
+  opacity: 0;
+  cursor: grab;
+  flex-shrink: 0;
+  margin-left: 2px;
+  transition: opacity 0.15s;
+}
+
+.binder-item:hover .binder-drag-handle {
+  opacity: 0.6;
+}
+
+.binder-drag-handle:hover {
+  opacity: 1 !important;
+}
+
 .binder-chevron-btn {
   background: transparent;
   border: none;

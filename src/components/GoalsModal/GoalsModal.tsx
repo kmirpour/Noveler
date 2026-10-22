@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { Target, X, RotateCcw, BookOpen, Clock, FileText, Sparkles } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
 import './GoalsModal.css';
@@ -17,7 +18,22 @@ export function GoalsModal() {
     editorInstance,
     novelWordCount,
     projectPath,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      goalsModalOpen: s.goalsModalOpen,
+      setGoalsModalOpen: s.setGoalsModalOpen,
+      dailyWordGoal: s.dailyWordGoal,
+      setDailyWordGoal: s.setDailyWordGoal,
+      sessionWords: s.sessionWords,
+      resetSessionWords: s.resetSessionWords,
+      wordCount: s.wordCount,
+      charCount: s.charCount,
+      markdownContent: s.markdownContent,
+      editorInstance: s.editorInstance,
+      novelWordCount: s.novelWordCount,
+      projectPath: s.projectPath,
+    }))
+  );
 
   const [customGoal, setCustomGoal] = useState<string>(String(dailyWordGoal));
 

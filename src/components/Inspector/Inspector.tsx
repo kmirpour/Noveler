@@ -1,4 +1,5 @@
 import { useState, type ChangeEvent } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   SlidersHorizontal,
@@ -10,8 +11,9 @@ import {
   Camera,
   RotateCcw,
   Trash2,
+  Eye,
 } from 'lucide-react';
-import type { SceneStatus } from '../../services/projectService';
+import type { SceneStatus, SceneSnapshot } from '../../services/projectService';
 import './Inspector.css';
 
 export function Inspector() {
@@ -23,14 +25,31 @@ export function Inspector() {
     fileName,
     filePath,
     wordCount,
+    markdownContent,
     novelProject,
     createSceneSnapshotAction,
     restoreSceneSnapshotAction,
     deleteSceneSnapshotAction,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      inspectorOpen: s.inspectorOpen,
+      setInspectorOpen: s.setInspectorOpen,
+      currentMetadata: s.currentMetadata,
+      updateSceneMetadata: s.updateSceneMetadata,
+      fileName: s.fileName,
+      filePath: s.filePath,
+      wordCount: s.wordCount,
+      markdownContent: s.markdownContent,
+      novelProject: s.novelProject,
+      createSceneSnapshotAction: s.createSceneSnapshotAction,
+      restoreSceneSnapshotAction: s.restoreSceneSnapshotAction,
+      deleteSceneSnapshotAction: s.deleteSceneSnapshotAction,
+    }))
+  );
 
   const [snapshotLabel, setSnapshotLabel] = useState('');
   const [takingSnapshot, setTakingSnapshot] = useState(false);
+  const [previewSnapshot, setPreviewSnapshot] = useState<SceneSnapshot | null>(null);
 
   if (!inspectorOpen) return null;
 
@@ -239,6 +258,13 @@ export function Inspector() {
                         </span>
                         <div className="snapshot-actions">
                           <button
+                            className="snapshot-action-btn preview"
+                            onClick={() => setPreviewSnapshot(snap)}
+                            title="Preview & Compare Snapshot"
+                          >
+                            <Eye size={12} />
+                          </button>
+                          <button
                             className="snapshot-action-btn restore"
                             onClick={() => {
                               if (confirm(`Restore snapshot "${snap.label}"? Current edits will be replaced.`)) {
@@ -270,6 +296,63 @@ export function Inspector() {
           </div>
         )}
       </div>
+
+      {/* Snapshot Preview & Compare Modal */}
+      {previewSnapshot && (
+        <div className="modal-backdrop" onClick={() => setPreviewSnapshot(null)}>
+          <div className="snapshot-preview-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div className="modal-title-group">
+                <Camera size={18} className="modal-title-icon" />
+                <h2>Snapshot Comparison — {previewSnapshot.label}</h2>
+              </div>
+              <button
+                className="modal-close-btn"
+                onClick={() => setPreviewSnapshot(null)}
+                title="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="snapshot-compare-grid">
+              <div className="snapshot-compare-pane">
+                <div className="snapshot-compare-header">
+                  <strong>Snapshot ({new Date(previewSnapshot.timestamp).toLocaleString()})</strong>
+                  <span>{previewSnapshot.wordCount.toLocaleString()} words</span>
+                </div>
+                <pre className="snapshot-compare-body">{previewSnapshot.content}</pre>
+              </div>
+              <div className="snapshot-compare-pane">
+                <div className="snapshot-compare-header">
+                  <strong>Current Active Draft</strong>
+                  <span>{wordCount.toLocaleString()} words</span>
+                </div>
+                <pre className="snapshot-compare-body">{markdownContent}</pre>
+              </div>
+            </div>
+            <div className="snapshot-preview-footer">
+              <button
+                type="button"
+                className="snapshot-cancel-btn"
+                onClick={() => setPreviewSnapshot(null)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="snapshot-restore-confirm-btn"
+                onClick={() => {
+                  void restoreSceneSnapshotAction(previewSnapshot.id);
+                  setPreviewSnapshot(null);
+                }}
+              >
+                <RotateCcw size={14} />
+                <span>Restore This Snapshot</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </aside>
   );
 }

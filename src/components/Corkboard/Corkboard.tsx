@@ -1,3 +1,5 @@
+import { useState, type DragEvent, type FormEvent } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   User,
@@ -6,12 +8,12 @@ import {
   Target,
   X,
   LayoutGrid,
+  GripVertical,
 } from 'lucide-react';
 import {
   type BinderItem,
   type SceneStatus,
   flattenScenes,
-  saveNovelProject,
 } from '../../services/projectService';
 import './Corkboard.css';
 
@@ -24,7 +26,26 @@ export function Corkboard() {
     activeScenePath,
     loadSceneByPath,
     createSceneAction,
-  } = useEditorStore();
+    updateSceneMetadataByPath,
+    reorderBinderItemsAction,
+  } = useEditorStore(
+    useShallow((s) => ({
+      corkboardOpen: s.corkboardOpen,
+      setCorkboardOpen: s.setCorkboardOpen,
+      novelProject: s.novelProject,
+      projectPath: s.projectPath,
+      activeScenePath: s.activeScenePath,
+      loadSceneByPath: s.loadSceneByPath,
+      createSceneAction: s.createSceneAction,
+      updateSceneMetadataByPath: s.updateSceneMetadataByPath,
+      reorderBinderItemsAction: s.reorderBinderItemsAction,
+    }))
+  );
+
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [addingScene, setAddingScene] = useState(false);
+  const [newSceneTitle, setNewSceneTitle] = useState('');
 
   if (!corkboardOpen) return null;
 
@@ -36,32 +57,54 @@ export function Corkboard() {
   };
 
   const handleUpdateSynopsis = (scene: BinderItem, synopsis: string) => {
-    if (!novelProject || !projectPath) return;
-    scene.synopsis = synopsis;
-    useEditorStore.setState({ novelProject: { ...novelProject } });
-    void saveNovelProject(projectPath, novelProject);
+    updateSceneMetadataByPath(scene.path, { synopsis });
   };
 
   const handleUpdateStatus = (scene: BinderItem, status: SceneStatus) => {
-    if (!novelProject || !projectPath) return;
-    scene.status = status;
-    useEditorStore.setState({ novelProject: { ...novelProject } });
-    void saveNovelProject(projectPath, novelProject);
+    updateSceneMetadataByPath(scene.path, { status });
   };
 
   const handleUpdatePov = (scene: BinderItem, pov: string) => {
-    if (!novelProject || !projectPath) return;
-    scene.pov = pov;
-    useEditorStore.setState({ novelProject: { ...novelProject } });
-    void saveNovelProject(projectPath, novelProject);
+    updateSceneMetadataByPath(scene.path, { pov });
   };
 
-  const handleAddNewScene = async () => {
+  const handleAddNewSceneSubmit = async (e: FormEvent) => {
+    e.preventDefault();
     if (!projectPath) return;
-    const title = prompt('New Scene Title:');
-    if (title?.trim()) {
-      await createSceneAction(projectPath, title.trim());
+    if (newSceneTitle.trim()) {
+      await createSceneAction(projectPath, newSceneTitle.trim());
+    } else {
+      await createSceneAction(projectPath, '');
     }
+    setNewSceneTitle('');
+    setAddingScene(false);
+  };
+
+  const handleDragStart = (e: DragEvent, index: number) => {
+    setDraggedIdx(index);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e: DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (dragOverIdx !== index) {
+      setDragOverIdx(index);
+    }
+  };
+
+  const handleDrop = (e: DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIdx !== null && draggedIdx !== index) {
+      void reorderBinderItemsAction(draggedIdx, index);
+    }
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIdx(null);
+    setDragOverIdx(null);
   };
 
   const getStatusColor = (status?: SceneStatus) => {
@@ -105,10 +148,18 @@ export function Corkboard() {
             return (
               <div
                 key={scene.id || scene.path}
-                className={`index-card ${isActive ? 'active-card' : ''}`}
+                className={`index-card ${isActive ? 'active-card' : ''} ${dragOverIdx === idx && draggedIdx !== idx ? 'drag-over-card' : ''}`}
+                draggable
+                onDragStart={(e) => handleDragStart(e, idx)}
+                onDragOver={(e) => handleDragOver(e, idx)}
+                onDrop={(e) => handleDrop(e, idx)}
+                onDragEnd={handleDragEnd}
               >
                 {/* Pin / Header bar */}
                 <div className="index-card-header">
+                  <span title="Drag to reorder chapter" style={{ display: 'inline-flex' }}>
+                    <GripVertical size={13} className="card-drag-handle" />
+                  </span>
                   <div className="index-card-number">#{idx + 1}</div>
                   <h3 className="index-card-title" title={scene.title}>
                     {scene.title}
@@ -130,6 +181,7 @@ export function Corkboard() {
                 {/* Synopsis / Beat note */}
                 <div className="index-card-body">
                   <textarea
+                    key={`${scene.path}-synopsis-${scene.synopsis || ''}`}
                     className="index-card-synopsis"
                     placeholder="Write scene synopsis, plot beats, or character conflict here..."
                     defaultValue={scene.synopsis || ''}
@@ -143,6 +195,7 @@ export function Corkboard() {
                     <div className="card-pov-input-wrapper" title="POV Character">
                       <User size={12} className="card-meta-icon" />
                       <input
+                        key={`${scene.path}-pov-${scene.pov || ''}`}
                         type="text"
                         className="card-pov-input"
                         placeholder="POV Character"
@@ -173,10 +226,53 @@ export function Corkboard() {
           })}
 
           {/* Add New Scene Card */}
-          <button className="index-card add-card-btn" onClick={handleAddNewScene}>
-            <Plus size={24} className="add-card-icon" />
-            <span>Add New Scene</span>
-          </button>
+          {addingScene ? (
+            <form className="index-card new-scene-form-card" onSubmit={handleAddNewSceneSubmit}>
+              <div className="index-card-header">
+                <h3 className="index-card-title">New Chapter / Scene</h3>
+              </div>
+              <div className="index-card-body" style={{ flexDirection: 'column', gap: 8, justifyContent: 'center' }}>
+                <input
+                  type="text"
+                  autoFocus
+                  className="new-scene-title-input"
+                  placeholder="Chapter title (optional)..."
+                  value={newSceneTitle}
+                  onChange={(e) => setNewSceneTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Escape') {
+                      setAddingScene(false);
+                      setNewSceneTitle('');
+                    }
+                  }}
+                />
+              </div>
+              <div className="index-card-footer" style={{ justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="open-scene-card-btn"
+                  onClick={() => {
+                    setAddingScene(false);
+                    setNewSceneTitle('');
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="open-scene-card-btn"
+                  style={{ background: '#3b82f6', color: '#fff', borderColor: '#3b82f6' }}
+                >
+                  Create
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button className="index-card add-card-btn" onClick={() => setAddingScene(true)}>
+              <Plus size={24} className="add-card-icon" />
+              <span>Add New Scene</span>
+            </button>
+          )}
         </div>
       </div>
     </div>

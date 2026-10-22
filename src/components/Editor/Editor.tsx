@@ -83,13 +83,11 @@ export function Editor() {
         store.updateCounts(editor.getText());
       }, COUNT_DEBOUNCE_MS);
 
-      // Debounced markdown sync for live Preview / Split view
-      if (store.viewMode !== 'editor') {
-        if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
-        previewTimerRef.current = setTimeout(() => {
-          store.setMarkdownContent(editor.getMarkdown());
-        }, PREVIEW_DEBOUNCE_MS);
-      }
+      // Debounced markdown sync for live Preview, Tags, Prose Analysis, Codex mentions & Crash Recovery
+      if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
+      previewTimerRef.current = setTimeout(() => {
+        store.setMarkdownContent(editor.getMarkdown());
+      }, PREVIEW_DEBOUNCE_MS);
 
       // Autosave to real on-disk files
       if (store.autoSaveEnabled && store.filePath && isTauri()) {

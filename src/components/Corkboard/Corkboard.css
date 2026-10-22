@@ -108,6 +108,37 @@
   box-shadow: 0 0 0 1px #3b82f6, 0 8px 20px rgba(0, 0, 0, 0.12);
 }
 
+.index-card.drag-over-card {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 2px var(--accent-color);
+}
+
+.card-drag-handle {
+  color: var(--text-muted);
+  cursor: grab;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+
+.card-drag-handle:hover {
+  opacity: 1;
+}
+
+.new-scene-title-input {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-app);
+  color: var(--text-primary);
+  font-size: 13px;
+  outline: none;
+}
+
+.new-scene-title-input:focus {
+  border-color: #3b82f6;
+}
+
 .index-card-header {
   display: flex;
   align-items: center;

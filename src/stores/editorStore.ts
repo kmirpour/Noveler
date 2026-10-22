@@ -26,6 +26,11 @@ import {
   flattenScenes,
   flushScratchpadToGraveyard,
 } from '../services/projectService';
+import {
+  buildRenamedChapterFileName,
+  extractChapterDisplayTitle,
+  formatChapterFileName,
+} from '../utils/chapterNaming';
 import { getGitStatus, syncGit } from '../services/gitService';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
@@ -90,7 +95,10 @@ export interface ProjectSlice {
   createFolderAction: (parentFolder: string, name: string) => Promise<boolean>;
   renameBinderItemAction: (oldPath: string, newTitle: string) => Promise<boolean>;
   deleteBinderItemAction: (path: string) => Promise<boolean>;
+  reorderBinderItemsAction: (fromIndex: number, toIndex: number) => Promise<boolean>;
   updateSceneMetadata: (metadata: Partial<SceneMetadata>) => void;
+  updateSceneMetadataByPath: (scenePath: string, metadata: Partial<SceneMetadata>) => void;
+  addCustomDictionaryWordAction: (word: string) => Promise<void>;
   saveProjectConfigAction: () => Promise<void>;
   setScratchpadContent: (content: string) => void;
   addTagCategoryAction: (category: string) => Promise<void>;
@@ -279,8 +287,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   loadDocument: ({ markdown, fileName, filePath, dirty = false, statusMessage }) => {
-    const { editorInstance, updateCounts } = get();
-    const { metadata, body } = parseSceneMarkdown(markdown);
+    const { editorInstance, updateCounts, novelProject } = get();
+    const { metadata: frontMatterMeta, body } = parseSceneMarkdown(markdown);
+
+    let resolvedMetadata: SceneMetadata = { ...frontMatterMeta };
+    if (novelProject && fileName) {
+      const storedMeta =
+        novelProject.chapterMetadata?.[fileName] ||
+        (filePath ? novelProject.chapterMetadata?.[filePath] : undefined);
+      const binderMatch = flattenScenes(novelProject.binder).find(
+        (s) => s.path === filePath || fileService.extractFileName(s.path) === fileName
+      );
+      resolvedMetadata = {
+        synopsis: storedMeta?.synopsis ?? binderMatch?.synopsis ?? frontMatterMeta.synopsis,
+        pov: storedMeta?.pov ?? binderMatch?.pov ?? frontMatterMeta.pov,
+        status: storedMeta?.status ?? binderMatch?.status ?? frontMatterMeta.status,
+        targetWords: storedMeta?.targetWords ?? binderMatch?.targetWords ?? frontMatterMeta.targetWords,
+      };
+    }
 
     if (editorInstance) {
       editorInstance.commands.setContent(body, { contentType: 'markdown', emitUpdate: false });
@@ -292,7 +316,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
     set({
       markdownContent: body,
-      currentMetadata: metadata,
+      currentMetadata: resolvedMetadata,
       fileName,
       filePath,
       activeScenePath: filePath,
@@ -518,6 +542,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         novelWordCount: totalWords,
         scratchpadContent: project.scratchpad || '',
         tagCategories: project.tagCategories || ['characters', 'locations', 'items', 'scenes'],
+        tagAssignments: project.tagAssignments || {},
         sidebarOpen: true,
         statusMessage: `Opened folder: ${project.title || name}`,
       });
@@ -594,17 +619,60 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   renameBinderItemAction: async (oldPath: string, newTitle: string) => {
     try {
-      const { refreshProjectFiles } = get();
+      const { refreshProjectFiles, novelProject, projectPath } = get();
       const parent = oldPath.substring(0, Math.max(oldPath.lastIndexOf('/'), oldPath.lastIndexOf('\\')));
       const sep = oldPath.includes('/') ? '/' : '\\';
+      const oldName = fileService.extractFileName(oldPath);
       const isFile = oldPath.endsWith('.md') || oldPath.endsWith('.markdown') || oldPath.endsWith('.txt');
       const safeTitle = newTitle.trim();
-      const newName = isFile ? (safeTitle.endsWith('.md') ? safeTitle : `${safeTitle}.md`) : safeTitle;
+      const newName = isFile ? buildRenamedChapterFileName(oldName, safeTitle) : safeTitle;
       const newPath = `${parent}${sep}${newName}`;
 
+      if (newPath === oldPath) {
+        if (novelProject && projectPath) {
+          const updatedBinder = novelProject.binder.map((b) =>
+            b.path === oldPath ? { ...b, title: safeTitle } : b
+          );
+          const updatedProject = { ...novelProject, binder: updatedBinder };
+          set({ novelProject: updatedProject });
+          await saveNovelProject(projectPath, updatedProject);
+        }
+        return true;
+      }
+
       await fileService.renamePath(oldPath, newPath);
+
+      // Migrate metadata and snapshots to the new filename/path in noveler.json
+      if (novelProject && projectPath) {
+        const nextChapterMeta = { ...(novelProject.chapterMetadata || {}) };
+        if (nextChapterMeta[oldName]) {
+          nextChapterMeta[newName] = nextChapterMeta[oldName];
+          delete nextChapterMeta[oldName];
+        }
+        if (nextChapterMeta[oldPath]) {
+          nextChapterMeta[newName] = { ...(nextChapterMeta[newName] || {}), ...nextChapterMeta[oldPath] };
+          delete nextChapterMeta[oldPath];
+        }
+        const nextSnapshots = (novelProject.snapshots || []).map((s) =>
+          s.scenePath === oldPath ? { ...s, scenePath: newPath } : s
+        );
+        const displayTitle = extractChapterDisplayTitle(newName);
+        const nextBinder = novelProject.binder.map((b) =>
+          b.path === oldPath ? { ...b, path: newPath, title: displayTitle } : b
+        );
+        const updatedProject: NovelProject = {
+          ...novelProject,
+          binder: nextBinder,
+          chapterMetadata: nextChapterMeta,
+          snapshots: nextSnapshots,
+        };
+        set({ novelProject: updatedProject });
+        await saveNovelProject(projectPath, updatedProject);
+      }
+
       if (get().filePath === oldPath) {
         set({ filePath: newPath, fileName: newName, activeScenePath: newPath });
+        updateWindowTitle(newName, get().isDirty);
       }
       await refreshProjectFiles();
       set({ statusMessage: `Renamed to "${newName}"` });
@@ -618,12 +686,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   deleteBinderItemAction: async (path: string) => {
     try {
-      const { refreshProjectFiles, confirmDiscardIfDirty } = get();
+      const { refreshProjectFiles, confirmDiscardIfDirty, novelProject, projectPath } = get();
       if (get().filePath === path) {
         if (!(await confirmDiscardIfDirty())) return false;
       }
 
       await fileService.deleteFile(path);
+
+      if (novelProject && projectPath) {
+        const deletedName = fileService.extractFileName(path);
+        const nextChapterMeta = { ...(novelProject.chapterMetadata || {}) };
+        delete nextChapterMeta[deletedName];
+        delete nextChapterMeta[path];
+        const nextSnapshots = (novelProject.snapshots || []).filter((s) => s.scenePath !== path);
+        const updatedProject: NovelProject = {
+          ...novelProject,
+          chapterMetadata: nextChapterMeta,
+          snapshots: nextSnapshots,
+        };
+        set({ novelProject: updatedProject });
+        await saveNovelProject(projectPath, updatedProject);
+      }
+
       if (get().filePath === path) {
         get().loadDocument({ markdown: '', fileName: null, filePath: null, statusMessage: 'Item deleted' });
       }
@@ -637,25 +721,173 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
-  updateSceneMetadata: (partial: Partial<SceneMetadata>) => {
-    const nextMeta = { ...get().currentMetadata, ...partial };
-    set({ currentMetadata: nextMeta, isDirty: true });
-
-    // Also update in novelProject state if matched
-    const { novelProject, activeScenePath, projectPath } = get();
-    if (novelProject && activeScenePath && projectPath) {
-      const updatedProject = { ...novelProject };
-      const scenes = flattenScenes(updatedProject.binder);
-      const matched = scenes.find((s: BinderItem) => s.path === activeScenePath);
-      if (matched) {
-        if (partial.synopsis !== undefined) matched.synopsis = partial.synopsis;
-        if (partial.pov !== undefined) matched.pov = partial.pov;
-        if (partial.status !== undefined) matched.status = partial.status;
-        if (partial.targetWords !== undefined) matched.targetWords = partial.targetWords;
-        set({ novelProject: updatedProject });
-        void saveNovelProject(projectPath, updatedProject);
-      }
+  reorderBinderItemsAction: async (fromIndex: number, toIndex: number) => {
+    const { novelProject, projectPath, refreshProjectFiles } = get();
+    if (!novelProject || !projectPath) return false;
+    const items = [...novelProject.binder];
+    if (
+      fromIndex === toIndex ||
+      fromIndex < 0 ||
+      toIndex < 0 ||
+      fromIndex >= items.length ||
+      toIndex >= items.length
+    ) {
+      return false;
     }
+
+    try {
+      const [moved] = items.splice(fromIndex, 1);
+      items.splice(toIndex, 0, moved);
+
+      const sep = projectPath.includes('/') ? '/' : '\\';
+      const nextChapterMeta = { ...(novelProject.chapterMetadata || {}) };
+      let nextSnapshots = [...(novelProject.snapshots || [])];
+      let activeNewPath: { path: string; name: string } | null = null;
+
+      // Two-pass rename via temporary names to avoid filename collisions when re-numbering
+      const renames: {
+        item: BinderItem;
+        oldPath: string;
+        oldName: string;
+        tmpPath: string;
+        newPath: string;
+        newName: string;
+      }[] = [];
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        const oldPath = item.path;
+        const oldName = fileService.extractFileName(oldPath);
+        const parent = oldPath.substring(0, Math.max(oldPath.lastIndexOf('/'), oldPath.lastIndexOf('\\'))) || projectPath;
+        const rawSlug = oldName
+          .replace(/\.(md|markdown|txt)$/i, '')
+          .replace(/^\d+[\s-_.]+/, '');
+        const newName = formatChapterFileName(i + 1, rawSlug || 'chapter');
+        const newPath = `${parent}${sep}${newName}`;
+        const tmpPath = `${parent}${sep}.reorder_${i + 1}_${oldName}`;
+        renames.push({ item, oldPath, oldName, tmpPath, newPath, newName });
+      }
+
+      for (const r of renames) {
+        if (r.oldPath !== r.newPath) {
+          await fileService.renamePath(r.oldPath, r.tmpPath);
+        }
+      }
+
+      for (const r of renames) {
+        if (r.oldPath !== r.newPath) {
+          await fileService.renamePath(r.tmpPath, r.newPath);
+          if (nextChapterMeta[r.oldName]) {
+            nextChapterMeta[r.newName] = nextChapterMeta[r.oldName];
+            delete nextChapterMeta[r.oldName];
+          }
+          nextSnapshots = nextSnapshots.map((s) =>
+            s.scenePath === r.oldPath ? { ...s, scenePath: r.newPath } : s
+          );
+          if (get().filePath === r.oldPath) {
+            activeNewPath = { path: r.newPath, name: r.newName };
+          }
+        }
+        r.item.path = r.newPath;
+        r.item.title = extractChapterDisplayTitle(r.newName);
+      }
+
+      const updatedProject: NovelProject = {
+        ...novelProject,
+        binder: items,
+        chapterMetadata: nextChapterMeta,
+        snapshots: nextSnapshots,
+      };
+      set({ novelProject: updatedProject });
+      await saveNovelProject(projectPath, updatedProject);
+
+      if (activeNewPath) {
+        set({
+          filePath: activeNewPath.path,
+          fileName: activeNewPath.name,
+          activeScenePath: activeNewPath.path,
+        });
+        updateWindowTitle(activeNewPath.name, get().isDirty);
+      }
+
+      await refreshProjectFiles();
+      set({ statusMessage: 'Reordered chapters' });
+      return true;
+    } catch (err) {
+      console.error('Error reordering chapters:', err);
+      set({ statusMessage: `Error reordering chapters: ${errorMessage(err)}` });
+      return false;
+    }
+  },
+
+  updateSceneMetadata: (partial: Partial<SceneMetadata>) => {
+    const { activeScenePath, filePath } = get();
+    const targetPath = activeScenePath || filePath;
+    if (targetPath) {
+      get().updateSceneMetadataByPath(targetPath, partial);
+    } else {
+      const nextMeta = { ...get().currentMetadata, ...partial };
+      set({ currentMetadata: nextMeta, isDirty: true });
+    }
+  },
+
+  updateSceneMetadataByPath: (scenePath: string, partial: Partial<SceneMetadata>) => {
+    const { novelProject, projectPath, activeScenePath, filePath, currentMetadata } = get();
+    const isCurrent = scenePath === activeScenePath || scenePath === filePath;
+    const sceneFileName = fileService.extractFileName(scenePath);
+
+    if (isCurrent) {
+      set({ currentMetadata: { ...currentMetadata, ...partial } });
+    }
+
+    if (novelProject && projectPath) {
+      const updatedBinder = novelProject.binder.map((item) => {
+        if (item.path === scenePath) {
+          return {
+            ...item,
+            synopsis: partial.synopsis !== undefined ? partial.synopsis : item.synopsis,
+            pov: partial.pov !== undefined ? partial.pov : item.pov,
+            status: partial.status !== undefined ? partial.status : item.status,
+            targetWords: partial.targetWords !== undefined ? partial.targetWords : item.targetWords,
+          };
+        }
+        return item;
+      });
+
+      const prevFileMeta = novelProject.chapterMetadata?.[sceneFileName] || {};
+      const nextFileMeta: SceneMetadata = {
+        ...prevFileMeta,
+        ...(isCurrent ? currentMetadata : {}),
+        ...partial,
+      };
+
+      const updatedProject: NovelProject = {
+        ...novelProject,
+        binder: updatedBinder,
+        chapterMetadata: {
+          ...(novelProject.chapterMetadata || {}),
+          [sceneFileName]: nextFileMeta,
+        },
+      };
+
+      set({ novelProject: updatedProject });
+      void saveNovelProject(projectPath, updatedProject);
+    }
+  },
+
+  addCustomDictionaryWordAction: async (word: string) => {
+    const clean = word.trim().toLowerCase();
+    if (!clean) return;
+    const { novelProject, projectPath } = get();
+    if (!novelProject || !projectPath) return;
+    const existing = novelProject.customDictionary || [];
+    if (existing.includes(clean)) return;
+    const updatedProject: NovelProject = {
+      ...novelProject,
+      customDictionary: [...existing, clean],
+    };
+    set({ novelProject: updatedProject, statusMessage: `Added "${word.trim()}" to project dictionary` });
+    await saveNovelProject(projectPath, updatedProject);
   },
 
   saveProjectConfigAction: async () => {
@@ -760,10 +992,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   assignTagCategoryAction: async (tagName: string, category: string) => {
-    const { tagAssignments } = get();
+    const { tagAssignments, projectPath, novelProject } = get();
     const cleanTag = tagName.toLowerCase().replace(/^#/, '');
     const updatedAssignments = { ...tagAssignments, [cleanTag]: category };
     set({ tagAssignments: updatedAssignments });
+    if (projectPath && novelProject) {
+      const updated = { ...novelProject, tagAssignments: updatedAssignments };
+      set({ novelProject: updated });
+      await saveNovelProject(projectPath, updated);
+    }
   },
 
   setCorkboardOpen: (corkboardOpen: boolean) => set({ corkboardOpen }),
@@ -811,33 +1048,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   createSceneSnapshotAction: async (label: string) => {
-    const { novelProject, projectPath, filePath, markdownContent, wordCount, setStatusMessage } = get();
+    const { novelProject, projectPath, filePath, editorInstance, markdownContent, wordCount, setStatusMessage } = get();
     if (!novelProject || !projectPath || !filePath) return;
+    const latestContent = editorInstance ? editorInstance.getMarkdown() : markdownContent;
     const newSnapshot: SceneSnapshot = {
       id: `snap_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       scenePath: filePath,
       timestamp: new Date().toISOString(),
       label: label.trim() || 'Manual Snapshot',
       wordCount,
-      content: markdownContent,
+      content: latestContent,
     };
     const updatedProject: NovelProject = {
       ...novelProject,
       snapshots: [newSnapshot, ...(novelProject.snapshots || [])],
     };
-    set({ novelProject: updatedProject });
+    set({ novelProject: updatedProject, markdownContent: latestContent });
     await saveNovelProject(projectPath, updatedProject);
     setStatusMessage(`Saved snapshot: "${newSnapshot.label}"`);
   },
 
   restoreSceneSnapshotAction: async (snapshotId: string) => {
-    const { novelProject, setMarkdownContent, editorInstance, setDirty, setStatusMessage } = get();
+    const { novelProject, setMarkdownContent, editorInstance, updateCounts, setDirty, setStatusMessage } = get();
     if (!novelProject) return;
     const snap = (novelProject.snapshots || []).find((s) => s.id === snapshotId);
     if (!snap) return;
     setMarkdownContent(snap.content);
     if (editorInstance) {
-      editorInstance.commands.setContent(snap.content);
+      editorInstance.commands.setContent(snap.content, { contentType: 'markdown', emitUpdate: false });
+      updateCounts(editorInstance.getText());
+    } else {
+      updateCounts(snap.content);
     }
     setDirty(true);
     setStatusMessage(`Restored snapshot from ${new Date(snap.timestamp).toLocaleTimeString()}`);

@@ -233,3 +233,16 @@
   padding: 12px 0;
   text-align: center;
 }
+
+.clickable-prose-tag {
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: transform 0.1s, border-color 0.15s;
+}
+
+.clickable-prose-tag:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-1px);
+}
+

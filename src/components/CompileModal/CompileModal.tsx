@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import {
   FileDown,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import { flattenScenes } from '../../services/projectService';
 import { compileNovel, type CompileOptions } from '../../export/compiler';
+import { exportToPdf } from '../../export/pdf';
 import { saveBinaryAs, saveFileAs } from '../../services/fileService';
 import './CompileModal.css';
 
@@ -23,13 +25,25 @@ export function CompileModal() {
     compileModalOpen,
     setCompileModalOpen,
     printAction,
-  } = useEditorStore();
+  } = useEditorStore(
+    useShallow((s) => ({
+      novelProject: s.novelProject,
+      fileName: s.fileName,
+      markdownContent: s.markdownContent,
+      setStatusMessage: s.setStatusMessage,
+      compileModalOpen: s.compileModalOpen,
+      setCompileModalOpen: s.setCompileModalOpen,
+      printAction: s.printAction,
+    }))
+  );
 
   const [scope, setScope] = useState<'entire-novel' | 'current-chapter'>('entire-novel');
   const [title, setTitle] = useState(novelProject?.title || '');
   const [author, setAuthor] = useState(novelProject?.author || '');
   const [contactInfo, setContactInfo] = useState('');
   const [format, setFormat] = useState<'shunn-docx' | 'standard-docx' | 'print-pdf' | 'markdown'>('shunn-docx');
+  const [typeface, setTypeface] = useState<'Times New Roman' | 'Courier New' | 'Georgia' | 'Garamond'>('Times New Roman');
+  const [sceneBreakSymbol, setSceneBreakSymbol] = useState<string>('#');
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
   const [isCompiling, setIsCompiling] = useState(false);
 
@@ -70,8 +84,25 @@ export function CompileModal() {
   };
 
   const handleCompile = async () => {
-    // Print / PDF format handled directly
+    // Print / PDF format
     if (format === 'print-pdf') {
+      if (scope === 'entire-novel' && novelProject && selectedPaths.length > 0) {
+        setIsCompiling(true);
+        try {
+          const compiled = await compileNovel(novelProject, {
+            title: title || novelProject.title,
+            author: author || novelProject.author,
+            format: 'markdown',
+            sceneBreakSymbol,
+            selectedPaths,
+          });
+          setCompileModalOpen(false);
+          exportToPdf(compiled.data as string);
+        } finally {
+          setIsCompiling(false);
+        }
+        return;
+      }
       setCompileModalOpen(false);
       printAction();
       return;
@@ -88,7 +119,12 @@ export function CompileModal() {
         } else {
           // Export chapter as DOCX
           const { exportToDocx } = await import('../../export/docx');
-          const saved = await exportToDocx(markdownContent, `${chapterTitle}.docx`);
+          const saved = await exportToDocx(markdownContent, `${chapterTitle}.docx`, {
+            title: chapterTitle,
+            author: author || novelProject?.author,
+            fontFamily: typeface,
+            doubleSpaced: true,
+          });
           if (saved) setStatusMessage(`Exported ${saved.name}`);
         }
         setCompileModalOpen(false);
@@ -97,7 +133,7 @@ export function CompileModal() {
 
       // Exporting entire novel
       if (selectedPaths.length === 0) {
-        alert('Please select at least one chapter to export.');
+        setStatusMessage('Please select at least one chapter to export');
         return;
       }
 
@@ -106,6 +142,8 @@ export function CompileModal() {
         author: author || novelProject.author,
         contactInfo,
         format: format === 'markdown' ? 'markdown' : format === 'standard-docx' ? 'standard-docx' : 'shunn-docx',
+        fontFamily: typeface,
+        sceneBreakSymbol,
         selectedPaths,
       };
 
@@ -272,6 +310,37 @@ export function CompileModal() {
               />
             </div>
           )}
+
+          {/* Typeface & Scene Break Options */}
+          <div className="compile-section grid-2">
+            {(format === 'shunn-docx' || format === 'standard-docx') && (
+              <div>
+                <label className="compile-label">Publishing Typeface</label>
+                <select
+                  className="compile-input"
+                  value={typeface}
+                  onChange={(e) => setTypeface(e.target.value as typeof typeface)}
+                >
+                  <option value="Times New Roman">Times New Roman (Standard)</option>
+                  <option value="Courier New">Courier New (Monospace)</option>
+                  <option value="Georgia">Georgia (Editorial Serif)</option>
+                  <option value="Garamond">Garamond (Book Print)</option>
+                </select>
+              </div>
+            )}
+            <div>
+              <label className="compile-label">Scene Break Ornament</label>
+              <select
+                className="compile-input"
+                value={sceneBreakSymbol}
+                onChange={(e) => setSceneBreakSymbol(e.target.value)}
+              >
+                <option value="#"># (Shunn Submission Standard)</option>
+                <option value="* * *">* * * (Classic Asterisks)</option>
+                <option value="✦   ✦   ✦">✦   ✦   ✦ (Decorative Stars)</option>
+              </select>
+            </div>
+          </div>
 
           {/* Chapter Inclusion Checklist (only when compiling entire novel) */}
           {scope === 'entire-novel' && novelProject && allScenes.length > 0 && (

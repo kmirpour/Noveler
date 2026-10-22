@@ -1,10 +1,13 @@
 import { useMemo } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import { markdownToHtml } from '../../utils/markdown';
 import './Preview.css';
 
 export function Preview() {
-  const { markdownContent, fileName } = useEditorStore();
+  const { markdownContent, fileName } = useEditorStore(
+    useShallow((s) => ({ markdownContent: s.markdownContent, fileName: s.fileName }))
+  );
 
   const renderedHtml = useMemo(() => {
     return markdownToHtml(markdownContent);

@@ -96,3 +96,31 @@ export function extractChapterDisplayTitle(fileName: string): string {
   }
   return clean.replace(/[-_]+/g, ' ');
 }
+
+/**
+ * Formats a renamed chapter filename while preserving its numeric prefix if present.
+ * Strips redundant leading "Chapter N:" from the user's input before slugifying.
+ */
+export function buildRenamedChapterFileName(oldFileName: string, newTitleInput: string): string {
+  const num = parseChapterNumber(oldFileName);
+  const extMatch = oldFileName.match(/\.(md|markdown|txt)$/i);
+  const ext = extMatch ? extMatch[0].toLowerCase() : '.md';
+
+  // Strip optional leading "Chapter 1:" or "01 -" if the user left it in the input
+  const cleanedTitle = newTitleInput
+    .trim()
+    .replace(/^chapter\s+\d+\s*[:\-–—.]?\s*/i, '')
+    .replace(/^\d+\s*[:\-–—.]\s*/, '')
+    .trim();
+
+  if (num !== null) {
+    const numPrefix = num.toString().padStart(2, '0');
+    const slug = cleanedTitle ? slugifyTitle(cleanedTitle) : 'chapter';
+    return `${numPrefix}-${slug}${ext}`;
+  }
+
+  const fallback = newTitleInput.trim();
+  if (!fallback) return oldFileName;
+  return fallback.match(/\.(md|markdown|txt)$/i) ? fallback : `${fallback}${ext}`;
+}
+

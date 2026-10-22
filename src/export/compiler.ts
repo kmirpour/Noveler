@@ -17,6 +17,7 @@ export interface CompileOptions {
   author: string;
   contactInfo?: string;
   format: 'shunn-docx' | 'standard-docx' | 'markdown';
+  fontFamily?: string; // Default: 'Times New Roman' for Shunn, 'Georgia' for standard
   sceneBreakSymbol?: string; // Default: '#' for Shunn, '* * *' for standard
   selectedPaths: string[];
 }
@@ -81,7 +82,7 @@ export async function compileNovel(
 
   // Format: DOCX (Standard Manuscript Format / Shunn or Standard)
   const isShunn = options.format === 'shunn-docx';
-  const font = isShunn ? 'Times New Roman' : 'Georgia';
+  const font = options.fontFamily || (isShunn ? 'Times New Roman' : 'Georgia');
   const lineSpacing = 480; // double-spaced in DOCX (240 = single, 480 = double)
 
   const paragraphs: Paragraph[] = [];
