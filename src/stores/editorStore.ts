@@ -22,6 +22,7 @@ import {
   loadNovelProject,
   saveNovelProject,
   createSequentialChapter,
+  createExtraFile,
   parseSceneMarkdown,
   flattenScenes,
   flushScratchpadToGraveyard,
@@ -91,6 +92,7 @@ export interface ProjectSlice {
   loadProjectByPath: (path: string) => Promise<boolean>;
   refreshProjectFiles: () => Promise<void>;
   createChapterAction: (customTitle?: string) => Promise<boolean>;
+  createExtraFileAction: (titleInput?: string) => Promise<boolean>;
   createSceneAction: (parentFolder: string, title: string) => Promise<boolean>;
   createFolderAction: (parentFolder: string, name: string) => Promise<boolean>;
   renameBinderItemAction: (oldPath: string, newTitle: string) => Promise<boolean>;
@@ -129,6 +131,7 @@ export interface SettingsSlice {
   fontFamily: FontFamily;
   fontSize: number;
   paragraphIndent: boolean;
+  spellCheckEnabled: boolean;
   recentFiles: string[];
 
   setTheme: (theme: Theme) => void;
@@ -141,6 +144,7 @@ export interface SettingsSlice {
   cycleFontFamily: () => void;
   setFontSize: (fontSize: number) => void;
   toggleParagraphIndent: () => void;
+  toggleSpellCheck: () => void;
 }
 
 export interface WritingSlice {
@@ -258,12 +262,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     let novelWordCount = wordCount;
     if (state.novelProject && state.novelProject.binder.length > 0) {
       let otherWords = 0;
+      let isCurrentAChapter = false;
       for (const item of state.novelProject.binder) {
-        if (item.path !== state.filePath) {
+        if (item.path === state.filePath) {
+          isCurrentAChapter = true;
+        } else {
           otherWords += item.wordCount || 0;
         }
       }
-      novelWordCount = otherWords + wordCount;
+      novelWordCount = isCurrentAChapter ? otherWords + wordCount : otherWords;
     }
 
     set({ wordCount, charCount, sessionStartWordCount: sessionStart, sessionWords, novelWordCount });
@@ -295,7 +302,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const storedMeta =
         novelProject.chapterMetadata?.[fileName] ||
         (filePath ? novelProject.chapterMetadata?.[filePath] : undefined);
-      const binderMatch = flattenScenes(novelProject.binder).find(
+      const allProjectItems = [
+        ...flattenScenes(novelProject.binder),
+        ...flattenScenes(novelProject.extraFiles || []),
+      ];
+      const binderMatch = allProjectItems.find(
         (s) => s.path === filePath || fileService.extractFileName(s.path) === fileName
       );
       resolvedMetadata = {
@@ -609,6 +620,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  createExtraFileAction: async (titleInput?: string) => {
+    try {
+      const { projectPath, novelProject, confirmDiscardIfDirty, refreshProjectFiles } = get();
+      if (!projectPath) return false;
+      if (!(await confirmDiscardIfDirty())) return false;
+
+      const existingNames = [
+        ...(novelProject?.binder || []),
+        ...(novelProject?.extraFiles || []),
+      ].map((b) => fileService.extractFileName(b.path));
+      const res = await createExtraFile(projectPath, existingNames, titleInput);
+      await refreshProjectFiles();
+      await get().loadSceneByPath(res.path);
+      set({ statusMessage: `Created ${res.name}` });
+      return true;
+    } catch (err) {
+      console.error('Error creating file:', err);
+      set({ statusMessage: `Error creating file: ${errorMessage(err)}` });
+      return false;
+    }
+  },
+
   createSceneAction: async (_parentFolder: string, title: string) => {
     return await get().createChapterAction(title);
   },
@@ -633,7 +666,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           const updatedBinder = novelProject.binder.map((b) =>
             b.path === oldPath ? { ...b, title: safeTitle } : b
           );
-          const updatedProject = { ...novelProject, binder: updatedBinder };
+          const updatedExtras = (novelProject.extraFiles || []).map((b) =>
+            b.path === oldPath ? { ...b, title: safeTitle } : b
+          );
+          const updatedProject = { ...novelProject, binder: updatedBinder, extraFiles: updatedExtras };
           set({ novelProject: updatedProject });
           await saveNovelProject(projectPath, updatedProject);
         }
@@ -660,9 +696,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         const nextBinder = novelProject.binder.map((b) =>
           b.path === oldPath ? { ...b, path: newPath, title: displayTitle } : b
         );
+        const nextExtras = (novelProject.extraFiles || []).map((b) =>
+          b.path === oldPath ? { ...b, path: newPath, title: displayTitle } : b
+        );
         const updatedProject: NovelProject = {
           ...novelProject,
           binder: nextBinder,
+          extraFiles: nextExtras,
           chapterMetadata: nextChapterMeta,
           snapshots: nextSnapshots,
         };
@@ -841,7 +881,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
 
     if (novelProject && projectPath) {
-      const updatedBinder = novelProject.binder.map((item) => {
+      const updateItem = (item: BinderItem) => {
         if (item.path === scenePath) {
           return {
             ...item,
@@ -852,7 +892,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           };
         }
         return item;
-      });
+      };
+      const updatedBinder = novelProject.binder.map(updateItem);
+      const updatedExtras = (novelProject.extraFiles || []).map(updateItem);
 
       const prevFileMeta = novelProject.chapterMetadata?.[sceneFileName] || {};
       const nextFileMeta: SceneMetadata = {
@@ -864,6 +906,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const updatedProject: NovelProject = {
         ...novelProject,
         binder: updatedBinder,
+        extraFiles: updatedExtras,
         chapterMetadata: {
           ...(novelProject.chapterMetadata || {}),
           [sceneFileName]: nextFileMeta,
@@ -1103,6 +1146,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   fontFamily: initialSettings.fontFamily,
   fontSize: initialSettings.fontSize,
   paragraphIndent: initialSettings.paragraphIndent,
+  spellCheckEnabled: initialSettings.spellCheckEnabled,
   recentFiles: initialSettings.recentFiles,
 
   setTheme: (theme: Theme) => {
@@ -1159,6 +1203,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = !get().paragraphIndent;
     saveSettings({ paragraphIndent: next });
     set({ paragraphIndent: next });
+  },
+
+  toggleSpellCheck: () => {
+    const next = !get().spellCheckEnabled;
+    saveSettings({ spellCheckEnabled: next });
+    set({
+      spellCheckEnabled: next,
+      statusMessage: next ? 'Live Spell & Grammar Check enabled' : 'Live Spell & Grammar Check paused',
+    });
   },
 
   // --- Writing Slice ------------------------------------------------------

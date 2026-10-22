@@ -176,3 +176,20 @@
   border-radius: 2px;
   box-shadow: 0 0 0 2px #d97706;
 }
+
+/* Live Spell & Grammar Decorations */
+.spell-error-spelling {
+  text-decoration: underline wavy #ef4444;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.spell-error-grammar {
+  text-decoration: underline wavy #f59e0b;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+  background-color: rgba(245, 158, 11, 0.08);
+  border-radius: 2px;
+  cursor: pointer;
+}

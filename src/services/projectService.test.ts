@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   parseSceneMarkdown,
   serializeSceneMarkdown,
@@ -161,5 +161,30 @@ The rain poured through the broken glass skylight. Miller stepped over the rubbl
     const res = await flushScratchpadToGraveyard('/my-novel', 'My scrapped scene notes');
     expect(res.fileName).toMatch(/^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.md$/);
     expect(res.filePath).toContain('graveyard');
+  });
+
+  it('separates chapter files into binder and non-chapter files into extraFiles on loadNovelProject', async () => {
+    const fileService = await import('./fileService');
+    const { loadNovelProject, createExtraFile } = await import('./projectService');
+    const spy = vi.spyOn(fileService, 'readDirTree').mockResolvedValue([
+      { name: 'chapter-01.md', path: '/novel/chapter-01.md', is_dir: false, children: [] },
+      { name: '02-the-harbor.md', path: '/novel/02-the-harbor.md', is_dir: false, children: [] },
+      { name: 'outline.md', path: '/novel/outline.md', is_dir: false, children: [] },
+      { name: 'worldbuilding.txt', path: '/novel/worldbuilding.txt', is_dir: false, children: [] },
+    ]);
+
+    const project = await loadNovelProject('/novel');
+    expect(project.binder.map((b) => b.path)).toEqual([
+      '/novel/chapter-01.md',
+      '/novel/02-the-harbor.md',
+    ]);
+    expect(project.extraFiles?.map((b) => b.path)).toEqual([
+      '/novel/outline.md',
+      '/novel/worldbuilding.txt',
+    ]);
+
+    const created = await createExtraFile('/novel', ['outline.md'], 'outline');
+    expect(created.name).toBe('outline-2.md');
+    spy.mockRestore();
   });
 });

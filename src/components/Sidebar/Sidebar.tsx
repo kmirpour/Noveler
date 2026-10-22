@@ -15,6 +15,10 @@ import {
   BookText,
   Hash,
   GripVertical,
+  ChevronDown,
+  ChevronRight,
+  StickyNote,
+  Plus,
 } from 'lucide-react';
 import type { BinderItem, SceneStatus } from '../../services/projectService';
 import { TagsTab } from './TagsTab';
@@ -22,18 +26,20 @@ import './Sidebar.css';
 
 interface ChapterItemProps {
   item: BinderItem;
-  index: number;
-  isDragOver: boolean;
-  onDragStart: (e: DragEvent, index: number) => void;
-  onDragOver: (e: DragEvent, index: number) => void;
-  onDrop: (e: DragEvent, index: number) => void;
-  onDragEnd: () => void;
+  index?: number;
+  isExtraFile?: boolean;
+  isDragOver?: boolean;
+  onDragStart?: (e: DragEvent, index: number) => void;
+  onDragOver?: (e: DragEvent, index: number) => void;
+  onDrop?: (e: DragEvent, index: number) => void;
+  onDragEnd?: () => void;
 }
 
 function ChapterItem({
   item,
-  index,
-  isDragOver,
+  index = 0,
+  isExtraFile = false,
+  isDragOver = false,
   onDragStart,
   onDragOver,
   onDrop,
@@ -95,24 +101,29 @@ function ChapterItem({
   return (
     <div
       className="binder-item-wrapper"
-      draggable={!isRenaming}
-      onDragStart={(e) => onDragStart(e, index)}
-      onDragOver={(e) => onDragOver(e, index)}
-      onDrop={(e) => onDrop(e, index)}
-      onDragEnd={onDragEnd}
+      draggable={!isExtraFile && !isRenaming}
+      onDragStart={!isExtraFile && onDragStart ? (e) => onDragStart(e, index) : undefined}
+      onDragOver={!isExtraFile && onDragOver ? (e) => onDragOver(e, index) : undefined}
+      onDrop={!isExtraFile && onDrop ? (e) => onDrop(e, index) : undefined}
+      onDragEnd={!isExtraFile ? onDragEnd : undefined}
     >
       <div
-        className={`binder-item is-scene ${isActive ? 'active' : ''} ${isDragOver ? 'drag-over' : ''}`}
+        className={`binder-item is-scene ${isExtraFile ? 'is-extra-file' : ''} ${isActive ? 'active' : ''} ${isDragOver ? 'drag-over' : ''}`}
         onClick={handleClick}
       >
-        <GripVertical size={12} className="binder-drag-handle" />
-        <span
-          className="scene-status-dot"
-          style={{ backgroundColor: getStatusColor(item.status) }}
-          title={`Status: ${item.status || 'draft'}`}
-        />
-
-        <FileText size={14} className="binder-icon scene-icon" />
+        {!isExtraFile ? (
+          <>
+            <GripVertical size={12} className="binder-drag-handle" />
+            <span
+              className="scene-status-dot"
+              style={{ backgroundColor: getStatusColor(item.status) }}
+              title={`Status: ${item.status || 'draft'}`}
+            />
+            <FileText size={14} className="binder-icon scene-icon" />
+          </>
+        ) : (
+          <StickyNote size={14} className="binder-icon extra-file-icon" />
+        )}
 
         {isRenaming ? (
           <form className="rename-form" onSubmit={handleRenameSubmit} onClick={(e) => e.stopPropagation()}>
@@ -187,6 +198,7 @@ export function Sidebar() {
     novelProject,
     openProjectFolderAction,
     createChapterAction,
+    createExtraFileAction,
     refreshProjectFiles,
     reorderBinderItemsAction,
     toggleCorkboard,
@@ -202,6 +214,7 @@ export function Sidebar() {
       novelProject: s.novelProject,
       openProjectFolderAction: s.openProjectFolderAction,
       createChapterAction: s.createChapterAction,
+      createExtraFileAction: s.createExtraFileAction,
       refreshProjectFiles: s.refreshProjectFiles,
       reorderBinderItemsAction: s.reorderBinderItemsAction,
       toggleCorkboard: s.toggleCorkboard,
@@ -214,12 +227,16 @@ export function Sidebar() {
   const [activeTab, setActiveTab] = useState<'chapters' | 'tags'>('chapters');
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const [otherFilesExpanded, setOtherFilesExpanded] = useState(true);
+  const [isCreatingExtra, setIsCreatingExtra] = useState(false);
+  const [newExtraTitle, setNewExtraTitle] = useState('');
 
   if (!sidebarOpen) {
     return null;
   }
 
   const binderItems = novelProject?.binder || [];
+  const extraFiles = novelProject?.extraFiles || [];
 
   const handleDragStart = (e: DragEvent, index: number) => {
     setDraggedIdx(index);
@@ -248,6 +265,15 @@ export function Sidebar() {
     setDragOverIdx(null);
   };
 
+  const handleCreateExtraSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    const title = newExtraTitle.trim() || 'notes';
+    setIsCreatingExtra(false);
+    setNewExtraTitle('');
+    setOtherFilesExpanded(true);
+    await createExtraFileAction(title);
+  };
+
   return (
     <aside className="sidebar">
       {/* Sidebar Header */}
@@ -262,7 +288,7 @@ export function Sidebar() {
               type="button"
               className="sidebar-icon-btn"
               onClick={() => void refreshProjectFiles()}
-              title="Refresh Chapters"
+              title="Refresh Files"
             >
               <RefreshCw size={13} />
             </button>
@@ -288,7 +314,7 @@ export function Sidebar() {
               onClick={() => setActiveTab('chapters')}
             >
               <BookText size={13} />
-              <span>Chapters ({binderItems.length})</span>
+              <span>Files ({binderItems.length + extraFiles.length})</span>
             </button>
             <button
               type="button"
@@ -331,8 +357,12 @@ export function Sidebar() {
                 </button>
               </div>
 
-              {/* Sequential Chapters List */}
+              {/* Categorized File Lists: Chapters vs Other Files */}
               <div className="sidebar-file-list">
+                <div className="sidebar-section-header">
+                  <span className="sidebar-section-label">Chapters ({binderItems.length})</span>
+                </div>
+
                 {binderItems.length === 0 ? (
                   <div className="sidebar-empty">
                     <p>No chapters found. Click <strong>+ Chapter</strong> above to begin your novel!</p>
@@ -350,6 +380,69 @@ export function Sidebar() {
                       onDragEnd={handleDragEnd}
                     />
                   ))
+                )}
+
+                {/* Other Files Section */}
+                <div className="sidebar-section-divider" />
+                <div className="sidebar-section-header collapsible">
+                  <button
+                    type="button"
+                    className="sidebar-section-toggle"
+                    onClick={() => setOtherFilesExpanded((v) => !v)}
+                  >
+                    {otherFilesExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                    <span className="sidebar-section-label">Other Files ({extraFiles.length})</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="sidebar-section-add-btn"
+                    onClick={() => {
+                      setOtherFilesExpanded(true);
+                      setIsCreatingExtra(true);
+                    }}
+                    title="Create a non-chapter note or file (e.g. outline.md, notes.md)"
+                  >
+                    <Plus size={12} />
+                    <span>File</span>
+                  </button>
+                </div>
+
+                {isCreatingExtra && (
+                  <form className="extra-file-create-form" onSubmit={handleCreateExtraSubmit}>
+                    <input
+                      type="text"
+                      autoFocus
+                      className="rename-input"
+                      placeholder="e.g. outline, characters..."
+                      value={newExtraTitle}
+                      onChange={(e) => setNewExtraTitle(e.target.value)}
+                      onBlur={() => setIsCreatingExtra(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          setIsCreatingExtra(false);
+                          setNewExtraTitle('');
+                        }
+                      }}
+                    />
+                  </form>
+                )}
+
+                {otherFilesExpanded && (
+                  <div className="sidebar-extra-files-list">
+                    {extraFiles.length === 0 ? (
+                      <div className="sidebar-empty-subtle">
+                        Non-chapter files (e.g. <code>outline.md</code>, <code>notes.md</code>) appear here.
+                      </div>
+                    ) : (
+                      extraFiles.map((item) => (
+                        <ChapterItem
+                          key={item.id || item.path}
+                          item={item}
+                          isExtraFile
+                        />
+                      ))
+                    )}
+                  </div>
                 )}
               </div>
             </>

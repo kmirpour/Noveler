@@ -8,12 +8,37 @@ import { Markdown } from '@tiptap/markdown';
 import { FictionUnderline, FictionHighlight } from '../../utils/markdown';
 import { Typewriter } from '../../extensions/typewriter';
 import { SearchAndReplace } from '../../extensions/searchAndReplace';
+import {
+  SpellAndGrammar,
+  getSpellGrammarIssueAtPos,
+  spellAndGrammarPluginKey,
+  type DocumentSpellIssue,
+} from '../../extensions/spellAndGrammar';
 import { useEditorStore } from '../../stores/editorStore';
 import { isTauri, isSupportedTextFile } from '../../services/fileService';
 import { applyCasing } from '../../services/thesaurusService';
+import { sanitizeSpellWord, clearSpellingCache } from '../../services/spellingService';
 import { getWordRangeAtPos } from '../../utils/editorUtils';
 import { EditorContextMenu } from '../ContextMenu/EditorContextMenu';
 import './Editor.css';
+
+function getProjectIgnoreWords(): string[] {
+  const novelProject = useEditorStore.getState().novelProject;
+  const words = new Set<string>(novelProject?.customDictionary || []);
+  for (const entry of novelProject?.codex || []) {
+    for (const part of entry.name.split(/\s+/)) {
+      const clean = sanitizeSpellWord(part);
+      if (clean) words.add(clean.toLowerCase());
+    }
+    for (const alias of entry.aliases || []) {
+      for (const part of alias.split(/\s+/)) {
+        const clean = sanitizeSpellWord(part);
+        if (clean) words.add(clean.toLowerCase());
+      }
+    }
+  }
+  return Array.from(words);
+}
 
 const AUTOSAVE_DELAY_MS = 1500;
 const COUNT_DEBOUNCE_MS = 250;
@@ -28,6 +53,9 @@ export function Editor() {
   const paragraphIndent = useEditorStore((s) => s.paragraphIndent);
   const typewriterMode = useEditorStore((s) => s.typewriterMode);
   const dimUnfocused = useEditorStore((s) => s.dimUnfocused);
+  const spellCheckEnabled = useEditorStore((s) => s.spellCheckEnabled);
+  const customDictionary = useEditorStore((s) => s.novelProject?.customDictionary);
+  const codex = useEditorStore((s) => s.novelProject?.codex);
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -52,6 +80,10 @@ export function Editor() {
       Typewriter.configure({
         enabled: false,
         isEnabled: () => useEditorStore.getState().typewriterMode,
+      }),
+      SpellAndGrammar.configure({
+        isEnabled: () => useEditorStore.getState().spellCheckEnabled,
+        getIgnoreWords: getProjectIgnoreWords,
       }),
       SearchAndReplace,
     ],
@@ -115,12 +147,30 @@ export function Editor() {
     };
   }, [editor, setEditorInstance, updateCounts]);
 
+  // Refresh spell & grammar decorations when spellCheckEnabled, customDictionary, or codex changes
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    clearSpellingCache();
+    if (!spellCheckEnabled) {
+      editor.view.dispatch(editor.state.tr.setMeta(spellAndGrammarPluginKey, []));
+    } else {
+      // Trigger a lightweight re-scan
+      const currentIssues = spellAndGrammarPluginKey.getState(editor.state)?.issues || [];
+      const ignoreSet = new Set(getProjectIgnoreWords());
+      const filtered = currentIssues.filter(
+        (iss) => !ignoreSet.has(sanitizeSpellWord(iss.matchedText).toLowerCase())
+      );
+      editor.view.dispatch(editor.state.tr.setMeta(spellAndGrammarPluginKey, filtered));
+    }
+  }, [editor, spellCheckEnabled, customDictionary, codex]);
+
   const [contextMenu, setContextMenu] = useState<{
     x: number;
     y: number;
     targetWord: string;
     hasSelection: boolean;
     range: { from: number; to: number };
+    contextIssue: DocumentSpellIssue | null;
   } | null>(null);
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -163,18 +213,27 @@ export function Editor() {
     let word = '';
     let range = { from, to };
     const hasSelection = from !== to;
+    let contextIssue: DocumentSpellIssue | null = null;
 
-    if (hasSelection) {
+    const posAt = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
+    const clickPos = posAt ? posAt.pos : from;
+
+    // Check if right-clicked on a flagged spell or grammar issue first
+    const issueAtClick = getSpellGrammarIssueAtPos(editor.state, clickPos);
+    if (issueAtClick && !hasSelection) {
+      contextIssue = issueAtClick;
+      word = issueAtClick.matchedText;
+      range = { from: issueAtClick.from, to: issueAtClick.to };
+      editor.commands.setTextSelection({ from: issueAtClick.from, to: issueAtClick.to });
+    } else if (hasSelection) {
       word = editor.state.doc.textBetween(from, to, ' ').trim();
-    } else {
-      const posAt = editor.view.posAtCoords({ left: e.clientX, top: e.clientY });
-      if (posAt) {
-        const found = getWordRangeAtPos(editor.state.doc, posAt.pos);
-        if (found) {
-          word = found.word;
-          range = { from: found.from, to: found.to };
-          editor.commands.setTextSelection({ from: found.from, to: found.to });
-        }
+      contextIssue = getSpellGrammarIssueAtPos(editor.state, from);
+    } else if (posAt) {
+      const found = getWordRangeAtPos(editor.state.doc, posAt.pos);
+      if (found) {
+        word = found.word;
+        range = { from: found.from, to: found.to };
+        editor.commands.setTextSelection({ from: found.from, to: found.to });
       }
     }
 
@@ -184,18 +243,21 @@ export function Editor() {
       targetWord: word,
       hasSelection,
       range,
+      contextIssue,
     });
   };
 
   const handleReplaceWord = (chosenWord: string) => {
     if (!editor || !contextMenu) return;
-    const { range, targetWord } = contextMenu;
-    const casedReplacement = applyCasing(targetWord, chosenWord);
+    const { range, targetWord, contextIssue } = contextMenu;
+    // If replacing a multi-word contextual grammar issue, use exact replacement string
+    const isMultiWord = targetWord.includes(' ') || chosenWord.includes(' ') || Boolean(contextIssue);
+    const replacementText = isMultiWord ? chosenWord : applyCasing(targetWord, chosenWord);
 
     editor
       .chain()
       .focus()
-      .insertContentAt({ from: range.from, to: range.to }, casedReplacement)
+      .insertContentAt({ from: range.from, to: range.to }, replacementText)
       .run();
 
     setContextMenu(null);
@@ -247,6 +309,7 @@ export function Editor() {
           y={contextMenu.y}
           targetWord={contextMenu.targetWord}
           hasSelection={contextMenu.hasSelection}
+          contextIssue={contextMenu.contextIssue}
           onReplaceWord={handleReplaceWord}
           onCut={handleCut}
           onCopy={handleCopy}

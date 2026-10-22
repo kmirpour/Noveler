@@ -1,8 +1,10 @@
 import * as fileService from './fileService';
 import {
+  isChapterFileName,
   getNextChapterFileName,
   sortChapterFiles,
   extractChapterDisplayTitle,
+  slugifyTitle,
 } from '../utils/chapterNaming';
 
 export type SceneStatus = 'idea' | 'draft' | 'revised' | 'final';
@@ -59,6 +61,7 @@ export interface NovelProject {
   createdAt: string;
   updatedAt: string;
   binder: BinderItem[];
+  extraFiles?: BinderItem[];
   chapterMetadata?: Record<string, SceneMetadata>;
   scratchpad?: string;
   tagCategories?: string[];
@@ -227,23 +230,26 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
   const treeNodes = await fileService.readDirTree(projectPath);
   const sep = projectPath.includes('/') ? '/' : '\\';
 
-  // Filter markdown files directly in project folder (exclude subdirectories per GUIDE.md)
-  let mdNodes = treeNodes.filter(
+  // Filter text files directly in project folder (exclude subdirectories per GUIDE.md)
+  const textNodes = treeNodes.filter(
     (n) =>
       !n.is_dir &&
       n.name !== PROJECT_FILENAME &&
       !n.name.startsWith('.') &&
-      (n.name.endsWith('.md') || n.name.endsWith('.markdown'))
+      (n.name.endsWith('.md') || n.name.endsWith('.markdown') || n.name.endsWith('.txt'))
   );
 
-  // If folder contains no markdown files, auto-generate 01-chapter.md per GUIDE.md Section 1.3
-  if (mdNodes.length === 0) {
+  let chapterNodes = textNodes.filter((n) => isChapterFileName(n.name));
+  const extraNodes = textNodes.filter((n) => !isChapterFileName(n.name));
+
+  // If folder contains no chapter files, auto-generate 01-chapter.md per GUIDE.md Section 1.3
+  if (chapterNodes.length === 0) {
     const firstChapterName = '01-chapter.md';
     const firstChapterPath = `${projectPath}${sep}${firstChapterName}`;
     const initialContent = `# Chapter One\n\nStart writing your story here...\n`;
     try {
       await fileService.createFile(firstChapterPath, initialContent);
-      mdNodes = [
+      chapterNodes = [
         {
           name: firstChapterName,
           path: firstChapterPath,
@@ -256,13 +262,16 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     }
   }
 
-  // Naturally sort chapter files in ascending order (01-, 02-, 10-)
-  const sortedNodes = sortChapterFiles(mdNodes);
+  // Naturally sort chapter files in ascending order (01-, 02-, 10-, chapter-01)
+  const sortedChapterNodes = sortChapterFiles(chapterNodes);
+  const sortedExtraNodes = sortChapterFiles(extraNodes);
 
-  const existingMap = existingProject ? createMapByPath(existingProject.binder) : undefined;
+  const existingMap = existingProject
+    ? createMapByPath([...(existingProject.binder || []), ...(existingProject.extraFiles || [])])
+    : undefined;
   const chapterMetadata = existingProject?.chapterMetadata || {};
 
-  const binderItems: BinderItem[] = sortedNodes.map((node) => {
+  const mapNodeToBinderItem = (node: fileService.BinderNode): BinderItem => {
     const existing = existingMap?.get(node.path);
     const meta = chapterMetadata[node.name] || chapterMetadata[node.path] || {};
     const displayTitle = extractChapterDisplayTitle(node.name);
@@ -278,7 +287,10 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
       targetWords: meta.targetWords || existing?.targetWords || 0,
       collapsed: false,
     };
-  });
+  };
+
+  const binderItems: BinderItem[] = sortedChapterNodes.map(mapNodeToBinderItem);
+  const extraFileItems: BinderItem[] = sortedExtraNodes.map(mapNodeToBinderItem);
 
   const projectName = fileService.extractFileName(projectPath);
 
@@ -291,6 +303,7 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     createdAt: existingProject?.createdAt || new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     binder: binderItems,
+    extraFiles: extraFileItems,
     chapterMetadata,
     scratchpad: existingProject?.scratchpad || '',
     tagCategories: existingProject?.tagCategories || ['characters', 'locations', 'items', 'scenes'],
@@ -318,6 +331,39 @@ export async function createSequentialChapter(
   const fullPath = `${projectPath}${sep}${fileName}`;
   const displayTitle = extractChapterDisplayTitle(fileName);
   const initialContent = `# ${displayTitle}\n\n`;
+
+  await fileService.createFile(fullPath, initialContent);
+  return { path: fullPath, name: fileName, title: displayTitle };
+}
+
+/**
+ * Creates a general project note / non-chapter file in the novel folder (stored under Other Files).
+ * Ensures the filename does not accidentally match a chapter prefix.
+ */
+export async function createExtraFile(
+  projectPath: string,
+  existingFileNames: string[],
+  titleInput?: string
+): Promise<{ path: string; name: string; title: string }> {
+  const rawTitle = (titleInput || '').trim() || 'notes';
+  let baseSlug = slugifyTitle(rawTitle);
+  if (isChapterFileName(`${baseSlug}.md`)) {
+    baseSlug = `note-${baseSlug}`;
+  }
+
+  let fileName = `${baseSlug}.md`;
+  let counter = 2;
+  const lowerExisting = new Set(existingFileNames.map((n) => n.toLowerCase()));
+  while (lowerExisting.has(fileName.toLowerCase())) {
+    fileName = `${baseSlug}-${counter}.md`;
+    counter++;
+  }
+
+  const sep = projectPath.includes('/') ? '/' : '\\';
+  const fullPath = `${projectPath}${sep}${fileName}`;
+  const displayTitle = extractChapterDisplayTitle(fileName);
+  const heading = rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1);
+  const initialContent = `# ${heading}\n\n`;
 
   await fileService.createFile(fullPath, initialContent);
   return { path: fullPath, name: fileName, title: displayTitle };

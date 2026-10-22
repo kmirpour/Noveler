@@ -14,6 +14,7 @@ export interface AppSettings {
   focusMode: boolean;
   typewriterMode: boolean;
   dimUnfocused: boolean;
+  spellCheckEnabled: boolean;
   dailyWordGoal: number;
   lastProjectPath: string | null;
   recentFiles: string[];
@@ -33,6 +34,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   focusMode: false,
   typewriterMode: false,
   dimUnfocused: false,
+  spellCheckEnabled: true,
   dailyWordGoal: 1000,
   lastProjectPath: null,
   recentFiles: [],

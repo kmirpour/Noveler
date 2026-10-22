@@ -1,8 +1,19 @@
 import { useEffect, useRef, useState, useLayoutEffect, useMemo } from 'react';
 import { fetchThesaurus, applyCasing, type ThesaurusResult } from '../../services/thesaurusService';
 import { fetchSpellingSuggestions, sanitizeSpellWord } from '../../services/spellingService';
+import type { DocumentSpellIssue } from '../../extensions/spellAndGrammar';
 import { useEditorStore } from '../../stores/editorStore';
-import { BookOpen, Scissors, Copy, Clipboard, ChevronRight, Loader2, Check, BookPlus } from 'lucide-react';
+import {
+  BookOpen,
+  Scissors,
+  Copy,
+  Clipboard,
+  ChevronRight,
+  Loader2,
+  Check,
+  BookPlus,
+  Sparkles,
+} from 'lucide-react';
 import './EditorContextMenu.css';
 
 export interface EditorContextMenuProps {
@@ -10,6 +21,7 @@ export interface EditorContextMenuProps {
   y: number;
   targetWord: string;
   hasSelection: boolean;
+  contextIssue?: DocumentSpellIssue | null;
   onReplaceWord: (replacement: string) => void;
   onCut: () => void;
   onCopy: () => void;
@@ -22,6 +34,7 @@ export function EditorContextMenu({
   y,
   targetWord,
   hasSelection,
+  contextIssue,
   onReplaceWord,
   onCut,
   onCopy,
@@ -156,6 +169,25 @@ export function EditorContextMenu({
 
   const displayWord = targetWord.length > 18 ? targetWord.slice(0, 16) + '…' : targetWord;
 
+  const combinedSuggestions = useMemo(() => {
+    const list: string[] = [];
+    if (contextIssue?.replacements?.length) {
+      for (const r of contextIssue.replacements) {
+        if (!list.includes(r)) list.push(r);
+      }
+    }
+    for (const s of spellingSuggestions) {
+      const cased = applyCasing(targetWord, s);
+      if (!list.includes(cased) && !list.includes(s)) {
+        list.push(cased);
+      }
+    }
+    return list.slice(0, 5);
+  }, [contextIssue, spellingSuggestions, targetWord]);
+
+  const showIssueSection = Boolean(contextIssue) || combinedSuggestions.length > 0;
+  const isSingleWordTarget = Boolean(targetWord) && !targetWord.trim().includes(' ');
+
   return (
     <div
       ref={menuRef}
@@ -166,14 +198,21 @@ export function EditorContextMenu({
       }}
       role="menu"
     >
-      {/* Spelling Suggestions for Misspelled Words */}
-      {spellingSuggestions.length > 0 && (
+      {/* Contextual Grammar, Homophone & Spelling Suggestions */}
+      {showIssueSection && (
         <div className="spelling-suggestions-section">
           <div className="spelling-header">
-            <Check size={13} className="spelling-header-icon" />
-            <span>Spelling Suggestions</span>
+            {contextIssue?.category === 'grammar' ? (
+              <Sparkles size={13} className="spelling-header-icon grammar-icon" />
+            ) : (
+              <Check size={13} className="spelling-header-icon" />
+            )}
+            <span>{contextIssue?.shortMessage || 'Spelling Suggestions'}</span>
           </div>
-          {spellingSuggestions.map((suggestion) => (
+          {contextIssue?.message && (
+            <div className="spelling-issue-message">{contextIssue.message}</div>
+          )}
+          {combinedSuggestions.map((suggestion) => (
             <button
               key={suggestion}
               type="button"
@@ -184,11 +223,11 @@ export function EditorContextMenu({
               }}
             >
               <span className="menu-label spelling-suggestion-label">
-                {applyCasing(targetWord, suggestion)}
+                {suggestion}
               </span>
             </button>
           ))}
-          {novelProject && targetWord && (
+          {novelProject && isSingleWordTarget && (!contextIssue || contextIssue.category === 'spelling') && (
             <button
               type="button"
               className="context-menu-item"

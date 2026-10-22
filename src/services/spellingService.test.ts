@@ -1,6 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   fetchSpellingSuggestions,
+  checkTextOffline,
+  checkTextSpellAndGrammar,
+  damerauLevenshtein,
   clearSpellingCache,
   COMMON_TYPOS,
 } from './spellingService';
@@ -72,5 +75,68 @@ describe('spellingService', () => {
     const res = await fetchSpellingSuggestions('Valyria', ['valyria', 'winterfell']);
     expect(res).toEqual([]);
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it('computes Damerau-Levenshtein edit distance including transpositions', () => {
+    expect(damerauLevenshtein('the', 'teh')).toBe(1);
+    expect(damerauLevenshtein('friend', 'freind')).toBe(1);
+    expect(damerauLevenshtein('story', 'story')).toBe(0);
+  });
+
+  it('detects contextual homophones, grammar errors, and repeated words offline', () => {
+    const sample =
+      "Their going to the the harbor. She could of been faster then him, and shook it's head.";
+    const issues = checkTextOffline(sample);
+
+    const matchedTexts = issues.map((i) => i.matchedText);
+    expect(matchedTexts).toContain('Their going');
+    expect(matchedTexts).toContain('the the');
+    expect(matchedTexts).toContain('could of');
+    expect(matchedTexts).toContain('faster then');
+    expect(matchedTexts).toContain("it's head");
+
+    const theirIssue = issues.find((i) => i.matchedText === 'Their going');
+    expect(theirIssue?.replacements).toContain("They're going");
+
+    const modalIssue = issues.find((i) => i.matchedText === 'could of');
+    expect(modalIssue?.replacements).toContain('could have');
+  });
+
+  it('merges LanguageTool API results with offline checks and filters Codex/dictionary words', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        matches: [
+          {
+            message: 'Possible spelling mistake found.',
+            shortMessage: 'Spelling mistake',
+            offset: 0,
+            length: 7,
+            replacements: [{ value: 'Valeria' }],
+            rule: { id: 'MORFOLOGIK_RULE_EN_US', issueType: 'misspelling' },
+          },
+          {
+            message: 'The verb "walk" does not agree with the subject "she".',
+            shortMessage: 'Subject-verb agreement',
+            offset: 8,
+            length: 4,
+            replacements: [{ value: 'walks' }, { value: 'walked' }],
+            rule: { id: 'HE_VERB_AGR', issueType: 'grammar' },
+          },
+        ],
+      }),
+    } as Response);
+
+    const issues = await checkTextSpellAndGrammar('Valyria walk into teh room.', ['valyria']);
+    // "Valyria" should be filtered out by the ignore list!
+    expect(issues.some((i) => i.matchedText === 'Valyria')).toBe(false);
+    // "walk" should be flagged by LanguageTool as a grammar issue
+    const walkIssue = issues.find((i) => i.matchedText === 'walk');
+    expect(walkIssue?.category).toBe('grammar');
+    expect(walkIssue?.replacements).toContain('walks');
+    // "teh" should be flagged by the offline engine as a spelling issue
+    const tehIssue = issues.find((i) => i.matchedText === 'teh');
+    expect(tehIssue?.category).toBe('spelling');
+    expect(tehIssue?.replacements).toContain('the');
   });
 });

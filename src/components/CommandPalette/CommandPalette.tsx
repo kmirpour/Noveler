@@ -98,6 +98,7 @@ export function CommandPalette() {
     toggleCompileModal,
     toggleCodexModal,
     toggleProseAnalysis,
+    toggleSpellCheck,
   } = useEditorStore(
     useShallow((s) => ({
       commandPaletteOpen: s.commandPaletteOpen,
@@ -133,6 +134,7 @@ export function CommandPalette() {
       toggleCompileModal: s.toggleCompileModal,
       toggleCodexModal: s.toggleCodexModal,
       toggleProseAnalysis: s.toggleProseAnalysis,
+      toggleSpellCheck: s.toggleSpellCheck,
     }))
   );
 
@@ -321,6 +323,13 @@ export function CommandPalette() {
         action: () => toggleProseAnalysis(),
       },
       {
+        id: 'story-spell-check-toggle',
+        category: 'Story Tools',
+        title: 'Toggle Live Spell & Grammar Check Underlines',
+        icon: <PenTool size={16} />,
+        action: () => toggleSpellCheck(),
+      },
+      {
         id: 'scratchpad-flush',
         category: 'Story Tools',
         title: 'Flush Scratchpad Notes to Graveyard Folder',
@@ -480,6 +489,17 @@ export function CommandPalette() {
             })
           )
         : []),
+      ...(novelProject?.extraFiles
+        ? novelProject.extraFiles.map(
+            (item): CommandItem => ({
+              id: `extra-jump-${item.path}`,
+              category: 'File',
+              title: `Open File: ${item.title}`,
+              icon: <StickyNote size={16} />,
+              action: () => void loadSceneByPath(item.path),
+            })
+          )
+        : []),
       // Recent Files
       ...(recentFiles || []).slice(0, 5).map(
         (path): CommandItem => ({
@@ -521,6 +541,7 @@ export function CommandPalette() {
       toggleCompileModal,
       toggleCodexModal,
       toggleProseAnalysis,
+      toggleSpellCheck,
       flushScratchpadAction,
       syncGitAction,
     ]
