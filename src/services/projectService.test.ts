@@ -156,6 +156,29 @@ The rain poured through the broken glass skylight. Miller stepped over the rubbl
     expect(mentions.map((m) => m.name)).toEqual(['Elena Vance', 'Marcus Thorne', 'Iron Citadel']);
   });
 
+  it('extracts unique dictionary words from codex entries including name tokens and aliases', async () => {
+    const { extractWordsFromCodexEntry, extractWordsFromCodex } = await import('./projectService');
+    const entry = {
+      id: 'c1',
+      name: 'Eldrin Moonshadow',
+      category: 'character' as const,
+      aliases: ['The Shadow-Walker', 'Eld'],
+      summary: 'A rogue elf',
+    };
+    const words = extractWordsFromCodexEntry(entry);
+    expect(words).toContain('eldrin moonshadow');
+    expect(words).toContain('eldrin');
+    expect(words).toContain('moonshadow');
+    expect(words).toContain('the shadow-walker');
+    expect(words).toContain('shadow');
+    expect(words).toContain('walker');
+    expect(words).toContain('eld');
+
+    const allWords = extractWordsFromCodex([entry]);
+    expect(allWords).toContain('eldrin');
+    expect(allWords).toContain('moonshadow');
+  });
+
   it('flushes scratchpad content into a timestamped graveyard file', async () => {
     const { flushScratchpadToGraveyard } = await import('./projectService');
     const res = await flushScratchpadToGraveyard('/my-novel', 'My scrapped scene notes');

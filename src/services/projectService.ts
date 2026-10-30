@@ -308,7 +308,12 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     scratchpad: existingProject?.scratchpad || '',
     tagCategories: existingProject?.tagCategories || ['characters', 'locations', 'items', 'scenes'],
     tagAssignments: existingProject?.tagAssignments || {},
-    customDictionary: existingProject?.customDictionary || [],
+    customDictionary: Array.from(
+      new Set([
+        ...(existingProject?.customDictionary || []),
+        ...extractWordsFromCodex(existingProject?.codex || []),
+      ])
+    ),
     codex: existingProject?.codex || [],
     snapshots: existingProject?.snapshots || [],
     gitRemoteUrl: existingProject?.gitRemoteUrl,
@@ -438,4 +443,46 @@ export async function flushScratchpadToGraveyard(
   await fileService.saveFile(filePath, content);
 
   return { fileName, filePath };
+}
+
+/**
+ * Extracts searchable and dictionary-ready lowercase words from a Codex entry,
+ * including its full name, constituent name tokens, and aliases.
+ */
+export function extractWordsFromCodexEntry(entry: CodexEntry): string[] {
+  const words = new Set<string>();
+  const addTextTokens = (text: string) => {
+    if (!text || !text.trim()) return;
+    const cleanFull = text.replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, '').trim().toLowerCase();
+    if (cleanFull && cleanFull.length >= 2) {
+      words.add(cleanFull);
+    }
+    const parts = text.split(/[\s-]+/);
+    for (const part of parts) {
+      const cleanPart = part.replace(/^[^a-zA-Z0-9'-]+|[^a-zA-Z0-9'-]+$/g, '').trim().toLowerCase();
+      if (cleanPart && cleanPart.length >= 2) {
+        words.add(cleanPart);
+      }
+    }
+  };
+
+  addTextTokens(entry.name);
+  for (const alias of entry.aliases || []) {
+    addTextTokens(alias);
+  }
+  return Array.from(words);
+}
+
+/**
+ * Extracts all unique lowercase dictionary words from a list of Codex entries.
+ */
+export function extractWordsFromCodex(entries?: CodexEntry[]): string[] {
+  if (!entries || entries.length === 0) return [];
+  const words = new Set<string>();
+  for (const entry of entries) {
+    for (const word of extractWordsFromCodexEntry(entry)) {
+      words.add(word);
+    }
+  }
+  return Array.from(words);
 }

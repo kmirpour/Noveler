@@ -75,6 +75,10 @@ describe('spellingService', () => {
     const res = await fetchSpellingSuggestions('Valyria', ['valyria', 'winterfell']);
     expect(res).toEqual([]);
     expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Possessive form should also be ignored
+    const resPossessive = await fetchSpellingSuggestions("Valyria's", ['valyria', 'winterfell']);
+    expect(resPossessive).toEqual([]);
   });
 
   it('computes Damerau-Levenshtein edit distance including transpositions', () => {

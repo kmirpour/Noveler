@@ -65,6 +65,12 @@ describe('SearchAndReplace extension', () => {
     state = searchPluginKey.getState(editor.state);
     expect(state?.currentIndex).toBe(2);
 
+    editor.commands.goToSearchResult(0);
+    state = searchPluginKey.getState(editor.state);
+    expect(state?.currentIndex).toBe(0);
+    expect(editor.state.selection.from).toBe(state!.results[0].from);
+    expect(editor.state.selection.to).toBe(state!.results[0].to);
+
     editor.destroy();
   });
 

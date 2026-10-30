@@ -1,0 +1,308 @@
+.story-bible-mention-dropdown {
+  position: fixed;
+  z-index: 10000;
+  width: 320px;
+  max-height: 360px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18), 0 3px 8px rgba(0, 0, 0, 0.08);
+  font-family: var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-size: 13px;
+  color: var(--text-color);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: mentionPopupFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1);
+  user-select: none;
+}
+
+@keyframes mentionPopupFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.mention-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background-color: var(--bg-toolbar, var(--bg-sidebar));
+  border-bottom: 1px solid var(--border-color);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.mention-header-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent-hover, var(--text-color));
+}
+
+.mention-header-hint {
+  font-size: 10px;
+  font-weight: normal;
+  color: var(--text-muted);
+}
+
+.mention-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px;
+  max-height: 260px;
+}
+
+.mention-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--text-color);
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.mention-item:hover,
+.mention-item.selected {
+  background-color: var(--btn-hover, var(--accent-light));
+  color: var(--accent-hover, var(--text-color));
+}
+
+.mention-item-icon-wrap {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.mention-item-icon-wrap.character {
+  background-color: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
+.mention-item-icon-wrap.location {
+  background-color: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+}
+
+.mention-item-icon-wrap.item {
+  background-color: rgba(245, 158, 11, 0.12);
+  color: #f59e0b;
+}
+
+.mention-item-icon-wrap.lore {
+  background-color: rgba(139, 92, 246, 0.12);
+  color: #8b5cf6;
+}
+
+.mention-item-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.mention-item-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mention-item-name {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-item-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  text-transform: capitalize;
+  font-weight: 500;
+  background-color: var(--tag-bg, rgba(0, 0, 0, 0.05));
+  color: var(--tag-color, var(--text-muted));
+}
+
+.mention-item-summary {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mention-empty {
+  padding: 16px 12px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.mention-footer {
+  border-top: 1px solid var(--border-color);
+  padding: 4px;
+  background-color: var(--bg-card);
+}
+
+.mention-add-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  color: var(--accent-color);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background-color 0.1s ease;
+}
+
+.mention-add-btn:hover,
+.mention-add-btn.selected {
+  background-color: var(--btn-hover, var(--accent-light));
+  color: var(--accent-hover, var(--accent-color));
+}
+
+/* Quick Add Form Mode */
+.mention-quick-add {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mention-quick-add-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.mention-quick-add-close {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+}
+
+.mention-quick-add-close:hover {
+  background-color: var(--btn-hover);
+  color: var(--text-color);
+}
+
+.mention-input {
+  width: 100%;
+  padding: 6px 9px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background-color: var(--bg-editor, var(--bg-card));
+  color: var(--text-color);
+  font-size: 12px;
+  outline: none;
+}
+
+.mention-input:focus {
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 1px var(--accent-color);
+}
+
+.mention-category-pills {
+  display: flex;
+  gap: 6px;
+}
+
+.mention-category-pill {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.1s ease;
+}
+
+.mention-category-pill.active {
+  background-color: var(--accent-light, #e0dacf);
+  border-color: var(--accent-color, #8b683e);
+  color: var(--accent-hover, #634725);
+  font-weight: 600;
+}
+
+.mention-quick-add-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.mention-btn-cancel {
+  padding: 5px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mention-btn-cancel:hover {
+  background-color: var(--btn-hover);
+  color: var(--text-color);
+}
+
+.mention-btn-save {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 5px;
+  background-color: var(--accent-color);
+  color: #ffffff;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.mention-btn-save:hover {
+  background-color: var(--accent-hover);
+}

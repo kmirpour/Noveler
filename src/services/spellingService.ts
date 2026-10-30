@@ -342,6 +342,28 @@ export function sanitizeSpellWord(word: string): string {
 }
 
 /**
+ * Checks if a word (including its possessive form, casing, or hyphens) is ignored by the custom dictionary or Codex.
+ */
+export function isWordIgnored(word: string, ignoreSet: Set<string>): boolean {
+  if (!word) return true;
+  const clean = sanitizeSpellWord(word).toLowerCase();
+  if (!clean) return true;
+  if (ignoreSet.has(clean)) return true;
+
+  // Check possessive forms: e.g. "Eldrin's" -> "eldrin", "James'" -> "james"
+  const strippedPossessive = clean.replace(/['’]s?$/, '');
+  if (strippedPossessive && ignoreSet.has(strippedPossessive)) return true;
+
+  // If word contains hyphens, check if subparts are ignored
+  if (clean.includes('-')) {
+    const parts = clean.split('-');
+    if (parts.every((p) => ignoreSet.has(p))) return true;
+  }
+
+  return false;
+}
+
+/**
  * Computes Damerau-Levenshtein edit distance (including adjacent transpositions) between two strings.
  */
 export function damerauLevenshtein(a: string, b: string): number {
@@ -413,7 +435,7 @@ export function checkTextOffline(text: string, ignoreWords: string[] = []): Spel
     if (startIdx > 0 && text[startIdx - 1] === '#') continue;
 
     const lower = rawWord.toLowerCase();
-    if (ignoreSet.has(lower)) continue;
+    if (isWordIgnored(lower, ignoreSet)) continue;
 
     const typoFixes = COMMON_TYPOS[lower];
     if (typoFixes && typoFixes.length > 0) {
@@ -512,7 +534,7 @@ export async function checkTextSpellAndGrammar(
       if (m.offset > 0 && text[m.offset - 1] === '#') continue;
 
       // Skip words in the project's Custom Dictionary or Codex
-      if (cleanWord && ignoreSet.has(cleanWord)) continue;
+      if (cleanWord && isWordIgnored(cleanWord, ignoreSet)) continue;
 
       // Skip if overlapping with an existing issue
       const overlaps = merged.some(
@@ -572,8 +594,9 @@ export async function fetchSpellingSuggestions(
   if (!clean || clean.length < 2) return [];
 
   const lower = clean.toLowerCase();
+  const ignoreSet = new Set(ignoreWords.map((w) => w.toLowerCase()));
 
-  if (ignoreWords.some((w) => w.toLowerCase() === lower)) {
+  if (isWordIgnored(lower, ignoreSet)) {
     return [];
   }
 

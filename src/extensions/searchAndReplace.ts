@@ -28,6 +28,7 @@ declare module '@tiptap/core' {
       setUseRegex: (val: boolean) => ReturnType;
       nextSearchResult: () => ReturnType;
       previousSearchResult: () => ReturnType;
+      goToSearchResult: (index: number) => ReturnType;
       replaceCurrentResult: () => ReturnType;
       replaceAllResults: () => ReturnType;
       clearSearch: () => ReturnType;
@@ -155,8 +156,8 @@ export const SearchAndReplace = Extension.create<SearchOptions>({
           if (dispatch) {
             tr.setMeta(searchPluginKey, { currentIndex: nextIndex });
             const target = state.results[nextIndex];
-            tr.scrollIntoView();
             tr.setSelection(TextSelection.create(tr.doc, target.from, target.to));
+            tr.scrollIntoView();
           }
           return true;
         },
@@ -170,8 +171,23 @@ export const SearchAndReplace = Extension.create<SearchOptions>({
           if (dispatch) {
             tr.setMeta(searchPluginKey, { currentIndex: prevIndex });
             const target = state.results[prevIndex];
-            tr.scrollIntoView();
             tr.setSelection(TextSelection.create(tr.doc, target.from, target.to));
+            tr.scrollIntoView();
+          }
+          return true;
+        },
+
+      goToSearchResult:
+        (index: number) =>
+        ({ editor, tr, dispatch }) => {
+          const state = searchPluginKey.getState(editor.state);
+          if (!state || state.results.length === 0) return false;
+          const targetIndex = ((index % state.results.length) + state.results.length) % state.results.length;
+          if (dispatch) {
+            tr.setMeta(searchPluginKey, { currentIndex: targetIndex });
+            const target = state.results[targetIndex];
+            tr.setSelection(TextSelection.create(tr.doc, target.from, target.to));
+            tr.scrollIntoView();
           }
           return true;
         },

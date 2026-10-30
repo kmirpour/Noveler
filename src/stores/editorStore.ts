@@ -26,6 +26,8 @@ import {
   parseSceneMarkdown,
   flattenScenes,
   flushScratchpadToGraveyard,
+  extractWordsFromCodexEntry,
+  extractWordsFromCodex,
 } from '../services/projectService';
 import {
   buildRenamedChapterFileName,
@@ -546,6 +548,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
       }
 
+      // Ensure all story bible names are merged into the custom dictionary
+      const codexWords = extractWordsFromCodex(project.codex);
+      const mergedDict = Array.from(new Set([...(project.customDictionary || []), ...codexWords]));
+      project.customDictionary = mergedDict;
+
       set({
         projectPath: path,
         projectName: project.title || name,
@@ -1064,9 +1071,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...entry,
       id: `codex_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     };
+    const codexWords = extractWordsFromCodexEntry(newEntry);
+    const customDictSet = new Set(novelProject.customDictionary || []);
+    for (const w of codexWords) customDictSet.add(w);
+
     const updatedProject: NovelProject = {
       ...novelProject,
       codex: [...(novelProject.codex || []), newEntry],
+      customDictionary: Array.from(customDictSet),
     };
     set({ novelProject: updatedProject });
     await saveNovelProject(projectPath, updatedProject);
@@ -1076,7 +1088,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { novelProject, projectPath } = get();
     if (!novelProject || !projectPath) return;
     const codex = (novelProject.codex || []).map((e) => (e.id === entry.id ? entry : e));
-    const updatedProject: NovelProject = { ...novelProject, codex };
+    const codexWords = extractWordsFromCodexEntry(entry);
+    const customDictSet = new Set(novelProject.customDictionary || []);
+    for (const w of codexWords) customDictSet.add(w);
+
+    const updatedProject: NovelProject = {
+      ...novelProject,
+      codex,
+      customDictionary: Array.from(customDictSet),
+    };
     set({ novelProject: updatedProject });
     await saveNovelProject(projectPath, updatedProject);
   },

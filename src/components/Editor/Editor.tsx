@@ -9,6 +9,11 @@ import { FictionUnderline, FictionHighlight } from '../../utils/markdown';
 import { Typewriter } from '../../extensions/typewriter';
 import { SearchAndReplace } from '../../extensions/searchAndReplace';
 import {
+  StoryBibleMention,
+  type MentionState,
+} from '../../extensions/storyBibleMention';
+import { StoryBibleMention as StoryBibleMentionComponent } from '../Mention/StoryBibleMention';
+import {
   SpellAndGrammar,
   getSpellGrammarIssueAtPos,
   spellAndGrammarPluginKey,
@@ -16,8 +21,9 @@ import {
 } from '../../extensions/spellAndGrammar';
 import { useEditorStore } from '../../stores/editorStore';
 import { isTauri, isSupportedTextFile } from '../../services/fileService';
+import { extractWordsFromCodexEntry } from '../../services/projectService';
 import { applyCasing } from '../../services/thesaurusService';
-import { sanitizeSpellWord, clearSpellingCache } from '../../services/spellingService';
+import { sanitizeSpellWord, clearSpellingCache, isWordIgnored } from '../../services/spellingService';
 import { getWordRangeAtPos } from '../../utils/editorUtils';
 import { EditorContextMenu } from '../ContextMenu/EditorContextMenu';
 import './Editor.css';
@@ -26,15 +32,8 @@ function getProjectIgnoreWords(): string[] {
   const novelProject = useEditorStore.getState().novelProject;
   const words = new Set<string>(novelProject?.customDictionary || []);
   for (const entry of novelProject?.codex || []) {
-    for (const part of entry.name.split(/\s+/)) {
-      const clean = sanitizeSpellWord(part);
-      if (clean) words.add(clean.toLowerCase());
-    }
-    for (const alias of entry.aliases || []) {
-      for (const part of alias.split(/\s+/)) {
-        const clean = sanitizeSpellWord(part);
-        if (clean) words.add(clean.toLowerCase());
-      }
+    for (const w of extractWordsFromCodexEntry(entry)) {
+      words.add(w);
     }
   }
   return Array.from(words);
@@ -54,8 +53,8 @@ export function Editor() {
   const typewriterMode = useEditorStore((s) => s.typewriterMode);
   const dimUnfocused = useEditorStore((s) => s.dimUnfocused);
   const spellCheckEnabled = useEditorStore((s) => s.spellCheckEnabled);
-  const customDictionary = useEditorStore((s) => s.novelProject?.customDictionary);
-  const codex = useEditorStore((s) => s.novelProject?.codex);
+  const dictionaryKey = useEditorStore((s) => (s.novelProject?.customDictionary || []).join(','));
+  const codexKey = useEditorStore((s) => (s.novelProject?.codex || []).map((c) => c.name).join(','));
 
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -86,11 +85,12 @@ export function Editor() {
         getIgnoreWords: getProjectIgnoreWords,
       }),
       SearchAndReplace,
+      StoryBibleMention,
     ],
     content: initialMarkdown,
     contentType: 'markdown',
     editorProps: {
-      attributes: { spellcheck: 'true' },
+      attributes: { spellcheck: 'false' },
     },
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;
@@ -147,7 +147,7 @@ export function Editor() {
     };
   }, [editor, setEditorInstance, updateCounts]);
 
-  // Refresh spell & grammar decorations when spellCheckEnabled, customDictionary, or codex changes
+  // Refresh spell & grammar decorations when spellCheckEnabled, dictionary, or codex changes
   useEffect(() => {
     if (!editor || editor.isDestroyed) return;
     clearSpellingCache();
@@ -158,11 +158,11 @@ export function Editor() {
       const currentIssues = spellAndGrammarPluginKey.getState(editor.state)?.issues || [];
       const ignoreSet = new Set(getProjectIgnoreWords());
       const filtered = currentIssues.filter(
-        (iss) => !ignoreSet.has(sanitizeSpellWord(iss.matchedText).toLowerCase())
+        (iss) => !isWordIgnored(sanitizeSpellWord(iss.matchedText).toLowerCase(), ignoreSet)
       );
       editor.view.dispatch(editor.state.tr.setMeta(spellAndGrammarPluginKey, filtered));
     }
-  }, [editor, spellCheckEnabled, customDictionary, codex]);
+  }, [editor, spellCheckEnabled, dictionaryKey, codexKey]);
 
   const [contextMenu, setContextMenu] = useState<{
     x: number;
@@ -172,6 +172,25 @@ export function Editor() {
     range: { from: number; to: number };
     contextIssue: DocumentSpellIssue | null;
   } | null>(null);
+
+  const [mentionState, setMentionState] = useState<MentionState | null>(null);
+
+  useEffect(() => {
+    if (!editor) return;
+    const dom = editor.view.dom;
+    const handleMentionUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<MentionState>).detail;
+      if (detail && detail.active) {
+        setMentionState(detail);
+      } else {
+        setMentionState(null);
+      }
+    };
+    dom.addEventListener('story-bible-mention-update', handleMentionUpdate);
+    return () => {
+      dom.removeEventListener('story-bible-mention-update', handleMentionUpdate);
+    };
+  }, [editor]);
 
   const handleDragOver = (e: React.DragEvent) => {
     if (!isTauri() && e.dataTransfer.types.includes('Files')) {
@@ -315,6 +334,13 @@ export function Editor() {
           onCopy={handleCopy}
           onPaste={handlePaste}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+      {mentionState && mentionState.active && (
+        <StoryBibleMentionComponent
+          editor={editor}
+          mentionState={mentionState}
+          onClose={() => setMentionState(null)}
         />
       )}
     </div>

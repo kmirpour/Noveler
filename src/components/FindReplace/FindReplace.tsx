@@ -77,6 +77,27 @@ export function FindReplace() {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const hasNavigatedRef = useRef(false);
+
+  // Center the current matched occurrence smoothly in the editor container
+  const scrollToMatch = useCallback(() => {
+    if (!editorInstance) return;
+    requestAnimationFrame(() => {
+      const matchElem = editorInstance.view.dom.querySelector('.search-match-current');
+      if (matchElem) {
+        matchElem.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
+      } else {
+        const { from } = editorInstance.state.selection;
+        const coords = editorInstance.view.coordsAtPos(from);
+        const container = editorInstance.view.dom.closest('.editor-container');
+        if (coords && container) {
+          const containerRect = container.getBoundingClientRect();
+          const targetTop = coords.top - containerRect.top + container.scrollTop - container.clientHeight / 2;
+          container.scrollTo({ top: Math.max(0, targetTop), behavior: 'smooth' });
+        }
+      }
+    });
+  }, [editorInstance]);
 
   // Sync state from editor search plugin
   const syncFromEditor = useCallback(() => {
@@ -146,6 +167,7 @@ export function FindReplace() {
   // Focus input when opened
   useEffect(() => {
     if (findReplaceOpen) {
+      hasNavigatedRef.current = false;
       setTimeout(() => {
         searchInputRef.current?.focus();
         searchInputRef.current?.select();
@@ -154,12 +176,14 @@ export function FindReplace() {
     } else if (editorInstance) {
       editorInstance.commands.clearSearch();
       setMatchCount(0);
+      hasNavigatedRef.current = false;
     }
   }, [findReplaceOpen, editorInstance, syncFromEditor]);
 
   // Update search terms in editor
   const handleSearchChange = (term: string) => {
     setSearchTerm(term);
+    hasNavigatedRef.current = false;
     if (!editorInstance) return;
     editorInstance.commands.setSearchTerm(term);
     setTimeout(syncFromEditor, 10);
@@ -168,6 +192,7 @@ export function FindReplace() {
   const handleCaseChange = () => {
     const next = !caseSensitive;
     setCaseSensitive(next);
+    hasNavigatedRef.current = false;
     if (!editorInstance) return;
     editorInstance.commands.setCaseSensitive(next);
     setTimeout(syncFromEditor, 10);
@@ -176,6 +201,7 @@ export function FindReplace() {
   const handleWholeWordChange = () => {
     const next = !wholeWord;
     setWholeWord(next);
+    hasNavigatedRef.current = false;
     if (!editorInstance) return;
     editorInstance.commands.setWholeWord(next);
     setTimeout(syncFromEditor, 10);
@@ -184,6 +210,7 @@ export function FindReplace() {
   const handleRegexChange = () => {
     const next = !useRegex;
     setUseRegex(next);
+    hasNavigatedRef.current = false;
     if (!editorInstance) return;
     editorInstance.commands.setUseRegex(next);
     setTimeout(syncFromEditor, 10);
@@ -191,14 +218,22 @@ export function FindReplace() {
 
   const handleNext = () => {
     if (!editorInstance) return;
-    editorInstance.commands.nextSearchResult();
+    if (!hasNavigatedRef.current) {
+      editorInstance.commands.goToSearchResult(0);
+      hasNavigatedRef.current = true;
+    } else {
+      editorInstance.commands.nextSearchResult();
+    }
     syncFromEditor();
+    scrollToMatch();
   };
 
   const handlePrev = () => {
     if (!editorInstance) return;
+    hasNavigatedRef.current = true;
     editorInstance.commands.previousSearchResult();
     syncFromEditor();
+    scrollToMatch();
   };
 
   const handleReplaceCurrent = () => {
@@ -247,6 +282,7 @@ export function FindReplace() {
 
   const handleClose = () => {
     setFindReplaceOpen(false);
+    hasNavigatedRef.current = false;
     editorInstance?.commands.focus();
   };
 
@@ -285,6 +321,25 @@ export function FindReplace() {
             placeholder="Find in manuscript..."
             value={searchTerm}
             onChange={(e) => handleSearchChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                handleNext();
+              } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                handlePrev();
+              } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (e.shiftKey) {
+                  handlePrev();
+                } else {
+                  handleNext();
+                }
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                handleClose();
+              }
+            }}
           />
           <span className="find-match-count">
             {searchTerm.trim() === ''

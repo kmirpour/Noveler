@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useLayoutEffect, useMemo } from 'react';
 import { fetchThesaurus, applyCasing, type ThesaurusResult } from '../../services/thesaurusService';
 import { fetchSpellingSuggestions, sanitizeSpellWord } from '../../services/spellingService';
+import { extractWordsFromCodexEntry } from '../../services/projectService';
 import type { DocumentSpellIssue } from '../../extensions/spellAndGrammar';
 import { useEditorStore } from '../../stores/editorStore';
 import {
@@ -54,15 +55,8 @@ export function EditorContextMenu({
   const projectIgnoreWords = useMemo(() => {
     const words = new Set<string>(novelProject?.customDictionary || []);
     for (const entry of novelProject?.codex || []) {
-      for (const part of entry.name.split(/\s+/)) {
-        const clean = sanitizeSpellWord(part);
-        if (clean) words.add(clean.toLowerCase());
-      }
-      for (const alias of entry.aliases || []) {
-        for (const part of alias.split(/\s+/)) {
-          const clean = sanitizeSpellWord(part);
-          if (clean) words.add(clean.toLowerCase());
-        }
+      for (const w of extractWordsFromCodexEntry(entry)) {
+        words.add(w);
       }
     }
     return Array.from(words);
