@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { markdownToHtml, markdownToProseMirror, proseMirrorToMarkdown } from './markdown';
+import { markdownToHtml, markdownToProseMirror, proseMirrorToMarkdown, smartQuotes } from './markdown';
 
 const roundTrip = (md: string) => proseMirrorToMarkdown(markdownToProseMirror(md));
 
@@ -33,6 +33,13 @@ describe('markdownToHtml sanitization', () => {
 
   it('returns an empty string for empty input', () => {
     expect(markdownToHtml('')).toBe('');
+  });
+
+  it('converts straight quotes in prose to book-style curly quotes in Preview/HTML without altering HTML attributes or code blocks', () => {
+    const html = markdownToHtml('"Don\'t go in there," she whispered. `const x = "raw"`');
+    expect(html).toContain('“Don’t go in there,” she whispered.');
+    expect(html).toContain('<code>const x = "raw"</code>');
+    expect(smartQuotes(`"Hello, 'friend'—Wait!"`)).toBe('“Hello, ‘friend’—Wait!”');
   });
 });
 

@@ -232,5 +232,132 @@ describe('WritingSlice', () => {
     expect(state.novelProject?.binder[0].synopsis).toBe('Updated from corkboard');
     expect(state.novelProject?.chapterMetadata?.['01-chapter.md']?.synopsis).toBe('Updated from corkboard');
   });
+
+  it('manages chapter scene outline titles via ## Scene Headers in chapter markdown without storing in noveler.json', async () => {
+    const chPath = 'C:/novel/01-chapter.md';
+    useEditorStore.setState({
+      projectPath: 'C:/novel',
+      filePath: chPath,
+      fileName: '01-chapter.md',
+      activeScenePath: chPath,
+      activeSceneIndex: 0,
+      markdownContent: '# Chapter 1\n\n## Scene 1\n\nFirst scene prose.\n\n## Scene 2\n\nSecond scene prose.\n',
+      currentMetadata: {},
+      novelProject: {
+        version: 1,
+        title: 'Test Novel',
+        author: 'Author',
+        targetWordCount: 80000,
+        dailyTarget: 1000,
+        createdAt: '',
+        updatedAt: '',
+        binder: [
+          {
+            id: 'b1',
+            type: 'scene',
+            title: 'Chapter 1',
+            path: chPath,
+            status: 'draft',
+            scenes: ['Scene 1', 'Scene 2'],
+          },
+        ],
+        chapterMetadata: {},
+      },
+    });
+
+    // Rename scenes in outline -> updates ## headers in markdown
+    await useEditorStore.getState().renameChapterSceneAction(chPath, 0, 'The Arrival');
+    await useEditorStore.getState().renameChapterSceneAction(chPath, 1, 'The Tavern');
+
+    let state = useEditorStore.getState();
+    expect(state.markdownContent).toContain('## The Arrival');
+    expect(state.markdownContent).toContain('## The Tavern');
+    expect(state.novelProject?.binder[0].scenes).toEqual(['The Arrival', 'The Tavern']);
+    // Ensure scene titles are NOT stored in chapterMetadata in noveler.json
+    expect(state.novelProject?.chapterMetadata?.['01-chapter.md']).toBeUndefined();
+
+    // Reorder scenes via drag-and-drop
+    await useEditorStore.getState().reorderChapterScenesAction(chPath, 1, 0);
+    state = useEditorStore.getState();
+    expect(state.novelProject?.binder[0].scenes).toEqual(['The Tavern', 'The Arrival']);
+    expect(state.markdownContent).toBe(
+      '# Chapter 1\n\n## The Tavern\n\nSecond scene prose.\n\n## The Arrival\n\nFirst scene prose.\n'
+    );
+
+    // Add a new scene from the outline
+    const newIdx = await useEditorStore.getState().addSceneToChapterAction(chPath, 'The Escape');
+    state = useEditorStore.getState();
+    expect(newIdx).toBe(2);
+    expect(state.activeSceneIndex).toBe(2);
+    expect(state.novelProject?.binder[0].scenes).toEqual(['The Tavern', 'The Arrival', 'The Escape']);
+    expect(state.markdownContent).toContain('## The Escape');
+
+    // Delete a scene from the outline
+    await useEditorStore.getState().deleteSceneFromChapterAction(chPath, 0);
+    state = useEditorStore.getState();
+    expect(state.novelProject?.binder[0].scenes).toEqual(['The Arrival', 'The Escape']);
+  });
+
+  it('inserts a scene in the middle using ## Scene Header and supports sceneTitleMode and separate scratchpad file', async () => {
+    const chPath = 'C:/novel/01-chapter.md';
+    useEditorStore.setState({
+      projectPath: 'C:/novel',
+      filePath: chPath,
+      fileName: '01-chapter.md',
+      activeScenePath: chPath,
+      activeSceneIndex: 0,
+      markdownContent: '# Chapter 1\n\n## Opening Scene\n\nPart A.\n\n## Final Scene\n\nFinale prose.\n',
+      currentMetadata: {},
+      novelProject: {
+        version: 1,
+        title: 'Test Novel',
+        author: 'Author',
+        targetWordCount: 80000,
+        dailyTarget: 1000,
+        createdAt: '',
+        updatedAt: '',
+        binder: [
+          {
+            id: 'b1',
+            type: 'scene',
+            title: 'Chapter 1',
+            path: chPath,
+            status: 'draft',
+            scenes: ['Opening Scene', 'Final Scene'],
+          },
+        ],
+        chapterMetadata: {},
+      },
+    });
+
+    // User inserts a scene in the middle from the outline (after index 0)
+    const insertedIdx = await useEditorStore
+      .getState()
+      .insertSceneAfterAction(chPath, 0, 'Bridge Scene');
+    let state = useEditorStore.getState();
+    expect(insertedIdx).toBe(1);
+    expect(state.novelProject?.binder[0].scenes).toEqual([
+      'Opening Scene',
+      'Bridge Scene',
+      'Final Scene',
+    ]);
+    expect(state.markdownContent).toBe(
+      '# Chapter 1\n\n## Opening Scene\n\nPart A.\n\n## Bridge Scene\n\n## Final Scene\n\nFinale prose.\n'
+    );
+
+    // Scene display mode toggle
+    useEditorStore.getState().setSceneTitleMode('stars');
+    expect(useEditorStore.getState().sceneTitleMode).toBe('stars');
+    useEditorStore.getState().setSceneTitleMode('hide');
+    expect(useEditorStore.getState().sceneTitleMode).toBe('hide');
+    useEditorStore.getState().setSceneTitleMode('show');
+    expect(useEditorStore.getState().sceneTitleMode).toBe('show');
+
+    // Scratchpad updates state without mutating novelProject
+    useEditorStore.getState().setScratchpadContent('Separate scratchpad file note');
+    state = useEditorStore.getState();
+    expect(state.scratchpadContent).toBe('Separate scratchpad file note');
+    expect('scratchpad' in (state.novelProject as unknown as Record<string, unknown>)).toBe(false);
+  });
 });
 

@@ -47,6 +47,39 @@
   color: var(--editor-heading);
 }
 
+/* Scene Header (##) Display Modes in Manuscript */
+.editor-container.scene-title-hide .tiptap h2 {
+  font-size: 0;
+  line-height: 0;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  overflow: hidden;
+  user-select: none;
+  pointer-events: none;
+}
+
+.editor-container.scene-title-stars .tiptap h2 {
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
+  margin: 28px 0;
+  position: relative;
+  user-select: none;
+}
+
+.editor-container.scene-title-stars .tiptap h2::after {
+  content: '***';
+  display: block;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  color: var(--editor-heading);
+  text-align: center;
+}
+
 .tiptap h3 {
   font-size: 1.25em;
   font-weight: 600;

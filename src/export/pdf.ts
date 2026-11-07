@@ -1,4 +1,5 @@
 import { markdownToHtml } from '../utils/markdown';
+import type { SceneTitleMode } from '../services/settings';
 
 const PRINT_ROOT_ID = 'print-root';
 
@@ -10,7 +11,7 @@ const PRINT_ROOT_ID = 'print-root';
  * on-screen Preview pane isn't mounted in "editor" mode). Print CSS in
  * global.css hides the app and shows only this element.
  */
-export function exportToPdf(markdown: string): void {
+export function exportToPdf(markdown: string, sceneTitleMode: SceneTitleMode = 'show'): void {
   let root = document.getElementById(PRINT_ROOT_ID);
   if (!root) {
     root = document.createElement('div');
@@ -20,7 +21,7 @@ export function exportToPdf(markdown: string): void {
   }
 
   const article = document.createElement('article');
-  article.className = 'fiction-manuscript';
+  article.className = `fiction-manuscript scene-title-${sceneTitleMode}`;
   article.innerHTML = markdownToHtml(markdown); // sanitized by markdownToHtml
   root.replaceChildren(article);
 

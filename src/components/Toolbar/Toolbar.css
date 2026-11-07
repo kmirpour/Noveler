@@ -86,3 +86,26 @@
   color: var(--text-primary);
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
 }
+
+.toolbar-select {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: var(--bg-app, var(--bg-surface));
+  border: 1px solid var(--border-color);
+  border-radius: 5px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.toolbar-select:hover {
+  border-color: var(--border-strong);
+  background: var(--btn-hover);
+}
+
+.toolbar-select:focus {
+  border-color: var(--accent-color, #3b82f6);
+}

@@ -25,6 +25,7 @@ import { extractWordsFromCodexEntry } from '../../services/projectService';
 import { applyCasing } from '../../services/thesaurusService';
 import { sanitizeSpellWord, clearSpellingCache, isWordIgnored } from '../../services/spellingService';
 import { getWordRangeAtPos } from '../../utils/editorUtils';
+import { getSceneIndexAtPosition, getSceneHeadingsSignatureInDoc } from '../../utils/chapterScenes';
 import { EditorContextMenu } from '../ContextMenu/EditorContextMenu';
 import './Editor.css';
 
@@ -50,6 +51,7 @@ export function Editor() {
   const fontFamily = useEditorStore((s) => s.fontFamily);
   const fontSize = useEditorStore((s) => s.fontSize);
   const paragraphIndent = useEditorStore((s) => s.paragraphIndent);
+  const sceneTitleMode = useEditorStore((s) => s.sceneTitleMode);
   const typewriterMode = useEditorStore((s) => s.typewriterMode);
   const dimUnfocused = useEditorStore((s) => s.dimUnfocused);
   const spellCheckEnabled = useEditorStore((s) => s.spellCheckEnabled);
@@ -59,6 +61,7 @@ export function Editor() {
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const previewTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevSceneSigRef = useRef<string>('');
 
   const editor = useEditor({
     extensions: [
@@ -71,7 +74,12 @@ export function Editor() {
       Placeholder.configure({
         placeholder: 'Start writing your story...',
       }),
-      Typography,
+      Typography.configure({
+        openDoubleQuote: false,
+        closeDoubleQuote: false,
+        openSingleQuote: false,
+        closeSingleQuote: false,
+      }),
       Focus.configure({
         className: 'has-focus',
         mode: 'shallowest',
@@ -94,13 +102,16 @@ export function Editor() {
     },
     onSelectionUpdate: ({ editor }) => {
       const { from, to } = editor.state.selection;
+      const store = useEditorStore.getState();
       if (from !== to) {
         const text = editor.state.doc.textBetween(from, to, ' ').trim();
         const words = text === '' ? 0 : text.split(/\s+/).length;
-        useEditorStore.getState().setSelectedWordCount(words);
+        store.setSelectedWordCount(words);
       } else {
-        useEditorStore.getState().setSelectedWordCount(0);
+        store.setSelectedWordCount(0);
       }
+      store.setActiveSceneIndex(getSceneIndexAtPosition(editor.state.doc, from));
+      prevSceneSigRef.current = getSceneHeadingsSignatureInDoc(editor.state.doc);
     },
     onUpdate: ({ editor }) => {
       const store = useEditorStore.getState();
@@ -109,17 +120,26 @@ export function Editor() {
         store.setDirty(true);
       }
 
+      // Immediately sync scene outline when a ## scene header is added, deleted, or edited
+      const sceneSig = getSceneHeadingsSignatureInDoc(editor.state.doc);
+      const sceneSigChanged = prevSceneSigRef.current !== '' && sceneSig !== prevSceneSigRef.current;
+      prevSceneSigRef.current = sceneSig;
+
       // Debounced word and character counting (avoids blocking keystrokes on large books)
       if (countTimerRef.current) clearTimeout(countTimerRef.current);
       countTimerRef.current = setTimeout(() => {
         store.updateCounts(editor.getText());
       }, COUNT_DEBOUNCE_MS);
 
-      // Debounced markdown sync for live Preview, Tags, Prose Analysis, Codex mentions & Crash Recovery
+      // Sync markdown immediately if scene headers changed; otherwise debounce for 300ms
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
-      previewTimerRef.current = setTimeout(() => {
+      if (sceneSigChanged) {
         store.setMarkdownContent(editor.getMarkdown());
-      }, PREVIEW_DEBOUNCE_MS);
+      } else {
+        previewTimerRef.current = setTimeout(() => {
+          store.setMarkdownContent(editor.getMarkdown());
+        }, PREVIEW_DEBOUNCE_MS);
+      }
 
       // Autosave to real on-disk files
       if (store.autoSaveEnabled && store.filePath && isTauri()) {
@@ -136,6 +156,7 @@ export function Editor() {
 
   useEffect(() => {
     if (editor) {
+      prevSceneSigRef.current = getSceneHeadingsSignatureInDoc(editor.state.doc);
       setEditorInstance(editor);
       updateCounts(editor.getText());
     }
@@ -315,7 +336,7 @@ export function Editor() {
 
   return (
     <div
-      className={`editor-container font-${fontFamily} ${paragraphIndent ? 'indent-fiction' : 'indent-block'} ${typewriterMode ? 'typewriter-mode' : ''} ${dimUnfocused ? 'dim-unfocused' : ''}`}
+      className={`editor-container font-${fontFamily} ${paragraphIndent ? 'indent-fiction' : 'indent-block'} scene-title-${sceneTitleMode} ${typewriterMode ? 'typewriter-mode' : ''} ${dimUnfocused ? 'dim-unfocused' : ''}`}
       style={{ fontSize: `${fontSize}px` }}
       onDragOver={handleDragOver}
       onDrop={handleDrop}

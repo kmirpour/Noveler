@@ -25,6 +25,8 @@ export interface BinderItem {
   pov?: string;
   status?: SceneStatus;
   targetWords?: number;
+  /** Runtime-parsed scene headers (`## Title`) inside this chapter; not persisted in noveler.json */
+  scenes?: string[];
   wordCount?: number;
   children?: BinderItem[];
   collapsed?: boolean;
@@ -63,7 +65,6 @@ export interface NovelProject {
   binder: BinderItem[];
   extraFiles?: BinderItem[];
   chapterMetadata?: Record<string, SceneMetadata>;
-  scratchpad?: string;
   tagCategories?: string[];
   tagAssignments?: Record<string, string>;
   customDictionary?: string[];
@@ -73,6 +74,7 @@ export interface NovelProject {
 }
 
 export const PROJECT_FILENAME = 'noveler.json';
+export const SCRATCHPAD_FILENAME = 'scratchpad.md';
 
 /**
  * Parses front-matter metadata from scene markdown if present.
@@ -86,6 +88,18 @@ export function parseSceneMarkdown(raw: string): { metadata: SceneMetadata; body
   }
 
   const yaml = match[1];
+  const nonEmptyLines = yaml
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  // Only treat as YAML front-matter if non-empty lines exist and all follow `key: value` syntax
+  if (
+    nonEmptyLines.length === 0 ||
+    !nonEmptyLines.every((line) => /^[a-zA-Z_][a-zA-Z0-9_]*\s*:/.test(line))
+  ) {
+    return { metadata: {}, body: raw };
+  }
+
   const body = raw.slice(match[0].length);
   const metadata: SceneMetadata = {};
 
@@ -165,7 +179,12 @@ export function buildBinderFromTree(
   existingMap?: Map<string, BinderItem>
 ): BinderItem[] {
   return nodes
-    .filter((n) => n.name !== PROJECT_FILENAME && !n.name.startsWith('.'))
+    .filter(
+      (n) =>
+        n.name !== PROJECT_FILENAME &&
+        n.name.toLowerCase() !== SCRATCHPAD_FILENAME &&
+        !n.name.startsWith('.')
+    )
     .map((node) => {
       const existing = existingMap?.get(node.path);
       const isDir = node.is_dir;
@@ -208,6 +227,25 @@ export function normalizeProjectFilePath(projectPath: string): string {
   return `${projectPath}${sep}${PROJECT_FILENAME}`;
 }
 
+export function normalizeScratchpadFilePath(projectPath: string): string {
+  const sep = projectPath.includes('/') ? '/' : '\\';
+  return `${projectPath}${sep}${SCRATCHPAD_FILENAME}`;
+}
+
+export async function loadScratchpadFile(projectPath: string): Promise<string> {
+  try {
+    const raw = await fileService.readFileDirect(normalizeScratchpadFilePath(projectPath));
+    return raw.content;
+  } catch {
+    return '';
+  }
+}
+
+export async function saveScratchpadFile(projectPath: string, content: string): Promise<void> {
+  const scratchpadPath = normalizeScratchpadFilePath(projectPath);
+  await fileService.saveFile(scratchpadPath, content);
+}
+
 /**
  * Loads noveler.json or scans the project folder to create a new project structure.
  * Enforces the single-folder sequential chapter model per GUIDE.md:
@@ -230,11 +268,12 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
   const treeNodes = await fileService.readDirTree(projectPath);
   const sep = projectPath.includes('/') ? '/' : '\\';
 
-  // Filter text files directly in project folder (exclude subdirectories per GUIDE.md)
+  // Filter text files directly in project folder (exclude subdirectories and scratchpad.md per GUIDE.md)
   const textNodes = treeNodes.filter(
     (n) =>
       !n.is_dir &&
       n.name !== PROJECT_FILENAME &&
+      n.name.toLowerCase() !== SCRATCHPAD_FILENAME &&
       !n.name.startsWith('.') &&
       (n.name.endsWith('.md') || n.name.endsWith('.markdown') || n.name.endsWith('.txt'))
   );
@@ -285,7 +324,7 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
       pov: meta.pov || existing?.pov || '',
       status: meta.status || existing?.status || 'draft',
       targetWords: meta.targetWords || existing?.targetWords || 0,
-      collapsed: false,
+      collapsed: existing?.collapsed ?? false,
     };
   };
 
@@ -305,7 +344,6 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     binder: binderItems,
     extraFiles: extraFileItems,
     chapterMetadata,
-    scratchpad: existingProject?.scratchpad || '',
     tagCategories: existingProject?.tagCategories || ['characters', 'locations', 'items', 'scenes'],
     tagAssignments: existingProject?.tagAssignments || {},
     customDictionary: Array.from(
@@ -375,11 +413,20 @@ export async function createExtraFile(
 }
 
 /**
- * Saves project configuration to noveler.json
+ * Saves project configuration to noveler.json (excluding runtime-only scene lists and scratchpad).
  */
 export async function saveNovelProject(projectPath: string, project: NovelProject): Promise<void> {
+  const stripRuntimeItem = (item: BinderItem): BinderItem => {
+    const { scenes: _scenes, wordCount: _wordCount, ...rest } = item;
+    return rest;
+  };
+  const cleanProject: NovelProject = {
+    ...project,
+    binder: (project.binder || []).map(stripRuntimeItem),
+    extraFiles: project.extraFiles ? project.extraFiles.map(stripRuntimeItem) : undefined,
+  };
   const configPath = normalizeProjectFilePath(projectPath);
-  const jsonContent = JSON.stringify(project, null, 2);
+  const jsonContent = JSON.stringify(cleanProject, null, 2);
   await fileService.saveFile(configPath, jsonContent);
 }
 

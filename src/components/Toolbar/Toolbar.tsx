@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorState } from '@tiptap/react';
 import { useEditorStore } from '../../stores/editorStore';
+import type { SceneTitleMode } from '../../services/settings';
 import {
   PanelLeft,
   FilePlus,
@@ -59,6 +60,8 @@ export function Toolbar() {
     cycleFontFamily,
     paragraphIndent,
     toggleParagraphIndent,
+    sceneTitleMode,
+    setSceneTitleMode,
     focusMode,
     toggleFocusMode,
     dimUnfocused,
@@ -94,6 +97,8 @@ export function Toolbar() {
       cycleFontFamily: s.cycleFontFamily,
       paragraphIndent: s.paragraphIndent,
       toggleParagraphIndent: s.toggleParagraphIndent,
+      sceneTitleMode: s.sceneTitleMode,
+      setSceneTitleMode: s.setSceneTitleMode,
       focusMode: s.focusMode,
       toggleFocusMode: s.toggleFocusMode,
       dimUnfocused: s.dimUnfocused,
@@ -266,14 +271,14 @@ export function Toolbar() {
             <button
               className={`toolbar-button ${activeFormats?.h1 ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-              title="Heading 1 (Book / Part Title)"
+              title="Heading 1 (Chapter Title)"
             >
               <Heading1 size={18} />
             </button>
             <button
               className={`toolbar-button ${activeFormats?.h2 ? 'active' : ''}`}
               onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-              title="Heading 2 (Chapter Title)"
+              title="Heading 2 (Scene Header - ##)"
             >
               <Heading2 size={18} />
             </button>
@@ -352,6 +357,23 @@ export function Toolbar() {
           </div>
         </>
       )}
+
+      <div className="toolbar-separator" />
+
+      {/* Scene Header (##) Manuscript Display Mode Dropdown */}
+      <div className="toolbar-group">
+        <select
+          className="toolbar-select"
+          value={sceneTitleMode}
+          onChange={(e) => setSceneTitleMode(e.target.value as SceneTitleMode)}
+          title="Choose how ## scene titles are displayed in the manuscript"
+          aria-label="Scene title display mode in manuscript"
+        >
+          <option value="hide">Scenes: Hide Titles</option>
+          <option value="stars">Scenes: Show ***</option>
+          <option value="show">Scenes: Show Titles</option>
+        </select>
+      </div>
 
       <div className="toolbar-separator" />
 

@@ -5,8 +5,12 @@ import { markdownToHtml } from '../../utils/markdown';
 import './Preview.css';
 
 export function Preview() {
-  const { markdownContent, fileName } = useEditorStore(
-    useShallow((s) => ({ markdownContent: s.markdownContent, fileName: s.fileName }))
+  const { markdownContent, fileName, sceneTitleMode } = useEditorStore(
+    useShallow((s) => ({
+      markdownContent: s.markdownContent,
+      fileName: s.fileName,
+      sceneTitleMode: s.sceneTitleMode,
+    }))
   );
 
   const renderedHtml = useMemo(() => {
@@ -20,7 +24,7 @@ export function Preview() {
       </div>
       <div className="preview-content">
         <article
-          className="fiction-manuscript"
+          className={`fiction-manuscript scene-title-${sceneTitleMode}`}
           dangerouslySetInnerHTML={{ __html: renderedHtml }}
         />
       </div>

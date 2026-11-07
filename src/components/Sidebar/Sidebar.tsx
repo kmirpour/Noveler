@@ -1,4 +1,12 @@
-import { useState, type MouseEvent, type FormEvent, type DragEvent } from 'react';
+import {
+  useState,
+  useMemo,
+  useRef,
+  type MouseEvent,
+  type FormEvent,
+  type DragEvent,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import {
@@ -19,8 +27,10 @@ import {
   ChevronRight,
   StickyNote,
   Plus,
+  ListTree,
 } from 'lucide-react';
 import type { BinderItem, SceneStatus } from '../../services/projectService';
+import { getChapterScenes, type ChapterSceneItem } from '../../utils/chapterScenes';
 import { TagsTab } from './TagsTab';
 import './Sidebar.css';
 
@@ -47,26 +57,73 @@ function ChapterItem({
 }: ChapterItemProps) {
   const {
     activeScenePath,
+    activeSceneIndex,
+    markdownContent,
     loadSceneByPath,
     renameBinderItemAction,
     deleteBinderItemAction,
+    jumpToSceneAction,
+    renameChapterSceneAction,
+    addSceneToChapterAction,
+    insertSceneAfterAction,
+    reorderChapterScenesAction,
+    deleteSceneFromChapterAction,
   } = useEditorStore(
     useShallow((s) => ({
       activeScenePath: s.activeScenePath,
+      activeSceneIndex: s.activeSceneIndex,
+      markdownContent: s.markdownContent,
       loadSceneByPath: s.loadSceneByPath,
       renameBinderItemAction: s.renameBinderItemAction,
       deleteBinderItemAction: s.deleteBinderItemAction,
+      jumpToSceneAction: s.jumpToSceneAction,
+      renameChapterSceneAction: s.renameChapterSceneAction,
+      addSceneToChapterAction: s.addSceneToChapterAction,
+      insertSceneAfterAction: s.insertSceneAfterAction,
+      reorderChapterScenesAction: s.reorderChapterScenesAction,
+      deleteSceneFromChapterAction: s.deleteSceneFromChapterAction,
     }))
   );
+
+  const isActive = activeScenePath === item.path;
 
   const [showMenu, setShowMenu] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(item.title);
 
-  const isActive = activeScenePath === item.path;
+  // Scene Outline state for this chapter
+  const [manualExpanded, setManualExpanded] = useState<boolean | null>(null);
+  const isExpanded = !isExtraFile && (manualExpanded !== null ? manualExpanded : isActive);
+
+  const [renamingSceneIdx, setRenamingSceneIdx] = useState<number | null>(null);
+  const [renameSceneValue, setRenameSceneValue] = useState('');
+  const [draggedSceneIdx, setDraggedSceneIdx] = useState<number | null>(null);
+  const [dragOverSceneIdx, setDragOverSceneIdx] = useState<number | null>(null);
+  const suppressSceneClickRef = useRef(false);
+
+  // Compute scenes for this chapter from ## headers
+  const chapterScenes: ChapterSceneItem[] = useMemo(() => {
+    if (isExtraFile) return [];
+    if (isActive) {
+      return getChapterScenes(markdownContent);
+    }
+    const parsedList = item.scenes || [];
+    return parsedList.map((title, idx) => ({
+      index: idx,
+      title: title || `Scene ${idx + 1}`,
+      customTitle: title,
+      wordCount: 0,
+      previewText: '',
+    }));
+  }, [isExtraFile, isActive, markdownContent, item.scenes]);
 
   const handleClick = () => {
     void loadSceneByPath(item.path);
+  };
+
+  const handleToggleExpand = (e: MouseEvent) => {
+    e.stopPropagation();
+    setManualExpanded(!isExpanded);
   };
 
   const handleRenameSubmit = async (e: FormEvent) => {
@@ -84,6 +141,115 @@ function ChapterItem({
     }
   };
 
+  const handleSceneClick = (e: MouseEvent, sceneIdx: number) => {
+    e.stopPropagation();
+    if (suppressSceneClickRef.current) {
+      suppressSceneClickRef.current = false;
+      return;
+    }
+    if (renamingSceneIdx === sceneIdx) return;
+    void jumpToSceneAction(item.path, sceneIdx);
+  };
+
+  const startRenamingScene = (e: MouseEvent, scene: ChapterSceneItem) => {
+    e.stopPropagation();
+    setRenamingSceneIdx(scene.index);
+    setRenameSceneValue(scene.customTitle || scene.title);
+  };
+
+  const commitSceneRename = (sceneIdx: number) => {
+    renameChapterSceneAction(item.path, sceneIdx, renameSceneValue.trim());
+    setRenamingSceneIdx(null);
+  };
+
+  const handleSceneRenameSubmit = (e: FormEvent, sceneIdx: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    commitSceneRename(sceneIdx);
+  };
+
+  const handleAddScene = async (e: MouseEvent) => {
+    e.stopPropagation();
+    setManualExpanded(true);
+    const newIdx = await addSceneToChapterAction(item.path);
+    if (newIdx >= 0) {
+      setRenamingSceneIdx(newIdx);
+      setRenameSceneValue(`Scene ${newIdx + 1}`);
+    }
+  };
+
+  const handleInsertSceneAfter = async (e: MouseEvent, afterIdx: number) => {
+    e.stopPropagation();
+    setManualExpanded(true);
+    const newIdx = await insertSceneAfterAction(item.path, afterIdx);
+    if (newIdx >= 0) {
+      setRenamingSceneIdx(newIdx);
+      setRenameSceneValue(`Scene ${newIdx + 1}`);
+    }
+  };
+
+  const handleDeleteScene = async (e: MouseEvent, scene: ChapterSceneItem) => {
+    e.stopPropagation();
+    if (confirm(`Delete scene "${scene.title}" and its text from this chapter?`)) {
+      await deleteSceneFromChapterAction(item.path, scene.index);
+    }
+  };
+
+  const handleScenePointerDown = (e: ReactPointerEvent<HTMLDivElement>, sceneIdx: number) => {
+    if (e.button !== 0 || renamingSceneIdx !== null || chapterScenes.length <= 1) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, form')) return;
+
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let isDragging = false;
+    let currentOverIdx = sceneIdx;
+
+    const handleWindowPointerMove = (moveEvent: PointerEvent) => {
+      const dist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (!isDragging) {
+        if (dist < 4) return;
+        isDragging = true;
+        suppressSceneClickRef.current = true;
+        setDraggedSceneIdx(sceneIdx);
+        setDragOverSceneIdx(sceneIdx);
+      }
+
+      moveEvent.preventDefault();
+      const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+      const sceneEl = el?.closest('[data-scene-index]') as HTMLElement | null;
+      if (sceneEl && sceneEl.getAttribute('data-chapter-path') === item.path) {
+        const overIdx = Number(sceneEl.getAttribute('data-scene-index'));
+        if (!Number.isNaN(overIdx) && overIdx !== currentOverIdx) {
+          currentOverIdx = overIdx;
+          setDragOverSceneIdx(overIdx);
+        }
+      }
+    };
+
+    const handleWindowPointerUp = () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove);
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      window.removeEventListener('pointercancel', handleWindowPointerUp);
+
+      if (isDragging) {
+        setDraggedSceneIdx(null);
+        setDragOverSceneIdx(null);
+        if (currentOverIdx !== sceneIdx) {
+          void reorderChapterScenesAction(item.path, sceneIdx, currentOverIdx);
+        }
+        setTimeout(() => {
+          suppressSceneClickRef.current = false;
+        }, 0);
+      }
+    };
+
+    window.addEventListener('pointermove', handleWindowPointerMove);
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerUp);
+  };
+
   const getStatusColor = (status?: SceneStatus) => {
     switch (status) {
       case 'final':
@@ -99,21 +265,27 @@ function ChapterItem({
   };
 
   return (
-    <div
-      className="binder-item-wrapper"
-      draggable={!isExtraFile && !isRenaming}
-      onDragStart={!isExtraFile && onDragStart ? (e) => onDragStart(e, index) : undefined}
-      onDragOver={!isExtraFile && onDragOver ? (e) => onDragOver(e, index) : undefined}
-      onDrop={!isExtraFile && onDrop ? (e) => onDrop(e, index) : undefined}
-      onDragEnd={!isExtraFile ? onDragEnd : undefined}
-    >
+    <div className="binder-item-wrapper">
       <div
         className={`binder-item is-scene ${isExtraFile ? 'is-extra-file' : ''} ${isActive ? 'active' : ''} ${isDragOver ? 'drag-over' : ''}`}
+        draggable={!isExtraFile && !isRenaming && renamingSceneIdx === null && draggedSceneIdx === null}
+        onDragStart={!isExtraFile && onDragStart ? (e) => onDragStart(e, index) : undefined}
+        onDragOver={!isExtraFile && onDragOver ? (e) => onDragOver(e, index) : undefined}
+        onDrop={!isExtraFile && onDrop ? (e) => onDrop(e, index) : undefined}
+        onDragEnd={!isExtraFile ? onDragEnd : undefined}
         onClick={handleClick}
       >
         {!isExtraFile ? (
           <>
             <GripVertical size={12} className="binder-drag-handle" />
+            <button
+              type="button"
+              className="binder-chevron-btn"
+              onClick={handleToggleExpand}
+              title={isExpanded ? 'Collapse chapter outline' : 'Expand chapter outline'}
+            >
+              {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            </button>
             <span
               className="scene-status-dot"
               style={{ backgroundColor: getStatusColor(item.status) }}
@@ -145,7 +317,26 @@ function ChapterItem({
           </span>
         )}
 
+        {!isExtraFile && !isRenaming && chapterScenes.length > 0 && (
+          <span
+            className="chapter-scene-count-badge"
+            title={`${chapterScenes.length} ${chapterScenes.length === 1 ? 'scene' : 'scenes'} in chapter`}
+          >
+            {chapterScenes.length}
+          </span>
+        )}
+
         <div className="binder-hover-actions" onClick={(e) => e.stopPropagation()}>
+          {!isExtraFile && (
+            <button
+              type="button"
+              className="binder-action-mini-btn"
+              onClick={(e) => void handleAddScene(e)}
+              title="Add scene to chapter"
+            >
+              <Plus size={12} />
+            </button>
+          )}
           <div className="binder-menu-container">
             <button
               type="button"
@@ -158,6 +349,19 @@ function ChapterItem({
 
             {showMenu && (
               <div className="binder-dropdown-menu" onMouseLeave={() => setShowMenu(false)}>
+                {!isExtraFile && (
+                  <button
+                    type="button"
+                    className="binder-menu-option"
+                    onClick={(e) => {
+                      setShowMenu(false);
+                      void handleAddScene(e);
+                    }}
+                  >
+                    <Plus size={12} />
+                    Add Scene
+                  </button>
+                )}
                 <button
                   type="button"
                   className="binder-menu-option"
@@ -184,6 +388,348 @@ function ChapterItem({
             )}
           </div>
         </div>
+      </div>
+
+      {/* Expandable Chapter Scene Outline */}
+      {isExpanded && !isExtraFile && (
+        <div className="chapter-scenes-outline" role="list" aria-label={`Outline for ${item.title}`}>
+          {chapterScenes.map((scene) => {
+            const isSceneActive = isActive && activeSceneIndex === scene.index;
+            const isSceneRenaming = renamingSceneIdx === scene.index;
+            const isBeingDragged = draggedSceneIdx === scene.index;
+            const isSceneDragOver =
+              dragOverSceneIdx === scene.index && draggedSceneIdx !== null && draggedSceneIdx !== scene.index;
+            const dragDirectionClass = isSceneDragOver
+              ? draggedSceneIdx !== null && scene.index > draggedSceneIdx
+                ? 'drag-over-below'
+                : 'drag-over-above'
+              : '';
+
+            return (
+              <div
+                key={`${item.path}-scene-${scene.index}`}
+                role="listitem"
+                data-scene-index={scene.index}
+                data-chapter-path={item.path}
+                className={`chapter-scene-item ${isSceneActive ? 'active-scene' : ''} ${isBeingDragged ? 'is-dragging-scene' : ''} ${isSceneDragOver ? `drag-over-scene ${dragDirectionClass}` : ''}`}
+                onPointerDown={(e) => handleScenePointerDown(e, scene.index)}
+                onClick={(e) => handleSceneClick(e, scene.index)}
+                onDoubleClick={(e) => startRenamingScene(e, scene)}
+                title={
+                  scene.previewText
+                    ? `${scene.title} — "${scene.previewText}" (Drag to reorder, double-click to rename)`
+                    : `${scene.title} (Click to jump, drag to reorder, double-click to rename)`
+                }
+              >
+                <GripVertical size={11} className="scene-drag-handle" />
+                <span className="scene-outline-number">{scene.index + 1}</span>
+
+                {isSceneRenaming ? (
+                  <form
+                    className="rename-form scene-rename-form"
+                    onSubmit={(e) => handleSceneRenameSubmit(e, scene.index)}
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="text"
+                      autoFocus
+                      className="rename-input scene-rename-input"
+                      placeholder={`Scene ${scene.index + 1}`}
+                      value={renameSceneValue}
+                      onFocus={(e) => e.currentTarget.select()}
+                      onChange={(e) => setRenameSceneValue(e.target.value)}
+                      onBlur={() => commitSceneRename(scene.index)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') {
+                          e.stopPropagation();
+                          setRenamingSceneIdx(null);
+                        }
+                      }}
+                    />
+                  </form>
+                ) : (
+                  <span className="scene-outline-title">{scene.title}</span>
+                )}
+
+                {!isSceneRenaming && (
+                  <div className="scene-hover-actions" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      className="binder-action-mini-btn"
+                      onClick={(e) => void handleInsertSceneAfter(e, scene.index)}
+                      title="Insert scene below"
+                    >
+                      <Plus size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      className="binder-action-mini-btn"
+                      onClick={(e) => startRenamingScene(e, scene)}
+                      title="Rename scene title"
+                    >
+                      <Edit2 size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      className="binder-action-mini-btn scene-delete-btn"
+                      onClick={(e) => void handleDeleteScene(e, scene)}
+                      title="Delete scene"
+                    >
+                      <Trash2 size={11} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <button
+            type="button"
+            className="add-scene-outline-btn"
+            onClick={(e) => void handleAddScene(e)}
+            title="Add a new scene to this chapter (inserts a scene break)"
+          >
+            <Plus size={11} />
+            <span>Add Scene</span>
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Standalone Chapter Scene Outline shown when editing a single document without a project folder open.
+ */
+function StandaloneChapterOutline() {
+  const {
+    fileName,
+    filePath,
+    markdownContent,
+    activeSceneIndex,
+    jumpToSceneAction,
+    renameChapterSceneAction,
+    addSceneToChapterAction,
+    insertSceneAfterAction,
+    reorderChapterScenesAction,
+    deleteSceneFromChapterAction,
+  } = useEditorStore(
+    useShallow((s) => ({
+      fileName: s.fileName,
+      filePath: s.filePath,
+      markdownContent: s.markdownContent,
+      activeSceneIndex: s.activeSceneIndex,
+      jumpToSceneAction: s.jumpToSceneAction,
+      renameChapterSceneAction: s.renameChapterSceneAction,
+      addSceneToChapterAction: s.addSceneToChapterAction,
+      insertSceneAfterAction: s.insertSceneAfterAction,
+      reorderChapterScenesAction: s.reorderChapterScenesAction,
+      deleteSceneFromChapterAction: s.deleteSceneFromChapterAction,
+    }))
+  );
+
+  const [renamingIdx, setRenamingIdx] = useState<number | null>(null);
+  const [renameVal, setRenameVal] = useState('');
+  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
+  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
+  const suppressClickRef = useRef(false);
+
+  const scenes = useMemo(() => getChapterScenes(markdownContent), [markdownContent]);
+
+  const targetPath = filePath || '';
+  const chapterKey = targetPath || '__standalone__';
+
+  const startRename = (e: MouseEvent, scene: ChapterSceneItem) => {
+    e.stopPropagation();
+    setRenamingIdx(scene.index);
+    setRenameVal(scene.customTitle || scene.title);
+  };
+
+  const commitRename = (idx: number) => {
+    renameChapterSceneAction(targetPath, idx, renameVal.trim());
+    setRenamingIdx(null);
+  };
+
+  const handleAddScene = async () => {
+    const newIdx = await addSceneToChapterAction(targetPath);
+    if (newIdx >= 0) {
+      setRenamingIdx(newIdx);
+      setRenameVal(`Scene ${newIdx + 1}`);
+    }
+  };
+
+  const handleInsertAfter = async (e: MouseEvent, afterIdx: number) => {
+    e.stopPropagation();
+    const newIdx = await insertSceneAfterAction(targetPath, afterIdx);
+    if (newIdx >= 0) {
+      setRenamingIdx(newIdx);
+      setRenameVal(`Scene ${newIdx + 1}`);
+    }
+  };
+
+  const handleScenePointerDown = (e: ReactPointerEvent<HTMLDivElement>, sceneIdx: number) => {
+    if (e.button !== 0 || renamingIdx !== null || scenes.length <= 1) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('button, input, form')) return;
+
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let isDragging = false;
+    let currentOverIdx = sceneIdx;
+
+    const handleWindowPointerMove = (moveEvent: PointerEvent) => {
+      const dist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+      if (!isDragging) {
+        if (dist < 4) return;
+        isDragging = true;
+        suppressClickRef.current = true;
+        setDraggedIdx(sceneIdx);
+        setDragOverIdx(sceneIdx);
+      }
+
+      moveEvent.preventDefault();
+      const el = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+      const sceneEl = el?.closest('[data-scene-index]') as HTMLElement | null;
+      if (sceneEl && sceneEl.getAttribute('data-chapter-path') === chapterKey) {
+        const overIdx = Number(sceneEl.getAttribute('data-scene-index'));
+        if (!Number.isNaN(overIdx) && overIdx !== currentOverIdx) {
+          currentOverIdx = overIdx;
+          setDragOverIdx(overIdx);
+        }
+      }
+    };
+
+    const handleWindowPointerUp = () => {
+      window.removeEventListener('pointermove', handleWindowPointerMove);
+      window.removeEventListener('pointerup', handleWindowPointerUp);
+      window.removeEventListener('pointercancel', handleWindowPointerUp);
+
+      if (isDragging) {
+        setDraggedIdx(null);
+        setDragOverIdx(null);
+        if (currentOverIdx !== sceneIdx) {
+          void reorderChapterScenesAction(targetPath, sceneIdx, currentOverIdx);
+        }
+        setTimeout(() => {
+          suppressClickRef.current = false;
+        }, 0);
+      }
+    };
+
+    window.addEventListener('pointermove', handleWindowPointerMove);
+    window.addEventListener('pointerup', handleWindowPointerUp);
+    window.addEventListener('pointercancel', handleWindowPointerUp);
+  };
+
+  return (
+    <div className="standalone-outline-section">
+      <div className="sidebar-section-header">
+        <span className="sidebar-section-label">
+          <ListTree size={11} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+          {fileName ? fileName.replace(/\.(md|markdown|txt)$/i, '') : 'Chapter'} Outline ({scenes.length})
+        </span>
+      </div>
+      <div className="chapter-scenes-outline standalone">
+        {scenes.map((scene) => {
+          const isSceneActive = activeSceneIndex === scene.index;
+          const isSceneRenaming = renamingIdx === scene.index;
+          const isBeingDragged = draggedIdx === scene.index;
+          const isSceneDragOver =
+            dragOverIdx === scene.index && draggedIdx !== null && draggedIdx !== scene.index;
+          const dragDirectionClass = isSceneDragOver
+            ? draggedIdx !== null && scene.index > draggedIdx
+              ? 'drag-over-below'
+              : 'drag-over-above'
+            : '';
+
+          return (
+            <div
+              key={`standalone-scene-${scene.index}`}
+              data-scene-index={scene.index}
+              data-chapter-path={chapterKey}
+              className={`chapter-scene-item ${isSceneActive ? 'active-scene' : ''} ${isBeingDragged ? 'is-dragging-scene' : ''} ${isSceneDragOver ? `drag-over-scene ${dragDirectionClass}` : ''}`}
+              onPointerDown={(e) => handleScenePointerDown(e, scene.index)}
+              onClick={() => {
+                if (suppressClickRef.current) {
+                  suppressClickRef.current = false;
+                  return;
+                }
+                void jumpToSceneAction(targetPath, scene.index);
+              }}
+              onDoubleClick={(e) => startRename(e, scene)}
+            >
+              <GripVertical size={11} className="scene-drag-handle" />
+              <span className="scene-outline-number">{scene.index + 1}</span>
+              {isSceneRenaming ? (
+                <form
+                  className="rename-form scene-rename-form"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    commitRename(scene.index);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <input
+                    type="text"
+                    autoFocus
+                    className="rename-input scene-rename-input"
+                    value={renameVal}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onChange={(e) => setRenameVal(e.target.value)}
+                    onBlur={() => commitRename(scene.index)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Escape') setRenamingIdx(null);
+                    }}
+                  />
+                </form>
+              ) : (
+                <span className="scene-outline-title">{scene.title}</span>
+              )}
+              {!isSceneRenaming && (
+                <div className="scene-hover-actions" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    className="binder-action-mini-btn"
+                    onClick={(e) => void handleInsertAfter(e, scene.index)}
+                    title="Insert scene below"
+                  >
+                    <Plus size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    className="binder-action-mini-btn"
+                    onClick={(e) => startRename(e, scene)}
+                    title="Rename scene title"
+                  >
+                    <Edit2 size={11} />
+                  </button>
+                  <button
+                    type="button"
+                    className="binder-action-mini-btn scene-delete-btn"
+                    onClick={() => {
+                      if (confirm(`Delete scene "${scene.title}"?`)) {
+                        void deleteSceneFromChapterAction(targetPath, scene.index);
+                      }
+                    }}
+                    title="Delete scene"
+                  >
+                    <Trash2 size={11} />
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+        <button
+          type="button"
+          className="add-scene-outline-btn"
+          onClick={() => void handleAddScene()}
+          title="Add a new scene to this chapter"
+        >
+          <Plus size={11} />
+          <span>Add Scene</span>
+        </button>
       </div>
     </div>
   );
@@ -454,17 +1000,21 @@ export function Sidebar() {
           )}
         </>
       ) : (
-        <div className="sidebar-empty-project">
-          <p>Open a novel folder to see all chapters in your manuscript.</p>
-          <button
-            type="button"
-            className="sidebar-btn primary-action"
-            onClick={() => void openProjectFolderAction()}
-            title="Open Folder (Ctrl+O)"
-          >
-            <FolderOpen size={15} />
-            <span>Open Folder</span>
-          </button>
+        <div className="sidebar-file-list">
+          <StandaloneChapterOutline />
+          <div className="sidebar-section-divider" />
+          <div className="sidebar-empty-project">
+            <p>Open a novel folder to see all chapters in your manuscript.</p>
+            <button
+              type="button"
+              className="sidebar-btn primary-action"
+              onClick={() => void openProjectFolderAction()}
+              title="Open Folder (Ctrl+O)"
+            >
+              <FolderOpen size={15} />
+              <span>Open Folder</span>
+            </button>
+          </div>
         </div>
       )}
     </aside>

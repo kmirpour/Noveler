@@ -42,13 +42,19 @@ function escapeRegExp(string: string) {
   return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+function buildQuoteFlexiblePattern(escaped: string): string {
+  return escaped
+    .replace(/["“”]/g, '["“”]')
+    .replace(/['‘’]/g, "['‘’]");
+}
+
 function findMatches(doc: PMNode, options: Omit<SearchOptions, 'results' | 'currentIndex'>): SearchResult[] {
   const { searchTerm, caseSensitive, wholeWord, useRegex } = options;
   if (!searchTerm || searchTerm.trim() === '') return [];
 
   let pattern: RegExp;
   try {
-    let source = useRegex ? searchTerm : escapeRegExp(searchTerm);
+    let source = useRegex ? searchTerm : buildQuoteFlexiblePattern(escapeRegExp(searchTerm));
     if (wholeWord) source = `\\b${source}\\b`;
     pattern = new RegExp(source, caseSensitive ? 'gu' : 'giu');
   } catch {

@@ -107,6 +107,78 @@ turndownService.addRule('highlight', {
 });
 
 /**
+ * Converts straight ASCII quotes (" and ') in plain text into book-style
+ * curly quotes (“ ” and ‘ ’), taking an optional preceding character for
+ * multi-run inline sequences.
+ */
+export function smartQuotes(text: string, initialPrevChar: string = ''): string {
+  if (!text || (!text.includes('"') && !text.includes("'"))) return text;
+
+  const isOpeningContext = (ch: string) =>
+    ch === '' || /[\s([{\u2014\u2013\-‘“]/.test(ch);
+
+  let out = '';
+  let prev = initialPrevChar;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') {
+      const rep = isOpeningContext(prev) ? '“' : '”';
+      out += rep;
+      prev = rep;
+    } else if (ch === "'") {
+      const nextTwoDigits = /^\d{2}s?\b/.test(text.slice(i + 1));
+      const rep = isOpeningContext(prev) && !nextTwoDigits ? '‘' : '’';
+      out += rep;
+      prev = rep;
+    } else {
+      out += ch;
+      prev = ch;
+    }
+  }
+  return out;
+}
+
+/**
+ * Applies smart quotes to text nodes inside an HTML string while skipping
+ * HTML tags and <code> / <pre> blocks.
+ */
+export function applySmartQuotesToHtml(html: string): string {
+  if (!html) return '';
+  const tokens = html.split(/(<[^>]+>)/g);
+  let codeDepth = 0;
+  let prevTextChar = '';
+
+  const blockBoundaryTag = /^<\/?(?:p|div|h[1-6]|li|blockquote|hr|br|pre|tr|td|th)\b/i;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token.startsWith('<')) {
+      if (/^<(?:code|pre)\b/i.test(token)) {
+        codeDepth++;
+      } else if (/^<\/(?:code|pre)\b/i.test(token)) {
+        codeDepth = Math.max(0, codeDepth - 1);
+      }
+      if (blockBoundaryTag.test(token)) {
+        prevTextChar = '';
+      }
+    } else if (codeDepth === 0 && token) {
+      // Marked encodes raw " as &quot; and ' as &#39; in HTML text; normalize before smartQuotes
+      const decoded = token
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'");
+      const converted = smartQuotes(decoded, prevTextChar);
+      tokens[i] = converted;
+      if (converted.length > 0) {
+        prevTextChar = converted[converted.length - 1];
+      }
+    }
+  }
+
+  return tokens.join('');
+}
+
+/**
  * Converts Markdown string to HTML for Preview and print.
  *
  * Output is sanitized: Markdown files may contain raw HTML, and the app's
@@ -118,7 +190,8 @@ turndownService.addRule('highlight', {
 export function markdownToHtml(markdown: string): string {
   if (!markdown) return '';
   const html = marked.parse(markdown, { async: false, breaks: false }) as string;
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  const sanitized = DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+  return applySmartQuotesToHtml(sanitized);
 }
 
 /**

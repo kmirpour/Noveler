@@ -186,13 +186,14 @@ The rain poured through the broken glass skylight. Miller stepped over the rubbl
     expect(res.filePath).toContain('graveyard');
   });
 
-  it('separates chapter files into binder and non-chapter files into extraFiles on loadNovelProject', async () => {
+  it('separates chapter files into binder and non-chapter files into extraFiles on loadNovelProject (excluding scratchpad.md)', async () => {
     const fileService = await import('./fileService');
     const { loadNovelProject, createExtraFile } = await import('./projectService');
     const spy = vi.spyOn(fileService, 'readDirTree').mockResolvedValue([
       { name: 'chapter-01.md', path: '/novel/chapter-01.md', is_dir: false, children: [] },
       { name: '02-the-harbor.md', path: '/novel/02-the-harbor.md', is_dir: false, children: [] },
       { name: 'outline.md', path: '/novel/outline.md', is_dir: false, children: [] },
+      { name: 'scratchpad.md', path: '/novel/scratchpad.md', is_dir: false, children: [] },
       { name: 'worldbuilding.txt', path: '/novel/worldbuilding.txt', is_dir: false, children: [] },
     ]);
 

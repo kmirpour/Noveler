@@ -7,6 +7,7 @@ import { exportToPdf } from '../export/pdf';
 import {
   type AppSettings,
   type FontFamily,
+  type SceneTitleMode,
   type Theme,
   type ViewMode,
   loadSettings,
@@ -21,6 +22,8 @@ import {
   type SceneSnapshot,
   loadNovelProject,
   saveNovelProject,
+  loadScratchpadFile,
+  saveScratchpadFile,
   createSequentialChapter,
   createExtraFile,
   parseSceneMarkdown,
@@ -34,6 +37,16 @@ import {
   extractChapterDisplayTitle,
   formatChapterFileName,
 } from '../utils/chapterNaming';
+import {
+  countScenesInMarkdown,
+  extractSceneTitlesFromMarkdown,
+  updateSceneTitleAtIndex,
+  reorderChapterScenes,
+  insertSceneAfterIndex,
+  deleteSceneFromChapter,
+  findScenePositionInDoc,
+  getSceneIndexAtPosition,
+} from '../utils/chapterScenes';
 import { getGitStatus, syncGit } from '../services/gitService';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
@@ -81,6 +94,7 @@ export interface ProjectSlice {
   projectFiles: fileService.FileEntry[];
   novelProject: NovelProject | null;
   activeScenePath: string | null;
+  activeSceneIndex: number;
   currentMetadata: SceneMetadata;
   novelWordCount: number;
   scratchpadContent: string;
@@ -102,6 +116,13 @@ export interface ProjectSlice {
   reorderBinderItemsAction: (fromIndex: number, toIndex: number) => Promise<boolean>;
   updateSceneMetadata: (metadata: Partial<SceneMetadata>) => void;
   updateSceneMetadataByPath: (scenePath: string, metadata: Partial<SceneMetadata>) => void;
+  setActiveSceneIndex: (index: number) => void;
+  jumpToSceneAction: (chapterPath: string, sceneIndex: number) => Promise<void>;
+  renameChapterSceneAction: (chapterPath: string, sceneIndex: number, newTitle: string) => void;
+  addSceneToChapterAction: (chapterPath: string, customTitle?: string) => Promise<number>;
+  insertSceneAfterAction: (chapterPath: string, afterSceneIndex: number, customTitle?: string) => Promise<number>;
+  reorderChapterScenesAction: (chapterPath: string, fromIndex: number, toIndex: number) => Promise<boolean>;
+  deleteSceneFromChapterAction: (chapterPath: string, sceneIndex: number) => Promise<boolean>;
   addCustomDictionaryWordAction: (word: string) => Promise<void>;
   saveProjectConfigAction: () => Promise<void>;
   setScratchpadContent: (content: string) => void;
@@ -133,6 +154,7 @@ export interface SettingsSlice {
   fontFamily: FontFamily;
   fontSize: number;
   paragraphIndent: boolean;
+  sceneTitleMode: SceneTitleMode;
   spellCheckEnabled: boolean;
   recentFiles: string[];
 
@@ -146,6 +168,7 @@ export interface SettingsSlice {
   cycleFontFamily: () => void;
   setFontSize: (fontSize: number) => void;
   toggleParagraphIndent: () => void;
+  setSceneTitleMode: (mode: SceneTitleMode) => void;
   toggleSpellCheck: () => void;
 }
 
@@ -280,7 +303,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setEditorInstance: (editorInstance) => set({ editorInstance }),
 
-  setMarkdownContent: (markdownContent) => set({ markdownContent }),
+  setMarkdownContent: (markdownContent) => {
+    const { editorInstance, activeSceneIndex, filePath, activeScenePath, novelProject } = get();
+    let cursorIdx = activeSceneIndex;
+    if (editorInstance && !editorInstance.isDestroyed) {
+      cursorIdx = getSceneIndexAtPosition(editorInstance.state.doc, editorInstance.state.selection.from);
+    }
+
+    const targetPath = activeScenePath || filePath;
+    if (targetPath && novelProject) {
+      const parsedScenes = extractSceneTitlesFromMarkdown(markdownContent);
+      set({
+        markdownContent,
+        activeSceneIndex: cursorIdx,
+        novelProject: {
+          ...novelProject,
+          binder: novelProject.binder.map((b) =>
+            b.path === targetPath ? { ...b, scenes: parsedScenes } : b
+          ),
+        },
+      });
+    } else {
+      set({ markdownContent, activeSceneIndex: cursorIdx });
+    }
+  },
 
   confirmDiscardIfDirty: async () => {
     const { isDirty, fileName, saveFileAction } = get();
@@ -333,6 +379,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       fileName,
       filePath,
       activeScenePath: filePath,
+      activeSceneIndex: 0,
       isDirty: dirty,
       statusMessage: statusMessage ?? null,
       sessionStartWordCount: null,
@@ -421,10 +468,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // Per GUIDE.md: Save clean standard markdown without YAML front-matter
       await fileService.saveFile(filePath, body);
 
-      // Persist metadata cleanly into novelProject / noveler.json
+      // Persist metadata cleanly into novelProject / noveler.json (scene titles remain in markdown only)
       if (projectPath && novelProject && fileName) {
+        const parsedScenes = extractSceneTitlesFromMarkdown(body);
         const updatedMeta = { ...(novelProject.chapterMetadata || {}), [fileName]: currentMetadata };
-        const updatedProject: NovelProject = { ...novelProject, chapterMetadata: updatedMeta };
+        const updatedBinder = novelProject.binder.map((b) =>
+          b.path === filePath ? { ...b, scenes: parsedScenes } : b
+        );
+        const updatedProject: NovelProject = {
+          ...novelProject,
+          binder: updatedBinder,
+          chapterMetadata: updatedMeta,
+        };
         set({ novelProject: updatedProject });
         void saveNovelProject(projectPath, updatedProject);
       }
@@ -497,9 +552,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   printAction: () => {
-    const { editorInstance } = get();
+    const { editorInstance, sceneTitleMode } = get();
     const markdown = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
-    exportToPdf(markdown);
+    exportToPdf(markdown, sceneTitleMode);
   },
 
   // --- Project Slice ------------------------------------------------------
@@ -508,6 +563,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   projectFiles: [],
   novelProject: null,
   activeScenePath: null,
+  activeSceneIndex: 0,
   currentMetadata: {},
   novelWordCount: 0,
   scratchpadContent: '',
@@ -533,6 +589,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   loadProjectByPath: async (path: string) => {
     try {
       const project = await loadNovelProject(path);
+      const scratchpadText = await loadScratchpadFile(path);
       saveSettings({ lastProjectPath: path });
       const name = fileService.extractFileName(path);
 
@@ -542,6 +599,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           const f = await fileService.readFileDirect(item.path);
           const words = f.content.trim() === '' ? 0 : f.content.trim().split(/\s+/).length;
           item.wordCount = words;
+          item.scenes = extractSceneTitlesFromMarkdown(f.content);
           totalWords += words;
         } catch {
           // ignore
@@ -558,7 +616,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         projectName: project.title || name,
         novelProject: project,
         novelWordCount: totalWords,
-        scratchpadContent: project.scratchpad || '',
+        scratchpadContent: scratchpadText,
         tagCategories: project.tagCategories || ['characters', 'locations', 'items', 'scenes'],
         tagAssignments: project.tagAssignments || {},
         sidebarOpen: true,
@@ -582,7 +640,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   refreshProjectFiles: async () => {
-    const { projectPath, filePath, wordCount } = get();
+    const { projectPath, filePath, wordCount, markdownContent } = get();
     if (!projectPath) return;
     try {
       const project = await loadNovelProject(projectPath);
@@ -590,12 +648,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       for (const item of project.binder) {
         if (item.path === filePath) {
           item.wordCount = wordCount;
+          item.scenes = extractSceneTitlesFromMarkdown(markdownContent);
           totalWords += wordCount;
         } else {
           try {
             const f = await fileService.readFileDirect(item.path);
             const words = f.content.trim() === '' ? 0 : f.content.trim().split(/\s+/).length;
             item.wordCount = words;
+            item.scenes = extractSceneTitlesFromMarkdown(f.content);
             totalWords += words;
           } catch {
             // ignore
@@ -925,6 +985,289 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  setActiveSceneIndex: (activeSceneIndex: number) => {
+    if (get().activeSceneIndex !== activeSceneIndex) {
+      set({ activeSceneIndex });
+    }
+  },
+
+  jumpToSceneAction: async (chapterPath: string, sceneIndex: number) => {
+    if (chapterPath && chapterPath !== get().filePath) {
+      const loaded = await get().loadSceneByPath(chapterPath);
+      if (!loaded) return;
+    }
+
+    set({ activeSceneIndex: sceneIndex });
+
+    const { editorInstance } = get();
+    if (editorInstance && !editorInstance.isDestroyed) {
+      const pos = findScenePositionInDoc(editorInstance.state.doc, sceneIndex);
+      editorInstance.chain().focus().setTextSelection(pos).scrollIntoView().run();
+      try {
+        const domAt = editorInstance.view.domAtPos(pos);
+        const el =
+          domAt.node instanceof HTMLElement
+            ? domAt.node
+            : domAt.node.parentElement;
+        if (el && typeof el.scrollIntoView === 'function') {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      } catch {
+        // ignore in non-DOM test environments
+      }
+    }
+
+    // Also scroll Preview pane if open
+    if (typeof document !== 'undefined') {
+      const previewContainer = document.querySelector('.preview-content');
+      if (previewContainer) {
+        const h2s = previewContainer.querySelectorAll('.fiction-manuscript h2');
+        const targetH2 = h2s[sceneIndex];
+        const targetNode =
+          targetH2 && window.getComputedStyle(targetH2).display === 'none'
+            ? targetH2.nextElementSibling || targetH2
+            : targetH2;
+        if (targetNode && typeof targetNode.scrollIntoView === 'function') {
+          targetNode.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else if (sceneIndex <= 0) {
+          previewContainer.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      }
+    }
+  },
+
+  renameChapterSceneAction: (chapterPath: string, sceneIndex: number, newTitle: string) => {
+    const { filePath, activeScenePath, editorInstance, markdownContent, novelProject, updateCounts } = get();
+    const isCurrent = !chapterPath || chapterPath === filePath || chapterPath === activeScenePath;
+
+    if (isCurrent) {
+      const currentMd = editorInstance ? editorInstance.getMarkdown() : markdownContent;
+      const nextMarkdown = updateSceneTitleAtIndex(currentMd, sceneIndex, newTitle);
+      if (nextMarkdown === currentMd) return;
+
+      if (editorInstance && !editorInstance.isDestroyed) {
+        editorInstance.commands.setContent(nextMarkdown, { contentType: 'markdown', emitUpdate: false });
+        updateCounts(editorInstance.getText());
+      } else {
+        updateCounts(nextMarkdown);
+      }
+
+      const targetPath = chapterPath || filePath;
+      const parsedScenes = extractSceneTitlesFromMarkdown(nextMarkdown);
+      set({
+        markdownContent: nextMarkdown,
+        ...(targetPath && novelProject
+          ? {
+              novelProject: {
+                ...novelProject,
+                binder: novelProject.binder.map((b) =>
+                  b.path === targetPath ? { ...b, scenes: parsedScenes } : b
+                ),
+              },
+            }
+          : {}),
+      });
+      get().setDirty(true);
+
+      if (targetPath && get().autoSaveEnabled && fileService.isTauri()) {
+        void get().saveFileAction();
+      }
+      return;
+    }
+
+    // Renaming a scene in a non-active chapter file on disk
+    void (async () => {
+      try {
+        const file = await fileService.readFileDirect(chapterPath);
+        const nextMarkdown = updateSceneTitleAtIndex(file.content, sceneIndex, newTitle);
+        await fileService.saveFile(chapterPath, nextMarkdown);
+        const parsedScenes = extractSceneTitlesFromMarkdown(nextMarkdown);
+        const latestProject = get().novelProject;
+        if (latestProject) {
+          set({
+            novelProject: {
+              ...latestProject,
+              binder: latestProject.binder.map((b) =>
+                b.path === chapterPath ? { ...b, scenes: parsedScenes } : b
+              ),
+            },
+          });
+        }
+      } catch (err) {
+        console.error('Error renaming chapter scene:', err);
+      }
+    })();
+  },
+
+  addSceneToChapterAction: async (chapterPath: string, customTitle?: string) => {
+    if (chapterPath && chapterPath !== get().filePath) {
+      const loaded = await get().loadSceneByPath(chapterPath);
+      if (!loaded) return -1;
+    }
+    const { editorInstance, markdownContent } = get();
+    const currentMd = editorInstance ? editorInstance.getMarkdown() : markdownContent;
+    const totalScenes = countScenesInMarkdown(currentMd);
+    return await get().insertSceneAfterAction(chapterPath, totalScenes - 1, customTitle);
+  },
+
+  insertSceneAfterAction: async (chapterPath: string, afterSceneIndex: number, customTitle?: string) => {
+    if (chapterPath && chapterPath !== get().filePath) {
+      const loaded = await get().loadSceneByPath(chapterPath);
+      if (!loaded) return -1;
+    }
+
+    const { editorInstance, markdownContent, filePath, updateCounts } = get();
+    const currentMd = editorInstance ? editorInstance.getMarkdown() : markdownContent;
+    const { markdown: nextMarkdown, newSceneIndex } = insertSceneAfterIndex(
+      currentMd,
+      afterSceneIndex,
+      customTitle
+    );
+
+    if (editorInstance && !editorInstance.isDestroyed) {
+      editorInstance.commands.setContent(nextMarkdown, { contentType: 'markdown', emitUpdate: false });
+      updateCounts(editorInstance.getText());
+    } else {
+      updateCounts(nextMarkdown);
+    }
+
+    const targetPath = chapterPath || filePath;
+    const parsedScenes = extractSceneTitlesFromMarkdown(nextMarkdown);
+    const { novelProject } = get();
+
+    set({
+      markdownContent: nextMarkdown,
+      activeSceneIndex: newSceneIndex,
+      ...(targetPath && novelProject
+        ? {
+            novelProject: {
+              ...novelProject,
+              binder: novelProject.binder.map((b) =>
+                b.path === targetPath ? { ...b, scenes: parsedScenes } : b
+              ),
+            },
+          }
+        : {}),
+    });
+    get().setDirty(true);
+
+    if (targetPath && get().autoSaveEnabled && fileService.isTauri()) {
+      void get().saveFileAction();
+    }
+
+    await get().jumpToSceneAction(targetPath || '', newSceneIndex);
+    return newSceneIndex;
+  },
+
+  reorderChapterScenesAction: async (chapterPath: string, fromIndex: number, toIndex: number) => {
+    const { filePath, activeScenePath, editorInstance, markdownContent, novelProject, updateCounts } = get();
+    const isCurrent = !chapterPath || chapterPath === filePath || chapterPath === activeScenePath;
+
+    if (isCurrent) {
+      const currentMd = editorInstance ? editorInstance.getMarkdown() : markdownContent;
+      const nextMarkdown = reorderChapterScenes(currentMd, fromIndex, toIndex);
+      if (nextMarkdown === currentMd && fromIndex === toIndex) return false;
+
+      if (editorInstance && !editorInstance.isDestroyed) {
+        editorInstance.commands.setContent(nextMarkdown, { contentType: 'markdown', emitUpdate: false });
+        updateCounts(editorInstance.getText());
+      } else {
+        updateCounts(nextMarkdown);
+      }
+
+      const targetPath = chapterPath || filePath;
+      const parsedScenes = extractSceneTitlesFromMarkdown(nextMarkdown);
+      set({
+        markdownContent: nextMarkdown,
+        activeSceneIndex: toIndex,
+        ...(targetPath && novelProject
+          ? {
+              novelProject: {
+                ...novelProject,
+                binder: novelProject.binder.map((b) =>
+                  b.path === targetPath ? { ...b, scenes: parsedScenes } : b
+                ),
+              },
+            }
+          : {}),
+      });
+      get().setDirty(true);
+
+      if (targetPath && get().autoSaveEnabled && fileService.isTauri()) {
+        void get().saveFileAction();
+      }
+      return true;
+    }
+
+    // Reordering scenes in a non-active chapter file on disk
+    try {
+      const file = await fileService.readFileDirect(chapterPath);
+      const nextMarkdown = reorderChapterScenes(file.content, fromIndex, toIndex);
+      await fileService.saveFile(chapterPath, nextMarkdown);
+      const parsedScenes = extractSceneTitlesFromMarkdown(nextMarkdown);
+      const latestProject = get().novelProject;
+      if (latestProject) {
+        set({
+          novelProject: {
+            ...latestProject,
+            binder: latestProject.binder.map((b) =>
+              b.path === chapterPath ? { ...b, scenes: parsedScenes } : b
+            ),
+          },
+        });
+      }
+      return true;
+    } catch (err) {
+      console.error('Error reordering chapter scenes:', err);
+      return false;
+    }
+  },
+
+  deleteSceneFromChapterAction: async (chapterPath: string, sceneIndex: number) => {
+    const { filePath, activeScenePath, editorInstance, markdownContent, updateCounts } = get();
+    const isCurrent = !chapterPath || chapterPath === filePath || chapterPath === activeScenePath;
+    if (!isCurrent) {
+      const loaded = await get().loadSceneByPath(chapterPath);
+      if (!loaded) return false;
+    }
+
+    const currentMd = editorInstance ? editorInstance.getMarkdown() : markdownContent;
+    const nextMarkdown = deleteSceneFromChapter(currentMd, sceneIndex);
+
+    if (editorInstance && !editorInstance.isDestroyed) {
+      editorInstance.commands.setContent(nextMarkdown, { contentType: 'markdown', emitUpdate: false });
+      updateCounts(editorInstance.getText());
+    } else {
+      updateCounts(nextMarkdown);
+    }
+
+    const parsedScenes = extractSceneTitlesFromMarkdown(nextMarkdown);
+    const nextActiveIdx = Math.max(0, Math.min(sceneIndex, Math.max(0, parsedScenes.length - 1)));
+    const targetPath = chapterPath || filePath;
+    const { novelProject } = get();
+
+    set({
+      markdownContent: nextMarkdown,
+      activeSceneIndex: nextActiveIdx,
+      ...(targetPath && novelProject
+        ? {
+            novelProject: {
+              ...novelProject,
+              binder: novelProject.binder.map((b) =>
+                b.path === targetPath ? { ...b, scenes: parsedScenes } : b
+              ),
+            },
+          }
+        : {}),
+    });
+    get().setDirty(true);
+
+    if (targetPath && get().autoSaveEnabled && fileService.isTauri()) {
+      void get().saveFileAction();
+    }
+    return true;
+  },
+
   addCustomDictionaryWordAction: async (word: string) => {
     const clean = word.trim().toLowerCase();
     if (!clean) return;
@@ -948,16 +1291,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setScratchpadContent: (content: string) => {
     set({ scratchpadContent: content });
-    const { projectPath, novelProject } = get();
-    if (projectPath && novelProject) {
-      const updated = { ...novelProject, scratchpad: content };
-      set({ novelProject: updated });
-      void saveNovelProject(projectPath, updated);
+    const { projectPath } = get();
+    if (projectPath) {
+      void saveScratchpadFile(projectPath, content);
     }
   },
 
   flushScratchpadAction: async () => {
-    const { projectPath, scratchpadContent, novelProject } = get();
+    const { projectPath, scratchpadContent } = get();
     if (!projectPath) {
       get().setStatusMessage('Open a novel folder to flush scratchpad to graveyard');
       return false;
@@ -967,11 +1308,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     try {
       const res = await flushScratchpadToGraveyard(projectPath, scratchpadContent);
       set({ scratchpadContent: '' });
-      if (novelProject) {
-        const updated = { ...novelProject, scratchpad: '' };
-        set({ novelProject: updated });
-        void saveNovelProject(projectPath, updated);
-      }
+      await saveScratchpadFile(projectPath, '');
       get().setStatusMessage(`Flushed notes to graveyard/${res.fileName}`);
       return true;
     } catch (err) {
@@ -1166,6 +1503,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   fontFamily: initialSettings.fontFamily,
   fontSize: initialSettings.fontSize,
   paragraphIndent: initialSettings.paragraphIndent,
+  sceneTitleMode: initialSettings.sceneTitleMode,
   spellCheckEnabled: initialSettings.spellCheckEnabled,
   recentFiles: initialSettings.recentFiles,
 
@@ -1223,6 +1561,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const next = !get().paragraphIndent;
     saveSettings({ paragraphIndent: next });
     set({ paragraphIndent: next });
+  },
+
+  setSceneTitleMode: (sceneTitleMode: SceneTitleMode) => {
+    saveSettings({ sceneTitleMode });
+    set({ sceneTitleMode });
   },
 
   toggleSpellCheck: () => {

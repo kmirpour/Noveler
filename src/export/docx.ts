@@ -8,7 +8,7 @@ import {
 } from 'docx';
 import type { JSONContent } from '@tiptap/core';
 import { saveBinaryAs, type SavedFile } from '../services/fileService';
-import { markdownToProseMirror } from '../utils/markdown';
+import { markdownToProseMirror, smartQuotes } from '../utils/markdown';
 
 export interface DocxExportOptions {
   title?: string;
@@ -25,8 +25,9 @@ const BODY_SIZE = 24; // half-points -> 12pt
 function textNodeToRun(
   node: JSONContent,
   font: string,
-  baseStyle: { bold?: boolean; italics?: boolean; size?: number } = {}
-): TextRun {
+  baseStyle: { bold?: boolean; italics?: boolean; size?: number } = {},
+  prevChar: string = ''
+): { run: TextRun; nextPrevChar: string } {
   const marks = node.marks || [];
   const isBold = baseStyle.bold || marks.some((m) => m.type === 'bold');
   const isItalic = baseStyle.italics || marks.some((m) => m.type === 'italic');
@@ -36,16 +37,24 @@ function textNodeToRun(
   const isCode = marks.some((m) => m.type === 'code');
   const size = baseStyle.size ?? BODY_SIZE;
 
-  return new TextRun({
-    text: node.text || '',
-    font: isCode ? 'Courier New' : font,
-    size: isCode ? size - 2 : size,
-    bold: isBold || undefined,
-    italics: isItalic || undefined,
-    underline: isUnderline ? {} : undefined,
-    strike: isStrike || undefined,
-    highlight: isHighlight ? 'yellow' : undefined,
-  });
+  const rawText = node.text || '';
+  const formattedText = isCode ? rawText : smartQuotes(rawText, prevChar);
+  const nextPrevChar =
+    formattedText.length > 0 ? formattedText[formattedText.length - 1] : prevChar;
+
+  return {
+    run: new TextRun({
+      text: formattedText,
+      font: isCode ? 'Courier New' : font,
+      size: isCode ? size - 2 : size,
+      bold: isBold || undefined,
+      italics: isItalic || undefined,
+      underline: isUnderline ? {} : undefined,
+      strike: isStrike || undefined,
+      highlight: isHighlight ? 'yellow' : undefined,
+    }),
+    nextPrevChar,
+  };
 }
 
 function inlineContentToRuns(
@@ -58,11 +67,15 @@ function inlineContentToRuns(
   }
 
   const runs: TextRun[] = [];
+  let prevChar = '';
   for (const child of content) {
     if (child.type === 'text') {
-      runs.push(textNodeToRun(child, font, baseStyle));
+      const { run, nextPrevChar } = textNodeToRun(child, font, baseStyle, prevChar);
+      runs.push(run);
+      prevChar = nextPrevChar;
     } else if (child.type === 'hardBreak') {
       runs.push(new TextRun({ break: 1 }));
+      prevChar = '';
     }
   }
   return runs.length > 0 ? runs : [new TextRun({ text: '', font, size: baseStyle.size ?? BODY_SIZE })];

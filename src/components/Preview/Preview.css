@@ -55,6 +55,29 @@
   letter-spacing: 0.03em;
 }
 
+.fiction-manuscript.scene-title-hide h2 {
+  display: none;
+}
+
+.fiction-manuscript.scene-title-stars h2 {
+  font-size: 0;
+  line-height: 0;
+  color: transparent;
+  margin: 32px 0;
+  user-select: none;
+}
+
+.fiction-manuscript.scene-title-stars h2::after {
+  content: '***';
+  display: block;
+  font-size: 18px;
+  line-height: 1.5;
+  font-weight: 600;
+  letter-spacing: 0.25em;
+  color: var(--preview-heading);
+  text-align: center;
+}
+
 .fiction-manuscript h3 {
   font-size: 19px;
   font-weight: 600;
