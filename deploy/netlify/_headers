@@ -1,0 +1,17 @@
+# Security headers for the hosted web version (Netlify reads this file from the published folder).
+#
+# Noveler runs entirely in the visitor's browser and needs no server. The content policy below
+# allows only the app's own files, plus two optional word services:
+#   api.datamuse.com       single-word thesaurus lookups (when a word is right-clicked)
+#   api.languagetool.org   the online grammar check (off unless the writer turns it on)
+
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https://api.datamuse.com https://api.languagetool.org; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: no-referrer
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  Strict-Transport-Security: max-age=31536000
+
+# Files in /assets have a fingerprint in their name, so they can be cached for good.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

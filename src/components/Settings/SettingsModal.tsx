@@ -282,6 +282,20 @@ export function SettingsModal() {
               onChange={() => s.toggleOnlineGrammarCheck()}
             />
           </section>
+
+          {appMode() !== 'desktop' && (
+            <section className="settings-section">
+              <h3 className="settings-heading">About this web version</h3>
+              {import.meta.env.VITE_APP_VERSION && (
+                <p className="settings-hint">Noveler web {import.meta.env.VITE_APP_VERSION}</p>
+              )}
+              <p className="settings-hint">
+                Nothing you write is uploaded. Your novel stays in the folder on your computer, and the page only
+                asks the browser for permission to read and write it. The only network requests are single-word
+                thesaurus lookups when you right-click a word, and the online grammar check if you turn it on.
+              </p>
+            </section>
+          )}
         </div>
       </div>
     </div>

@@ -1,0 +1,12 @@
+# Netlify settings for the hosted web version of Noveler.
+#
+# Used when the site is connected to the Git repository. (A drag-and-drop deploy of the dist-web
+# folder needs none of this: the security headers travel inside the folder, in "_headers".)
+
+[build]
+  # Run the checks first, so a broken change never goes live.
+  command = "npm ci && npm run check && npm run build:web"
+  publish = "dist-web"
+
+[build.environment]
+  NODE_VERSION = "22"
