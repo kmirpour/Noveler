@@ -106,7 +106,9 @@ export function useAppLifecycle() {
                 return;
               }
               if (await win.isMinimized()) return;
-              const size = await win.outerSize();
+              // setSize() sets the inner (content) size, so that is what must be remembered;
+              // saving the outer size would make the window grow by its frame on every start.
+              const size = await win.innerSize();
               const position = await win.outerPosition();
               saveWindowState({
                 width: size.width,
