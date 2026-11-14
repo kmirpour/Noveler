@@ -43,6 +43,8 @@ export interface DocumentSlice {
   newFile: () => Promise<boolean>;
   openFileAction: () => Promise<boolean>;
   openFileByPath: (path: string) => Promise<boolean>;
+  /** Browser only: if the open file was changed outside Noveler, loads the new version (when there are no unsaved edits). */
+  checkForOutsideChangesAction: () => Promise<void>;
   saveFileAction: () => Promise<boolean>;
   saveFileAsAction: () => Promise<boolean>;
   exportDocxAction: () => Promise<void>;

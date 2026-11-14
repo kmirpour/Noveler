@@ -21,9 +21,18 @@ export interface PromptOptions {
   confirmLabel?: string;
 }
 
+export interface ChoiceOptions {
+  title: string;
+  message?: string;
+  choices: { id: string; label: string; primary?: boolean; danger?: boolean }[];
+  /** Label of the button that closes the dialog without choosing (default "Cancel"). */
+  cancelLabel?: string;
+}
+
 export type DialogRequest =
   | ({ kind: 'confirm'; resolve: (ok: boolean) => void } & ConfirmOptions)
-  | ({ kind: 'prompt'; resolve: (value: string | null) => void } & PromptOptions);
+  | ({ kind: 'prompt'; resolve: (value: string | null) => void } & PromptOptions)
+  | ({ kind: 'choice'; resolve: (id: string | null) => void } & ChoiceOptions);
 
 interface DialogState {
   queue: DialogRequest[];
@@ -41,6 +50,13 @@ export const useDialogStore = create<DialogState>((set) => ({
 export function confirmDialog(options: ConfirmOptions): Promise<boolean> {
   return new Promise((resolve) => {
     useDialogStore.getState().push({ kind: 'confirm', resolve, ...options });
+  });
+}
+
+/** Offers several actions. Resolves to the chosen action's id, or null if the dialog is dismissed. */
+export function choiceDialog(options: ChoiceOptions): Promise<string | null> {
+  return new Promise((resolve) => {
+    useDialogStore.getState().push({ kind: 'choice', resolve, ...options });
   });
 }
 

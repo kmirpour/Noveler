@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { History, X } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
-import { isTauri, listBackups, readBackup, type BackupEntry } from '../../services/fileService';
+import { supportsBackups, listBackups, readBackup, type BackupEntry } from '../../services/fileService';
 import { DiffView } from './DiffView';
 import './SettingsModal.css';
 
@@ -100,10 +100,12 @@ export function BackupsModal() {
           </button>
         </div>
 
-        {!isTauri() ? (
-          <p className="backups-empty">Backups are kept by the desktop app.</p>
-        ) : !filePath ? (
+        {!filePath ? (
           <p className="backups-empty">Save this document first. Backups are kept for files on disk.</p>
+        ) : !supportsBackups(filePath) ? (
+          <p className="backups-empty">
+            Backups are kept for the files of an opened novel folder, not for a single file opened on its own.
+          </p>
         ) : error ? (
           <p className="backups-empty">Could not read the backups: {error}</p>
         ) : entries === null ? (

@@ -170,6 +170,10 @@ describe('WritingSlice', () => {
       if (!files.has(path)) throw new Error(`missing ${path}`);
       return { path, name: path.split('/').pop()!, content: files.get(path)! };
     });
+    // Opening a chapter reads it through readFileForEditing, which reads via readFileDirect.
+    const readEditing = vi
+      .spyOn(fileService, 'readFileForEditing')
+      .mockImplementation(async (path: string) => fileService.readFileDirect(path));
     const save = vi.spyOn(fileService, 'saveFile').mockImplementation(async (path: string, content: string) => {
       files.set(path, content);
     });
@@ -209,7 +213,7 @@ describe('WritingSlice', () => {
     expect(files.get('/novel/scene-one.md')).toBe('# One\n\nFirst scene.\n');
     expect(useEditorStore.getState().novelProject?.extraFiles?.map((f) => f.path)).toContain('/novel/scene-one.md');
 
-    for (const spy of [read, save, create, rename, tree]) spy.mockRestore();
+    for (const spy of [read, readEditing, save, create, rename, tree]) spy.mockRestore();
     useEditorStore.setState({ projectPath: null, novelProject: null, writingLog: {}, isDirty: false });
   });
 

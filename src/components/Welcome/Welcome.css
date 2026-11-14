@@ -130,3 +130,39 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+.welcome-recent-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.welcome-recent-row .welcome-recent-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.welcome-recent-forget {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.welcome-recent-forget:hover {
+  background: var(--btn-hover);
+  color: var(--text-color);
+}
+
+.welcome-error {
+  margin: 8px 10px 0;
+  font-size: var(--ui-text-sm);
+  line-height: 1.5;
+  color: var(--danger);
+}

@@ -8,6 +8,7 @@ export function DialogHost() {
   const shift = useDialogStore((s) => s.shift);
   const [value, setValue] = useState('');
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -18,6 +19,9 @@ export function DialogHost() {
         inputRef.current?.focus();
         inputRef.current?.select();
       }, 0);
+    } else if (request.kind === 'choice') {
+      // Enter must never pick an action that overwrites something: start on the safe button.
+      setTimeout(() => cancelRef.current?.focus(), 0);
     } else {
       setTimeout(() => confirmRef.current?.focus(), 0);
     }
@@ -33,7 +37,7 @@ export function DialogHost() {
 
   const accept = () => {
     if (request.kind === 'confirm') request.resolve(true);
-    else request.resolve(value);
+    else if (request.kind === 'prompt') request.resolve(value);
     shift();
   };
 
@@ -81,18 +85,39 @@ export function DialogHost() {
             onChange={(e) => setValue(e.target.value)}
           />
         )}
-        <div className="dialog-actions">
-          <button type="button" className="dialog-btn" onClick={cancel}>
-            {(request.kind === 'confirm' && request.cancelLabel) || 'Cancel'}
-          </button>
-          <button
-            ref={confirmRef}
-            type="submit"
-            className={`dialog-btn primary ${request.kind === 'confirm' && request.danger ? 'danger' : ''}`}
-          >
-            {request.confirmLabel || 'OK'}
-          </button>
-        </div>
+        {request.kind === 'choice' ? (
+          <div className="dialog-actions dialog-choices">
+            <button ref={cancelRef} type="button" className="dialog-btn" onClick={cancel}>
+              {request.cancelLabel || 'Cancel'}
+            </button>
+            {request.choices.map((choice) => (
+              <button
+                key={choice.id}
+                type="button"
+                className={`dialog-btn ${choice.primary ? 'primary' : ''} ${choice.primary && choice.danger ? 'danger' : ''}`}
+                onClick={() => {
+                  request.resolve(choice.id);
+                  shift();
+                }}
+              >
+                {choice.label}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="dialog-actions">
+            <button type="button" className="dialog-btn" onClick={cancel}>
+              {(request.kind === 'confirm' && request.cancelLabel) || 'Cancel'}
+            </button>
+            <button
+              ref={confirmRef}
+              type="submit"
+              className={`dialog-btn primary ${request.kind === 'confirm' && request.danger ? 'danger' : ''}`}
+            >
+              {request.confirmLabel || 'OK'}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );

@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
 import { message, open, save } from '@tauri-apps/plugin-dialog';
 import * as webFiles from './webFiles';
+import { recents } from './webRecents';
 
 /** File types Noveler can open/save as text. Mirrors TEXT_EXTENSIONS in commands.rs. */
 export const TEXT_EXTENSIONS = ['md', 'markdown', 'txt', 'json'];
@@ -44,6 +45,17 @@ export function canWriteToDisk(path?: string | null): boolean {
 /** True in a browser that can open a folder and save back into it. */
 export function canOpenFolders(): boolean {
   return !isTauri() && webFiles.isWebFilesSupported();
+}
+
+/** True if `err` means the file was changed outside Noveler after it was opened here. */
+export function isExternalChangeError(err: unknown): boolean {
+  return err instanceof webFiles.ExternalChangeError;
+}
+
+/** True when backups can be kept for this file (desktop app, or a file inside an opened novel folder). */
+export function supportsBackups(path?: string | null): boolean {
+  if (isTauri()) return true;
+  return Boolean(path) && webFiles.supportsBackups(path as string);
 }
 
 export function extractFileName(filePath: string): string {
@@ -139,6 +151,46 @@ export async function readFileDirect(path: string): Promise<OpenedFile> {
 }
 
 /**
+ * Reads a file that is about to be edited. In a browser the file is then watched, so a save can
+ * tell whether something else changed it in the meantime. In the desktop app it is a plain read.
+ */
+export async function readFileForEditing(path: string): Promise<OpenedFile> {
+  if (!isTauri() && webFiles.owns(path)) {
+    return { path, name: extractFileName(path), content: await webFiles.readTextForEditing(path) };
+  }
+  return await readFileDirect(path);
+}
+
+/** Browser only: whether the file being edited was changed on disk by something else. */
+export async function fileChangedOnDisk(path: string): Promise<boolean> {
+  return !isTauri() && webFiles.owns(path) && (await webFiles.hasChangedOnDisk(path));
+}
+
+/** Browser only: stop watching for outside changes unless the file being edited is `path`. */
+export function stopTrackingExcept(path: string | null): void {
+  if (!isTauri()) webFiles.untrackUnless(path);
+}
+
+/** Browser only: keeps text in a file's backups. Returns false where that is not possible. */
+export async function keepCopyOfUnsavedText(path: string, content: string): Promise<boolean> {
+  return !isTauri() && webFiles.owns(path) ? await webFiles.saveBackupCopy(path, content) : false;
+}
+
+/** The novels this browser can reopen with one click (empty in the desktop app). */
+export async function listRecentNovels() {
+  return canOpenFolders() ? await recents().list() : [];
+}
+
+/** Reopens a remembered novel. Must be called from a click, so the browser may ask for permission. */
+export async function reopenRecentNovel(id: string) {
+  return canOpenFolders() ? await recents().reopen(id) : null;
+}
+
+export async function forgetRecentNovel(id: string): Promise<void> {
+  if (canOpenFolders()) await recents().forget(id);
+}
+
+/**
  * Open project directory
  */
 export async function openFolder(): Promise<{ path: string; name: string; entries: FileEntry[] } | null> {
@@ -172,6 +224,7 @@ export async function openFolder(): Promise<{ path: string; name: string; entrie
   if (canOpenFolders()) {
     const picked = await webFiles.pickFolder();
     if (!picked) return null;
+    void recents().remember(picked.handle);
     return { path: picked.path, name: picked.name, entries: await webFiles.listDir(picked.path) };
   }
 
@@ -234,9 +287,13 @@ export async function readDirectory(path: string): Promise<FileEntry[]> {
 /**
  * Save content to an existing file path
  */
-export async function saveFile(path: string, content: string): Promise<void> {
+export async function saveFile(
+  path: string,
+  content: string,
+  options: { overwriteExternalChanges?: boolean } = {}
+): Promise<void> {
   if (!isTauri() && webFiles.owns(path)) {
-    await webFiles.writeText(path, content);
+    await webFiles.writeText(path, content, options);
     return;
   }
   browserVirtualFiles.set(path, content);
@@ -433,13 +490,14 @@ export interface BackupEntry {
 
 /** Rolling backups kept for a document under `.noveler/backups/`, newest first. */
 export async function listBackups(path: string): Promise<BackupEntry[]> {
-  if (!isTauri()) return [];
-  return await invoke<BackupEntry[]>('list_backups', { path });
+  if (isTauri()) return await invoke<BackupEntry[]>('list_backups', { path });
+  return webFiles.owns(path) ? await webFiles.listBackups(path) : [];
 }
 
 export async function readBackup(path: string, name: string): Promise<string> {
-  if (!isTauri()) throw new Error('Backups are available in the desktop app');
-  return await invoke<string>('read_backup', { path, name });
+  if (isTauri()) return await invoke<string>('read_backup', { path, name });
+  if (webFiles.owns(path)) return await webFiles.readBackup(path, name);
+  throw new Error('Backups are kept for files in an opened novel folder');
 }
 
 export async function createDir(path: string): Promise<void> {

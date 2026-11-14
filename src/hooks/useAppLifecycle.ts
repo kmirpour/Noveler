@@ -64,6 +64,20 @@ export function useAppLifecycle() {
     return () => window.removeEventListener('beforeunload', handler);
   }, []);
 
+  // --- Browser only: notice when the open file was changed outside Noveler --------
+  useEffect(() => {
+    if (isTauri()) return;
+    const check = () => {
+      if (document.visibilityState === 'visible') void useEditorStore.getState().checkForOutsideChangesAction();
+    };
+    window.addEventListener('focus', check);
+    document.addEventListener('visibilitychange', check);
+    return () => {
+      window.removeEventListener('focus', check);
+      document.removeEventListener('visibilitychange', check);
+    };
+  }, []);
+
   // --- Remember the window's size and position ------------------------------
   useEffect(() => {
     if (!isTauri()) return;

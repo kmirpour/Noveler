@@ -86,3 +86,7 @@
   background: var(--danger);
   border-color: var(--danger);
 }
+
+.dialog-choices {
+  flex-wrap: wrap;
+}

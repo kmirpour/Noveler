@@ -37,6 +37,8 @@ export interface WebFileHandle {
   getFile(): Promise<WebFile>;
   createWritable(): Promise<WebWritable>;
   isSameEntry?(other: unknown): Promise<boolean>;
+  queryPermission?(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<string>;
+  requestPermission?(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<string>;
 }
 
 export interface WebDirHandle {
@@ -47,6 +49,8 @@ export interface WebDirHandle {
   removeEntry(name: string, options?: { recursive?: boolean }): Promise<void>;
   entries(): AsyncIterable<[string, WebFileHandle | WebDirHandle]>;
   isSameEntry?(other: unknown): Promise<boolean>;
+  queryPermission?(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<string>;
+  requestPermission?(descriptor?: { mode?: 'read' | 'readwrite' }): Promise<string>;
 }
 
 interface PickerWindow {
@@ -86,7 +90,7 @@ const LOOSE_ROOT = '~file';
 const roots = new Map<string, WebDirHandle>();
 const looseFiles = new Map<string, WebFileHandle>();
 
-async function sameEntry(a: { isSameEntry?: (o: unknown) => Promise<boolean> }, b: unknown): Promise<boolean> {
+export async function sameEntry(a: { isSameEntry?: (o: unknown) => Promise<boolean> }, b: unknown): Promise<boolean> {
   try {
     return a.isSameEntry ? await a.isSameEntry(b) : a === b;
   } catch {
@@ -128,10 +132,21 @@ export async function registerFile(handle: WebFileHandle): Promise<string> {
   return `/${LOOSE_ROOT}/${name}`;
 }
 
+/** True for a file that was opened on its own, not as part of a novel folder. */
+export function isLooseFile(path: string): boolean {
+  try {
+    return parse(path)[0] === LOOSE_ROOT;
+  } catch {
+    return false;
+  }
+}
+
 /** Forgets everything that was opened (used by tests). */
 export function resetWebFilesForTests(): void {
   roots.clear();
   looseFiles.clear();
+  tracked = null;
+  clock = () => Date.now();
 }
 
 // --- Paths ---------------------------------------------------------------------------------------------
@@ -222,10 +237,248 @@ export async function readText(path: string): Promise<string> {
   return await file.text();
 }
 
-/** Saves a text file, creating any missing folders above it. */
-export async function writeText(path: string, content: string): Promise<void> {
+// --- Detecting changes made outside Noveler ------------------------------------------------------------
+// While a file is open in the editor, its size and modified time are remembered (from the very same
+// read that supplied the text, and again after every save). If they differ before the next save,
+// the file was changed by something else (another tab, the desktop app, a sync tool) and saving
+// would overwrite that work, so the save is refused until the writer decides what to keep.
+
+export class ExternalChangeError extends Error {
+  constructor(readonly path: string) {
+    super(`'${path.split('/').pop()}' was changed outside Noveler after it was opened`);
+    this.name = 'ExternalChangeError';
+  }
+}
+
+let tracked: { path: string; lastModified: number; size: number } | null = null;
+
+/** Reads a file that is being opened in the editor, and starts watching it for outside changes. */
+export async function readTextForEditing(path: string): Promise<string> {
   ensureTextPath(path);
-  await writeAll(await fileFor(path, true), content);
+  const file = await (await fileFor(path, false)).getFile();
+  const text = await file.text();
+  tracked = { path, lastModified: file.lastModified, size: file.size };
+  return text;
+}
+
+/** Stops watching unless the file being watched is `path` (called when another document is opened). */
+export function untrackUnless(path: string | null): void {
+  if (tracked && tracked.path !== path) tracked = null;
+}
+
+async function versionOf(path: string): Promise<{ lastModified: number; size: number } | null> {
+  try {
+    const file = await (await fileFor(path, false)).getFile();
+    return { lastModified: file.lastModified, size: file.size };
+  } catch {
+    return null; // the file is gone or unreadable: nothing to compare with
+  }
+}
+
+/** True if the file open in the editor has been changed on disk by something else. */
+export async function hasChangedOnDisk(path: string): Promise<boolean> {
+  if (!tracked || tracked.path !== path) return false;
+  const now = await versionOf(path);
+  return now !== null && (now.lastModified !== tracked.lastModified || now.size !== tracked.size);
+}
+
+// --- Rolling backups (same layout and rules as the desktop backend) -----------------------------------
+// Before a file is saved over, its current content is copied to
+//   <folder>/.noveler/backups/<file name>/<YYYY-MM-DD_HHMMSS (UTC)>_<file name>
+// at most once every ten minutes, keeping the newest twenty. The desktop app reads the same files.
+
+const INTERNAL_DIR = '.noveler';
+const BACKUP_INTERVAL_SECS = 10 * 60;
+const MAX_BACKUPS = 20;
+let clock: () => number = () => Date.now();
+
+/** Replaces the clock (used by tests). */
+export function setClockForTests(now: (() => number) | null): void {
+  clock = now ?? (() => Date.now());
+}
+
+const pad = (n: number, width = 2) => String(n).padStart(width, '0');
+
+/** Seconds since the Unix epoch as `YYYY-MM-DD_HHMMSS` (UTC). */
+export function formatStamp(secs: number): string {
+  const d = new Date(secs * 1000);
+  return `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}_${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}`;
+}
+
+/** The time a backup file name starts with, or null if it does not start with a stamp. */
+export function parseStamp(name: string): number | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})_(\d{2})(\d{2})(\d{2})/.exec(name);
+  if (!m) return null;
+  const [y, mo, d, h, mi, s] = m.slice(1).map(Number);
+  return Date.UTC(y, mo - 1, d, h, mi, s) / 1000;
+}
+
+async function backupDirFor(parent: WebDirHandle, fileName: string, create: boolean): Promise<WebDirHandle> {
+  const internal = await parent.getDirectoryHandle(INTERNAL_DIR, { create });
+  const backups = await internal.getDirectoryHandle('backups', { create });
+  return await backups.getDirectoryHandle(fileName, { create });
+}
+
+async function stampedBackups(dir: WebDirHandle): Promise<{ name: string; secs: number }[]> {
+  const found: { name: string; secs: number }[] = [];
+  for await (const [name, handle] of dir.entries()) {
+    const secs = parseStamp(name);
+    if (handle.kind === 'file' && secs !== null) found.push({ name, secs });
+  }
+  return found;
+}
+
+async function addBackup(
+  dir: WebDirHandle,
+  fileName: string,
+  data: string | ArrayBuffer,
+  existing: { name: string; secs: number }[]
+): Promise<void> {
+  let secs = Math.floor(clock() / 1000);
+  let name = `${formatStamp(secs)}_${fileName}`;
+  while (existing.some((e) => e.name === name)) {
+    secs += 1; // two backups in the same second: keep both
+    name = `${formatStamp(secs)}_${fileName}`;
+  }
+  await writeAll(await dir.getFileHandle(name, { create: true }), data);
+
+  // Keep the newest MAX_BACKUPS. Pruning old backups is the only removal in this module apart from
+  // the half-made copy of a failed move and the original of a verified one.
+  const all = [...existing, { name, secs }].sort((a, b) => a.secs - b.secs);
+  while (all.length > MAX_BACKUPS) {
+    const oldest = all.shift()!;
+    try {
+      await dir.removeEntry(oldest.name);
+    } catch {
+      // already gone
+    }
+  }
+}
+
+/** Copies the file's current on-disk content into its backups, unless one was made very recently. */
+async function backupExisting(parts: string[], always: boolean): Promise<void> {
+  if (parts[0] === LOOSE_ROOT || parts.length < 2 || parts.includes(INTERNAL_DIR)) return;
+  const fileName = parts[parts.length - 1];
+  let parent: WebDirHandle;
+  let current: WebFileHandle;
+  try {
+    parent = await dirFor(parts.slice(0, -1), false);
+    current = await parent.getFileHandle(fileName);
+  } catch {
+    return; // a new file: there is nothing to back up
+  }
+  const dir = await backupDirFor(parent, fileName, true);
+  const existing = await stampedBackups(dir);
+  const now = Math.floor(clock() / 1000);
+  const newest = existing.reduce((latest, e) => Math.max(latest, e.secs), 0);
+  if (!always && existing.length > 0 && now - newest < BACKUP_INTERVAL_SECS) return;
+  await addBackup(dir, fileName, await (await current.getFile()).arrayBuffer(), existing);
+}
+
+export interface BackupInfo {
+  name: string;
+  /** Seconds since the Unix epoch (UTC). */
+  timestamp: number;
+  size: number;
+}
+
+/** The backups kept for a file, newest first. */
+export async function listBackups(path: string): Promise<BackupInfo[]> {
+  ensureTextPath(path);
+  const parts = parse(path);
+  if (parts[0] === LOOSE_ROOT || parts.length < 2) return [];
+  let dir: WebDirHandle;
+  try {
+    dir = await backupDirFor(await dirFor(parts.slice(0, -1), false), parts[parts.length - 1], false);
+  } catch {
+    return [];
+  }
+  const found: BackupInfo[] = [];
+  for await (const [name, handle] of dir.entries()) {
+    const timestamp = parseStamp(name);
+    if (handle.kind === 'file' && timestamp !== null) found.push({ name, timestamp, size: (await handle.getFile()).size });
+  }
+  return found.sort((a, b) => b.timestamp - a.timestamp);
+}
+
+/** Reads one backup. `name` must be a backup file name returned by listBackups. */
+export async function readBackup(path: string, name: string): Promise<string> {
+  ensureTextPath(path);
+  if (/[\\/]/.test(name) || name.includes('..') || parseStamp(name) === null) {
+    throw new Error(`Not a backup file name: ${name}`);
+  }
+  const parts = parse(path);
+  if (parts[0] === LOOSE_ROOT || parts.length < 2) throw new Error('This file has no backups');
+  const dir = await backupDirFor(await dirFor(parts.slice(0, -1), false), parts[parts.length - 1], false);
+  return await (await (await dir.getFileHandle(name)).getFile()).text();
+}
+
+/**
+ * Keeps a piece of text in a file's backups (for example the writer's unsaved edits, when they
+ * choose the other version of a file). Returns false for files that have no backup folder.
+ */
+export async function saveBackupCopy(path: string, content: string): Promise<boolean> {
+  ensureTextPath(path);
+  const parts = parse(path);
+  if (parts[0] === LOOSE_ROOT || parts.length < 2) return false;
+  const fileName = parts[parts.length - 1];
+  const dir = await backupDirFor(await dirFor(parts.slice(0, -1), false), fileName, true);
+  await addBackup(dir, fileName, content, await stampedBackups(dir));
+  return true;
+}
+
+/** True when backups can be kept for this file: it belongs to an opened novel folder. */
+export function supportsBackups(path: string): boolean {
+  return owns(path) && !isLooseFile(path);
+}
+
+/**
+ * Saves a text file, creating any missing folders above it. The previous content is backed up first
+ * (a failed backup never prevents the save), and the save is refused if the file was changed
+ * outside Noveler since it was opened, unless `overwriteExternalChanges` says the writer chose to
+ * keep their version (the other version is then always backed up).
+ */
+export async function writeText(
+  path: string,
+  content: string,
+  options: { overwriteExternalChanges?: boolean } = {}
+): Promise<void> {
+  ensureTextPath(path);
+  const overwriting = Boolean(options.overwriteExternalChanges);
+  if (!overwriting && (await hasChangedOnDisk(path))) throw new ExternalChangeError(path);
+
+  try {
+    await backupExisting(parse(path), overwriting);
+  } catch (err) {
+    console.warn('Could not back up before saving:', err);
+  }
+
+  const handle = await fileFor(path, true);
+  await writeAll(handle, content);
+  if (tracked && tracked.path === path) {
+    const saved = await handle.getFile();
+    tracked = { path, lastModified: saved.lastModified, size: saved.size };
+  }
+}
+
+/**
+ * Whether the browser lets this page read and write the folder, asking the writer if `request` is
+ * true. Asking needs a recent click or key press; without one it is refused.
+ */
+export async function ensureAccess(
+  handle: Pick<WebDirHandle, 'queryPermission' | 'requestPermission'>,
+  request: boolean
+): Promise<boolean> {
+  if (!handle.queryPermission) return true;
+  try {
+    let state = await handle.queryPermission({ mode: 'readwrite' });
+    if (state !== 'granted' && request && handle.requestPermission) {
+      state = await handle.requestPermission({ mode: 'readwrite' });
+    }
+    return state === 'granted';
+  } catch {
+    return false;
+  }
 }
 
 /** Creates a new text file. Refuses to overwrite one that exists. */
@@ -343,13 +596,13 @@ export async function readTree(path: string): Promise<BinderNode[]> {
 const isAbort = (err: unknown) => (err as { name?: string } | null)?.name === 'AbortError';
 
 /** Asks the writer to pick a novel folder. Resolves to null if they cancel. */
-export async function pickFolder(): Promise<{ path: string; name: string } | null> {
+export async function pickFolder(): Promise<{ path: string; name: string; handle: WebDirHandle } | null> {
   const picker = pickers().showDirectoryPicker;
   if (!picker) throw new Error('This browser cannot open folders');
   try {
     const handle = await picker.call(window, { mode: 'readwrite', id: 'noveler-novel' });
     const path = await registerRoot(handle);
-    return { path, name: path.slice(1) };
+    return { path, name: path.slice(1), handle };
   } catch (err) {
     if (isAbort(err)) return null;
     throw err;
@@ -368,7 +621,7 @@ export async function pickTextFile(): Promise<{ path: string; name: string; cont
     });
     if (!handle) return null;
     const path = await registerFile(handle);
-    return { path, name: handle.name, content: await readText(path) };
+    return { path, name: handle.name, content: await readTextForEditing(path) };
   } catch (err) {
     if (isAbort(err)) return null;
     throw err;
@@ -386,7 +639,10 @@ export async function saveTextAs(content: string, suggestedName: string): Promis
       types: [{ description: 'Markdown file', accept: { 'text/markdown': ['.md'] } }, { description: 'Text file', accept: { 'text/plain': ['.txt'] } }],
     });
     await writeAll(handle, content);
-    return { path: await registerFile(handle), name: handle.name };
+    const path = await registerFile(handle);
+    const saved = await handle.getFile();
+    tracked = { path, lastModified: saved.lastModified, size: saved.size };
+    return { path, name: handle.name };
   } catch (err) {
     if (isAbort(err)) return null;
     throw err;

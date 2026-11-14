@@ -7,7 +7,8 @@ import { type SceneMetadata, parseSceneMarkdown, flattenScenes } from '../servic
 import { getSceneIndexAtPosition } from '../utils/chapterScenes';
 import { resetEditorHistory } from '../utils/sceneDocOps';
 import { addWords } from '../utils/writingLog';
-import type { SliceCreator, DocumentSlice } from './types';
+import { choiceDialog } from '../services/dialogs';
+import type { SliceCreator, DocumentSlice, EditorState } from './types';
 import {
   initialMarkdown,
   updateWindowTitle,
@@ -17,6 +18,62 @@ import {
   scheduleGitRefresh,
   persistProject,
 } from './shared';
+
+let conflictDialogOpen = false;
+
+/**
+ * A file was changed outside Noveler after it was opened here (another tab, the desktop app, a
+ * sync tool). Asks which version to keep. Whichever is not kept is saved in the file's backups, so
+ * nothing is lost either way. Resolves to what happened:
+ *  - 'saved': the writer's version was written over the other one; the save can carry on;
+ *  - 'reloaded': the other version is now open in the editor;
+ *  - 'waiting': nothing was decided (the dialog is already showing, or was dismissed).
+ */
+async function resolveExternalChange(
+  get: () => EditorState,
+  filePath: string,
+  fileName: string | null,
+  body: string
+): Promise<'saved' | 'reloaded' | 'waiting'> {
+  if (conflictDialogOpen) return 'waiting'; // autosave keeps trying while the question is on screen
+  conflictDialogOpen = true;
+  try {
+    const hasBackups = fileService.supportsBackups(filePath);
+    const choice = await choiceDialog({
+      title: `"${fileName || 'This file'}" was changed outside Noveler`,
+      message: hasBackups
+        ? 'Another tab, program or device saved this file after you opened it here. Choose which version to keep. The one you do not keep is saved in this file\'s backups, so nothing is lost.'
+        : 'Another tab, program or device saved this file after you opened it here. Keeping your version replaces the other one for good; you can also save yours as a new file.',
+      cancelLabel: 'Decide later',
+      choices: [
+        { id: 'mine', label: 'Keep my version', primary: true },
+        ...(hasBackups
+          ? [{ id: 'theirs', label: 'Use the other version' }]
+          : [{ id: 'saveas', label: 'Save mine as a new file…' }]),
+      ],
+    });
+
+    if (choice === 'mine') {
+      await fileService.saveFile(filePath, body, { overwriteExternalChanges: true });
+      return 'saved';
+    }
+    if (choice === 'theirs') {
+      await fileService.keepCopyOfUnsavedText(filePath, body);
+      const other = await fileService.readFileForEditing(filePath);
+      get().loadDocument({
+        markdown: other.content,
+        fileName,
+        filePath,
+        statusMessage: 'Loaded the other version. Your version is kept in this file\'s backups.',
+      });
+      return 'reloaded';
+    }
+    if (choice === 'saveas') await get().saveFileAsAction();
+    return 'waiting';
+  } finally {
+    conflictDialogOpen = false;
+  }
+}
 
 /** The open document: loading, saving, counts and export. */
 export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
@@ -144,6 +201,7 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
   loadDocument: ({ markdown, fileName, filePath, dirty = false, statusMessage }) => {
     const { editorInstance, updateCounts, novelProject } = get();
     const { metadata: frontMatterMeta, body } = parseSceneMarkdown(markdown);
+    fileService.stopTrackingExcept(filePath);
 
     let resolvedMetadata: SceneMetadata = { ...frontMatterMeta };
     if (novelProject && fileName) {
@@ -238,6 +296,24 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
     }
   },
 
+  checkForOutsideChangesAction: async () => {
+    const { filePath, fileName, isDirty } = get();
+    if (!filePath || isDirty || !(await fileService.fileChangedOnDisk(filePath))) return;
+    try {
+      const file = await fileService.readFileForEditing(filePath);
+      // The writer may have started typing while the file was being read.
+      if (get().filePath !== filePath || get().isDirty) return;
+      get().loadDocument({
+        markdown: file.content,
+        fileName,
+        filePath,
+        statusMessage: `"${fileName}" was updated: it was changed outside Noveler`,
+      });
+    } catch (err) {
+      console.warn('Could not check for outside changes:', err);
+    }
+  },
+
   openFileByPath: async (path: string) => {
     try {
       if (!fileService.isSupportedTextFile(path)) {
@@ -247,7 +323,7 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
       if (path === get().filePath) return true;
       if (!(await get().confirmDiscardIfDirty())) return false;
 
-      const opened = await fileService.readFileDirect(path);
+      const opened = await fileService.readFileForEditing(path);
       if (fileService.isTauri()) set({ recentFiles: addRecentFile(path).recentFiles });
 
       get().loadDocument({
@@ -281,7 +357,14 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
     try {
       const body = editorInstance ? editorInstance.getMarkdown() : get().markdownContent;
       // Per GUIDE.md: Save clean standard markdown without YAML front-matter
-      await fileService.saveFile(filePath, body);
+      try {
+        await fileService.saveFile(filePath, body);
+      } catch (err) {
+        if (!fileService.isExternalChangeError(err)) throw err;
+        // Something else changed this file after it was opened here: ask what to keep.
+        const outcome = await resolveExternalChange(get, filePath, fileName, body);
+        if (outcome !== 'saved') return outcome === 'reloaded';
+      }
 
       // Persist metadata cleanly into novelProject / noveler.json (scene titles remain in markdown only)
       // (Re-read the project: it may have changed while the file was being written.)
