@@ -25,6 +25,8 @@ export function CompileModal() {
     compileModalOpen,
     setCompileModalOpen,
     printAction,
+    sceneTitleMode,
+    saveCompileSettingsAction,
   } = useEditorStore(
     useShallow((s) => ({
       novelProject: s.novelProject,
@@ -34,6 +36,8 @@ export function CompileModal() {
       compileModalOpen: s.compileModalOpen,
       setCompileModalOpen: s.setCompileModalOpen,
       printAction: s.printAction,
+      sceneTitleMode: s.sceneTitleMode,
+      saveCompileSettingsAction: s.saveCompileSettingsAction,
     }))
   );
 
@@ -41,7 +45,8 @@ export function CompileModal() {
   const [title, setTitle] = useState(novelProject?.title || '');
   const [author, setAuthor] = useState(novelProject?.author || '');
   const [contactInfo, setContactInfo] = useState('');
-  const [format, setFormat] = useState<'shunn-docx' | 'standard-docx' | 'print-pdf' | 'markdown'>('shunn-docx');
+  const [format, setFormat] = useState<'shunn-docx' | 'standard-docx' | 'print-pdf' | 'markdown' | 'epub'>('shunn-docx');
+  const [presetLoaded, setPresetLoaded] = useState<string | null>(null);
   const [typeface, setTypeface] = useState<'Times New Roman' | 'Courier New' | 'Georgia' | 'Garamond'>('Times New Roman');
   const [sceneBreakSymbol, setSceneBreakSymbol] = useState<string>('#');
   const [selectedPaths, setSelectedPaths] = useState<string[]>([]);
@@ -51,6 +56,17 @@ export function CompileModal() {
   React.useEffect(() => {
     if (compileModalOpen) {
       if (novelProject) {
+        // Start from what was chosen last time for this novel.
+        const preset = novelProject.compileSettings;
+        if (preset && presetLoaded !== novelProject.createdAt + novelProject.title) {
+          setPresetLoaded(novelProject.createdAt + novelProject.title);
+          if (preset.title) setTitle(preset.title);
+          if (preset.author) setAuthor(preset.author);
+          if (preset.contactInfo) setContactInfo(preset.contactInfo);
+          if (preset.format) setFormat(preset.format as typeof format);
+          if (preset.typeface) setTypeface(preset.typeface as typeof typeface);
+          if (preset.sceneBreakSymbol) setSceneBreakSymbol(preset.sceneBreakSymbol);
+        }
         setTitle((t) => t || novelProject.title);
         setAuthor((a) => a || novelProject.author);
         setSelectedPaths((paths) =>
@@ -61,6 +77,7 @@ export function CompileModal() {
         setTitle((t) => t || fileName?.replace(/\.(md|markdown|txt)$/i, '') || 'Untitled Manuscript');
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- presets are applied once per novel
   }, [novelProject, compileModalOpen, fileName]);
 
   if (!compileModalOpen) return null;
@@ -84,6 +101,7 @@ export function CompileModal() {
   };
 
   const handleCompile = async () => {
+    saveCompileSettingsAction({ title, author, contactInfo, format, typeface, sceneBreakSymbol });
     // Print / PDF format
     if (format === 'print-pdf') {
       if (scope === 'entire-novel' && novelProject && selectedPaths.length > 0) {
@@ -116,6 +134,15 @@ export function CompileModal() {
         if (format === 'markdown') {
           const saved = await saveFileAs(markdownContent, `${chapterTitle}.md`);
           if (saved) setStatusMessage(`Exported chapter as ${saved.name}`);
+        } else if (format === 'epub') {
+          const { buildEpub } = await import('../../export/epub');
+          const blob = await buildEpub([{ title: chapterTitle, markdown: markdownContent }], {
+            title: title || chapterTitle,
+            author: author || novelProject?.author || '',
+            sceneTitleMode,
+          });
+          const saved = await saveBinaryAs(blob, `${chapterTitle}.epub`, { name: 'EPUB e-book', extensions: ['epub'] });
+          if (saved) setStatusMessage(`Exported ${saved.name}`);
         } else {
           // Export chapter as DOCX
           const { exportToDocx } = await import('../../export/docx');
@@ -141,7 +168,9 @@ export function CompileModal() {
         title: title || novelProject.title,
         author: author || novelProject.author,
         contactInfo,
-        format: format === 'markdown' ? 'markdown' : format === 'standard-docx' ? 'standard-docx' : 'shunn-docx',
+        format:
+          format === 'markdown' || format === 'epub' || format === 'standard-docx' ? format : 'shunn-docx',
+        sceneTitleMode,
         fontFamily: typeface,
         sceneBreakSymbol,
         selectedPaths,
@@ -153,10 +182,13 @@ export function CompileModal() {
         const saved = await saveFileAs(result.data, result.fileName);
         if (saved) setStatusMessage(`Compiled manuscript saved as ${saved.name}`);
       } else {
-        const saved = await saveBinaryAs(result.data, result.fileName, {
-          name: 'Word Document',
-          extensions: ['docx'],
-        });
+        const saved = await saveBinaryAs(
+          result.data,
+          result.fileName,
+          format === 'epub'
+            ? { name: 'EPUB e-book', extensions: ['epub'] }
+            : { name: 'Word Document', extensions: ['docx'] }
+        );
         if (saved) setStatusMessage(`Compiled manuscript saved as ${saved.name}`);
       }
       setCompileModalOpen(false);
@@ -241,6 +273,20 @@ export function CompileModal() {
                 <div className="format-info">
                   <strong>Clean Word Document (.docx)</strong>
                   <span>Reader-friendly formatting with Georgia typography, paragraph indents, and centered scene breaks.</span>
+                </div>
+              </label>
+
+              <label className={`format-card ${format === 'epub' ? 'active' : ''}`}>
+                <input
+                  type="radio"
+                  name="compile-format"
+                  value="epub"
+                  checked={format === 'epub'}
+                  onChange={() => setFormat('epub')}
+                />
+                <div className="format-info">
+                  <strong>E-book (.epub)</strong>
+                  <span>For beta readers and e-readers (Apple Books, Kobo, Calibre; convertible for Kindle). One section per chapter with a table of contents.</span>
                 </div>
               </label>
 

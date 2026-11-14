@@ -165,7 +165,8 @@ Noveler includes three distinct focus features designed to keep your mind locked
 ### 3. Distraction-Free Fullscreen Mode (`F11` or `Ctrl + Shift + F`)
 - Hides the sidebar, top toolbar, and bottom status bar completely.
 - Centers your text canvas with generous margins against your chosen theme background.
-- Press `Escape`, `F11`, or `Ctrl + Shift + F` to return to the standard window layout.
+- Press `Escape`, `F11`, or `Ctrl + Shift + F` to return to the standard window layout. An **Exit Focus** button also appears in the corner while you move the mouse, and hides again when you stop.
+- A hairline along the top edge fills as you approach your daily word goal.
 
 ### 4. Sidebar Toggle (`Ctrl + \`)
 - Press `Ctrl + \` at any time to instantly collapse or expand the chapter navigation panel.
@@ -280,6 +281,15 @@ Open the Goals modal to configure your writing milestones:
 - **This Sitting**: A separate counter since you started the app; "New Sprint" resets it without touching today's total.
 - **Streak & History**: Shows consecutive days with words written and a bar for each of the last 14 days. The log is stored in `noveler.json`.
 
+### Comments
+Leave yourself a note on any passage: select it, right-click, and choose **Add comment…**
+- The passage is highlighted in the editor, and the note appears under **Comments** in the Inspector. Click a comment's quote to jump to it; tick it off when done, or delete it.
+- Comments are stored with the project in `noveler.json`. They are never written into the chapter file and never appear in any export.
+- A comment stays attached to its words as you edit around them. If you rewrite the passage itself, the comment remains in the list without a highlight.
+
+### Repeated Words
+**⋯ More → Show repeated words** tints content words that occur again within about thirty words (*glanced… glanced*), so echoes are easy to spot while revising. Names and small structural words are ignored. It is a display aid only; switch it off the same way.
+
 ### Find & Replace & Command Palette
 - **Find & Replace (`Ctrl + F`)**: Clean in-editor search bar supporting case sensitivity, whole word matching, and Replace / Replace All.
 - **Search the whole novel**: Turn on the project scope in Find & Replace to search every chapter and every note in the folder.
@@ -361,7 +371,14 @@ The gold standard format required by literary agents, commercial publishing hous
 - Automatically removes all UI buttons, sidebars, and toolbars.
 - Generates clean chapter page breaks ready for physical printing or saving as a PDF via the system print dialog.
 
-#### 3. Clean Combined Markdown (`.md`)
+#### 3. E-book (`.epub`)
+- For beta readers and e-readers: opens in Apple Books, Kobo and Calibre, and can be converted for Kindle.
+- One section per chapter, a title page and a table of contents.
+- Scene headings follow your **Scene headings** setting: shown as titles, or replaced by a centred break.
+
+Your choices in the export window (title, author, contact details, format, typeface, scene-break symbol) are remembered for each novel.
+
+#### 4. Clean Combined Markdown (`.md`)
 - Merges all chapters into a single sequential Markdown document.
 - Ideal for personal archival, GitHub backups, or custom Pandoc publishing pipelines.
 
@@ -392,7 +409,15 @@ Writing a novel represents hundreds of hours of creative labor. Noveler includes
 - Keeps the last 20 revisions of each chapter (at most one snapshot per 10-minute interval).
 - **Browse and restore**: open **⋯ More → Backups of this file…** to see every saved version of the open file with its date and time, read it, and restore it. A restore replaces the text in the editor and can be undone with `Ctrl + Z`.
 
-### 5. Git & GitHub Cloud Synchronization
+The backup window opens on **What changed**: paragraphs that exist only in the backup and paragraphs written since are marked, with unchanged stretches collapsed. **Full text** shows the whole earlier version. Snapshots in the Inspector are compared the same way.
+
+### 5. Saved Versions (Git, on This Computer)
+If your novel folder is a git repository, the status bar shows how many files have changed since the last saved version (for example *3 changed*).
+- Click it, or choose **⋯ More → Save a version (git)**, to record the current state of every file with an optional note. This is a git commit kept on your computer; nothing is uploaded.
+- If the folder is not yet a repository, saving a version creates one.
+- Pushing to GitHub (below) is a separate step you take when you want an off-site copy.
+
+### 6. Git & GitHub Cloud Synchronization
 - Noveler includes built-in Git integration to back up and version your entire novel to GitHub:
   - Click the **Git / GitHub** (`GitBranch`) icon in the toolbar or run **Push Manuscript to GitHub** via the Command Palette (`Ctrl + K`).
   - **Automated Repository Initialization**: If your novel folder is not yet a git repository, Noveler initializes a git repository on branch `main` and creates a `.gitignore` ignoring internal backups.

@@ -204,25 +204,25 @@
 }
 
 .search-match-current {
-  background-color: #f59e0b !important;
+  background-color: var(--warning) !important;
   color: #1a1a2e !important;
   border-radius: 2px;
-  box-shadow: 0 0 0 2px #d97706;
+  box-shadow: 0 0 0 2px var(--warning);
 }
 
 /* Live Spell & Grammar Decorations */
 .spell-error-spelling {
-  text-decoration: underline wavy #ef4444;
+  text-decoration: underline wavy var(--danger);
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
   cursor: pointer;
 }
 
 .spell-error-grammar {
-  text-decoration: underline wavy #f59e0b;
+  text-decoration: underline wavy var(--warning);
   text-decoration-thickness: 1.5px;
   text-underline-offset: 3px;
-  background-color: rgba(245, 158, 11, 0.08);
+  background-color: color-mix(in srgb, var(--warning) 15%, transparent);
   border-radius: 2px;
   cursor: pointer;
 }
@@ -240,4 +240,17 @@
 
 .spell-error-grammar {
   text-decoration-color: var(--warning);
+}
+
+/* Revision aids: drawn over the text, never saved into it */
+.comment-anchor {
+  background: color-mix(in srgb, var(--warning) 22%, transparent);
+  border-bottom: 2px solid var(--warning);
+  border-radius: 2px;
+  cursor: help;
+}
+
+.echo-word {
+  background: color-mix(in srgb, var(--accent-color) 18%, transparent);
+  border-radius: 2px;
 }

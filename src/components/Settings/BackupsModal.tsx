@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow';
 import { History, X } from 'lucide-react';
 import { useEditorStore } from '../../stores/editorStore';
 import { isTauri, listBackups, readBackup, type BackupEntry } from '../../services/fileService';
+import { DiffView } from './DiffView';
 import './SettingsModal.css';
 
 const countWords = (text: string) => (text.trim() === '' ? 0 : text.trim().split(/\s+/).length);
@@ -12,7 +13,7 @@ const countWords = (text: string) => (text.trim() === '' ? 0 : text.trim().split
  * versions per file (at most one every 10 minutes) in `.noveler/backups/` inside the novel folder.
  */
 export function BackupsModal() {
-  const { open, setOpen, filePath, fileName, wordCount, replaceDocumentTextAction } = useEditorStore(
+  const { open, setOpen, filePath, fileName, wordCount, replaceDocumentTextAction, currentText } = useEditorStore(
     useShallow((s) => ({
       open: s.backupsOpen,
       setOpen: s.setBackupsOpen,
@@ -20,6 +21,7 @@ export function BackupsModal() {
       fileName: s.fileName,
       wordCount: s.wordCount,
       replaceDocumentTextAction: s.replaceDocumentTextAction,
+      currentText: s.markdownContent,
     }))
   );
 
@@ -27,6 +29,7 @@ export function BackupsModal() {
   const [selected, setSelected] = useState<string | null>(null);
   const [preview, setPreview] = useState<{ name: string; text: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mode, setMode] = useState<'changes' | 'text'>('changes');
 
   useEffect(() => {
     if (!open) return;
@@ -133,7 +136,23 @@ export function BackupsModal() {
                 ))}
               </div>
               <div className="backups-preview">
-                <pre className="backups-preview-text">{shown ?? 'Loading…'}</pre>
+                <div className="backups-mode" role="tablist" aria-label="Show">
+                  <button type="button" role="tab" aria-selected={mode === 'changes'} className={mode === 'changes' ? 'active' : ''} onClick={() => setMode('changes')}>
+                    What changed
+                  </button>
+                  <button type="button" role="tab" aria-selected={mode === 'text'} className={mode === 'text' ? 'active' : ''} onClick={() => setMode('text')}>
+                    Full text
+                  </button>
+                </div>
+                {shown === null ? (
+                  <pre className="backups-preview-text">Loading…</pre>
+                ) : mode === 'text' ? (
+                  <pre className="backups-preview-text">{shown}</pre>
+                ) : (
+                  <div className="backups-preview-text">
+                    <DiffView before={shown} after={currentText} beforeLabel="this backup" />
+                  </div>
+                )}
               </div>
             </div>
             <div className="backups-footer">

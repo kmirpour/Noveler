@@ -42,6 +42,8 @@ import {
   History,
   ScrollText,
   ClipboardCopy,
+  GitCommitHorizontal,
+  Repeat2,
 } from 'lucide-react';
 import { ThemeToggle } from '../ThemeToggle/ThemeToggle';
 import './Toolbar.css';
@@ -95,6 +97,9 @@ export function Toolbar() {
       setSettingsOpen: st.setSettingsOpen,
       setBackupsOpen: st.setBackupsOpen,
       copyContextPackAction: st.copyContextPackAction,
+      commitVersionAction: st.commitVersionAction,
+      showEchoes: st.showEchoes,
+      toggleEchoes: st.toggleEchoes,
     }))
   );
   const { editor, viewMode } = s;
@@ -154,6 +159,7 @@ export function Toolbar() {
         { label: 'Save as…', icon: <SaveAll size={15} />, shortcut: 'Ctrl+Shift+S', run: () => void s.saveFileAsAction() },
         { label: 'Export manuscript…', icon: <BookDown size={15} />, shortcut: 'Ctrl+E', run: s.toggleCompileModal },
         { label: 'Print / save as PDF', icon: <Printer size={15} />, shortcut: 'Ctrl+P', run: s.printAction },
+        { label: 'Save a version (git)', icon: <GitCommitHorizontal size={15} />, disabled: !s.hasProject, run: () => void s.commitVersionAction() },
         { label: 'Push to GitHub', icon: <GitBranch size={15} />, run: () => void s.syncGitAction() },
         { label: 'Backups of this file…', icon: <History size={15} />, run: () => s.setBackupsOpen(true) },
       ],
@@ -178,6 +184,7 @@ export function Toolbar() {
         { label: 'Prose analysis', icon: <Sparkles size={15} />, run: s.toggleProseAnalysis },
         { label: 'Copy context for AI', icon: <ClipboardCopy size={15} />, disabled: !s.hasProject, run: () => void s.copyContextPackAction() },
         { label: 'Paragraph focus', icon: <Focus size={15} />, shortcut: 'Ctrl+Shift+P', active: s.dimUnfocused, run: s.toggleDimUnfocused },
+        { label: 'Show repeated words', icon: <Repeat2 size={15} />, active: s.showEchoes, run: s.toggleEchoes },
         { label: 'Typewriter scrolling', icon: <ScrollText size={15} />, shortcut: 'Ctrl+Shift+T', active: s.typewriterMode, run: s.toggleTypewriterMode },
         { label: 'Command palette', icon: <CommandIcon size={15} />, shortcut: 'Ctrl+K', run: () => s.setCommandPaletteOpen(true) },
         { label: 'Settings…', icon: <Settings size={15} />, shortcut: 'Ctrl+,', run: () => s.setSettingsOpen(true) },

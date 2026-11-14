@@ -42,14 +42,26 @@ export async function getGitStatus(path: string): Promise<GitRepoStatus> {
 export async function syncGit(
   path: string,
   remoteUrl?: string | null,
-  commitMsg?: string | null
+  commitMsg?: string | null,
+  push = true
 ): Promise<string> {
   if (isTauri()) {
     return await invoke<string>('git_sync', {
       path,
       remoteUrl: remoteUrl || null,
       commitMsg: commitMsg || null,
+      push,
     });
   }
   throw new Error('Git sync requires desktop application mode (Tauri)');
+}
+
+/** Files changed since the last saved version (commit). Empty when the folder is not a git repository. */
+export async function getChangedFiles(path: string): Promise<string[]> {
+  if (!isTauri()) return [];
+  try {
+    return await invoke<string[]>('git_changed_files', { path });
+  } catch {
+    return [];
+  }
 }

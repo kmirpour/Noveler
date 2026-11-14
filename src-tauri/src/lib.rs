@@ -20,6 +20,7 @@ pub fn run() {
       commands::list_backups,
       commands::read_backup,
       commands::git_get_status,
+      commands::git_changed_files,
       commands::git_sync
     ])
     .setup(|app| {

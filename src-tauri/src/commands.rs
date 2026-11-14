@@ -23,7 +23,7 @@ pub struct BinderNode {
 /// Extensions the editor may read or write as UTF-8 text (including project metadata).
 const TEXT_EXTENSIONS: &[&str] = &["md", "markdown", "txt", "json"];
 /// Extensions that may be written as raw bytes (exports).
-const BINARY_EXTENSIONS: &[&str] = &["docx"];
+const BINARY_EXTENSIONS: &[&str] = &["docx", "epub"];
 
 /// Minimum time between two backups of the same file. Autosave fires every few
 /// seconds, so without this the rolling window would only cover the last minute.
@@ -389,16 +389,49 @@ pub async fn git_sync(
     path: String,
     remote_url: Option<String>,
     commit_msg: Option<String>,
+    push: Option<bool>,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || git_sync_sync(path, remote_url, commit_msg))
+    let push = push.unwrap_or(true);
+    tauri::async_runtime::spawn_blocking(move || git_sync_sync(path, remote_url, commit_msg, push))
         .await
         .map_err(|e| format!("Git sync task error: {e}"))?
 }
 
+/// Lists files with uncommitted changes (`git status --porcelain`), or nothing if the folder is
+/// not a git repository or git is not installed.
+#[tauri::command]
+pub async fn git_changed_files(path: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let p = PathBuf::from(&path);
+        ensure_absolute(&p)?;
+        if !p.join(".git").exists() {
+            return Ok(Vec::new());
+        }
+        let out = std::process::Command::new("git")
+            .current_dir(&p)
+            .stdin(std::process::Stdio::null())
+            .args(["status", "--porcelain"])
+            .output();
+        match out {
+            Ok(o) if o.status.success() => Ok(String::from_utf8_lossy(&o.stdout)
+                .lines()
+                .filter(|l| l.len() > 3)
+                .map(|l| l[3..].trim().trim_matches('"').to_string())
+                .collect()),
+            _ => Ok(Vec::new()),
+        }
+    })
+    .await
+    .map_err(|e| format!("Git status task error: {e}"))?
+}
+
+/// Stages and commits everything. With `push` it also sets the remote and pushes; without it the
+/// commit stays on this computer (a local save point).
 fn git_sync_sync(
     path: String,
     remote_url: Option<String>,
     commit_msg: Option<String>,
+    push: bool,
 ) -> Result<String, String> {
     let p = PathBuf::from(&path);
     ensure_absolute(&p)?;
@@ -451,7 +484,7 @@ fn git_sync_sync(
         }
     }
 
-    if let Some(ref url) = remote_url {
+    if let (true, Some(url)) = (push, remote_url.as_ref()) {
         let url = url.trim();
         if !url.is_empty() {
             let check_remote = std::process::Command::new("git")
@@ -518,6 +551,14 @@ fn git_sync_sync(
         if !stderr.contains("nothing to commit") && !stdout.contains("nothing to commit") {
             return Err(format!("git commit failed: {}", stderr.trim()));
         }
+    }
+
+    if !push {
+        return Ok(if commit_out.status.success() {
+            "Version saved on this computer (not pushed)".to_string()
+        } else {
+            "Nothing has changed since the last saved version".to_string()
+        });
     }
 
     let branch_out = std::process::Command::new("git")

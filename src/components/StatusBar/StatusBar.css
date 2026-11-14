@@ -27,7 +27,7 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #e07c3a;
+  background: var(--warning);
   margin-left: 2px;
 }
 
@@ -60,7 +60,7 @@
 }
 
 .session-stat {
-  color: #10b981;
+  color: var(--success);
   font-weight: 500;
 }
 
@@ -92,15 +92,15 @@
 }
 
 .status-btn.goal-badge.goal-met {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: rgba(16, 185, 129, 0.4);
-  color: #10b981;
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  border-color: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
 }
 
 .status-btn.typewriter-toggle-btn.active {
   background: var(--badge-bg);
   color: var(--badge-text);
-  border-color: rgba(59, 130, 246, 0.3);
+  border-color: var(--accent-light);
 }
 
 

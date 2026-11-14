@@ -29,6 +29,8 @@ import { getWordRangeAtPos } from '../../utils/editorUtils';
 import { getSceneIndexAtPosition, getSceneHeadingsSignatureInDoc } from '../../utils/chapterScenes';
 import { EditorContextMenu } from '../ContextMenu/EditorContextMenu';
 import { typefaceInfo } from '../../services/settings';
+import { WritingAids, refreshWritingAids, type WritingAidsOptions } from '../../extensions/writingAids';
+import { promptDialog } from '../../services/dialogs';
 import { cleanPastedText } from '../../utils/pasteCleanup';
 import './Editor.css';
 
@@ -42,6 +44,18 @@ function getProjectIgnoreWords(): string[] {
   }
   return Array.from(words);
 }
+
+/** Open (unresolved) comments on the file being edited. */
+function getOpenComments() {
+  const { novelProject, fileName } = useEditorStore.getState();
+  if (!novelProject || !fileName) return [];
+  return (novelProject.comments?.[fileName] || []).filter((c) => !c.resolved);
+}
+
+const writingAidsOptions: WritingAidsOptions = {
+  getComments: getOpenComments,
+  echoesEnabled: () => useEditorStore.getState().showEchoes,
+};
 
 const AUTOSAVE_DELAY_MS = 1500;
 const COUNT_DEBOUNCE_MS = 250;
@@ -107,6 +121,7 @@ export function Editor() {
         getIgnoreWords: getProjectIgnoreWords,
       }),
       SearchAndReplace,
+      WritingAids.configure(writingAidsOptions),
       StoryBibleMention,
     ],
     content: initialMarkdown,
@@ -181,6 +196,19 @@ export function Editor() {
       if (previewTimerRef.current) clearTimeout(previewTimerRef.current);
     };
   }, [editor, setEditorInstance, updateCounts]);
+
+  // Redraw comment anchors and repeated-word marks when they change, or another file is opened
+  const showEchoes = useEditorStore((s) => s.showEchoes);
+  const commentsKey = useEditorStore((s) =>
+    s.fileName
+      ? (s.novelProject?.comments?.[s.fileName] || []).map((c) => `${c.id}:${c.resolved ? 1 : 0}`).join(',')
+      : ''
+  );
+  const openFilePath = useEditorStore((s) => s.filePath);
+  useEffect(() => {
+    if (!editor || editor.isDestroyed) return;
+    refreshWritingAids(editor.view, writingAidsOptions);
+  }, [editor, showEchoes, commentsKey, openFilePath]);
 
   // Refresh spell & grammar decorations when spellCheckEnabled, dictionary, or codex changes
   useEffect(() => {
@@ -357,6 +385,23 @@ export function Editor() {
     }
   };
 
+  /** Leaves a note on the selected passage. The note is stored with the project, not in the text. */
+  const handleAddComment = async () => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    // A note is anchored to text inside one paragraph: use the first paragraph of the selection.
+    const quote = editor.state.doc.textBetween(from, to, '\n').split('\n')[0].trim().slice(0, 240);
+    if (!quote) return;
+    const text = await promptDialog({
+      title: 'Comment on this passage',
+      message: `“${quote.length > 90 ? `${quote.slice(0, 90)}…` : quote}”\n\nComments are saved with the novel and are never exported.`,
+      placeholder: 'Your note',
+      confirmLabel: 'Add comment',
+    });
+    if (text?.trim()) useEditorStore.getState().addCommentAction(quote, text);
+  };
+
   /** Cuts the selection out of the manuscript and parks it in the scratchpad. */
   const handleMoveToScratchpad = () => {
     if (!editor) return;
@@ -396,6 +441,7 @@ export function Editor() {
           onPaste={handlePaste}
           onPasteClean={handlePasteClean}
           onMoveToScratchpad={handleMoveToScratchpad}
+          onAddComment={useEditorStore.getState().novelProject ? () => void handleAddComment() : undefined}
           onClose={() => setContextMenu(null)}
         />
       )}

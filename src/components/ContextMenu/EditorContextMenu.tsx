@@ -16,6 +16,7 @@ import {
   Sparkles,
   StickyNote,
   ClipboardCheck,
+  MessageSquarePlus,
 } from 'lucide-react';
 import './EditorContextMenu.css';
 
@@ -31,6 +32,7 @@ export interface EditorContextMenuProps {
   onPaste: () => void;
   onPasteClean?: () => void;
   onMoveToScratchpad?: () => void;
+  onAddComment?: () => void;
   onClose: () => void;
 }
 
@@ -46,6 +48,7 @@ export function EditorContextMenu({
   onPaste,
   onPasteClean,
   onMoveToScratchpad,
+  onAddComment,
   onClose,
 }: EditorContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -297,6 +300,22 @@ export function EditorContextMenu({
         >
           <ClipboardCheck size={14} className="menu-icon" />
           <span className="menu-label">Paste and tidy</span>
+        </button>
+      )}
+
+      {onAddComment && (
+        <button
+          type="button"
+          className="context-menu-item"
+          title="Leave a note on the selected passage. Notes are never exported."
+          onClick={() => {
+            onAddComment();
+            onClose();
+          }}
+          disabled={!hasSelection}
+        >
+          <MessageSquarePlus size={14} className="menu-icon" />
+          <span className="menu-label">Add comment…</span>
         </button>
       )}
 

@@ -77,8 +77,31 @@ export interface NovelProject {
   /** Held in memory only; persisted separately in `.noveler/snapshots.json`. */
   snapshots?: SceneSnapshot[];
   gitRemoteUrl?: string;
+  /** Notes on passages, by chapter file name. Never exported. */
+  comments?: Record<string, ManuscriptComment[]>;
+  /** The export dialog's last choices for this novel. */
+  compileSettings?: CompileSettings;
   /** Net words written per local calendar day (`YYYY-MM-DD`). */
   writingLog?: WritingLog;
+}
+
+/** A note attached to a passage of the manuscript. Kept in noveler.json, never in the chapter file. */
+export interface ManuscriptComment {
+  id: string;
+  /** The passage the note is about, as it read when the note was written. */
+  quote: string;
+  text: string;
+  createdAt: string;
+  resolved?: boolean;
+}
+
+export interface CompileSettings {
+  title?: string;
+  author?: string;
+  contactInfo?: string;
+  format?: string;
+  typeface?: string;
+  sceneBreakSymbol?: string;
 }
 
 export const PROJECT_FILENAME = 'noveler.json';
@@ -403,6 +426,8 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     codex: existingProject?.codex || [],
     snapshots: await loadSnapshots(projectPath, existingProject?.snapshots || []),
     gitRemoteUrl: existingProject?.gitRemoteUrl,
+    compileSettings: existingProject?.compileSettings,
+    comments: existingProject?.comments || {},
     writingLog: existingProject?.writingLog || {},
   };
 

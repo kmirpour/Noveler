@@ -16,7 +16,9 @@ export interface CompileOptions {
   title: string;
   author: string;
   contactInfo?: string;
-  format: 'shunn-docx' | 'standard-docx' | 'markdown';
+  format: 'shunn-docx' | 'standard-docx' | 'markdown' | 'epub';
+  /** How `##` scene headings appear in an e-book. */
+  sceneTitleMode?: 'hide' | 'stars' | 'show';
   fontFamily?: string; // Default: 'Times New Roman' for Shunn, 'Georgia' for standard
   sceneBreakSymbol?: string; // Default: '#' for Shunn, '* * *' for standard
   selectedPaths: string[];
@@ -63,6 +65,21 @@ export async function compileNovel(
   const baseTitle = options.title.trim() || project.title || 'Manuscript';
   const authorName = options.author.trim() || project.author || 'Author';
   const sceneSymbol = options.sceneBreakSymbol || (options.format === 'shunn-docx' ? '#' : '* * *');
+
+  // Format: EPUB e-book
+  if (options.format === 'epub') {
+    const { buildEpub } = await import('./epub');
+    const data = await buildEpub(
+      loadedScenes.map(({ item, body }) => ({ title: item.title, markdown: body })),
+      {
+        title: baseTitle,
+        author: authorName,
+        sceneTitleMode: options.sceneTitleMode,
+        sceneBreakSymbol: options.sceneBreakSymbol && options.sceneBreakSymbol !== '#' ? options.sceneBreakSymbol : '* * *',
+      }
+    );
+    return { fileName: `${baseTitle}.epub`, wordCount: totalWords, data };
+  }
 
   // Format: Combined Markdown
   if (options.format === 'markdown') {

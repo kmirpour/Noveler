@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
-import { Target, Check } from 'lucide-react';
+import { Target, Check, GitCommitHorizontal } from 'lucide-react';
 import { wordsToday } from '../../utils/writingLog';
 import './StatusBar.css';
 
@@ -21,6 +21,8 @@ export function StatusBar() {
     projectPath,
     sceneTitle,
     chapterTitle,
+    gitChangedCount,
+    commitVersionAction,
   } = useEditorStore(
     useShallow((s) => {
       const chapter = s.novelProject?.binder.find((b) => b.path === s.filePath);
@@ -40,6 +42,8 @@ export function StatusBar() {
         projectPath: s.projectPath,
         sceneTitle: chapter?.scenes?.[s.activeSceneIndex],
         chapterTitle: chapter?.title,
+        gitChangedCount: s.gitChangedFiles?.length ?? 0,
+        commitVersionAction: s.commitVersionAction,
       };
     })
   );
@@ -92,6 +96,17 @@ export function StatusBar() {
           <span className="status-stat" title="Words across all chapters">
             Novel <strong>{novelWordCount.toLocaleString()}</strong>
           </span>
+        )}
+
+        {gitChangedCount > 0 && (
+          <button
+            className="status-btn"
+            onClick={() => void commitVersionAction()}
+            title={`${gitChangedCount} ${gitChangedCount === 1 ? 'file has' : 'files have'} changed since the last saved version. Click to save a version (git commit, kept on this computer).`}
+          >
+            <GitCommitHorizontal size={12} />
+            <span>{gitChangedCount} changed</span>
+          </button>
         )}
 
         {dailyWordGoal > 0 && (

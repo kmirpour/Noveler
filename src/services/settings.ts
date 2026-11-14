@@ -52,6 +52,8 @@ export interface AppSettings {
   focusMode: boolean;
   typewriterMode: boolean;
   dimUnfocused: boolean;
+  /** Highlight words repeated within a few lines. */
+  showEchoes: boolean;
   spellCheckEnabled: boolean;
   /** Sends paragraphs to the LanguageTool web service for grammar checking. Off unless the writer opts in. */
   onlineGrammarCheck: boolean;
@@ -80,6 +82,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   focusMode: false,
   typewriterMode: false,
   dimUnfocused: false,
+  showEchoes: false,
   spellCheckEnabled: true,
   onlineGrammarCheck: false,
   dailyWordGoal: 1000,

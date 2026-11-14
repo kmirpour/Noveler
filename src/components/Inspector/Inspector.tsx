@@ -16,6 +16,9 @@ import {
 import type { SceneMetadata, SceneStatus, SceneSnapshot } from '../../services/projectService';
 import { sceneMetaAt } from '../../utils/sceneMetadata';
 import { confirmDialog } from '../../services/dialogs';
+import { DiffView } from '../Settings/DiffView';
+import { CommentsSection } from './CommentsSection';
+import '../Settings/SettingsModal.css';
 import './Inspector.css';
 
 export function Inspector() {
@@ -238,6 +241,8 @@ export function Inspector() {
           />
         </div>
 
+        <CommentsSection />
+
         {/* Scene Snapshots & Version History */}
         {novelProject && (
           <div className="inspector-section">
@@ -385,21 +390,12 @@ export function Inspector() {
                 <X size={18} />
               </button>
             </div>
-            <div className="snapshot-compare-grid">
-              <div className="snapshot-compare-pane">
-                <div className="snapshot-compare-header">
-                  <strong>Snapshot ({new Date(previewSnapshot.timestamp).toLocaleString()})</strong>
-                  <span>{previewSnapshot.wordCount.toLocaleString()} words</span>
-                </div>
-                <pre className="snapshot-compare-body">{previewSnapshot.content}</pre>
-              </div>
-              <div className="snapshot-compare-pane">
-                <div className="snapshot-compare-header">
-                  <strong>Current Active Draft</strong>
-                  <span>{wordCount.toLocaleString()} words</span>
-                </div>
-                <pre className="snapshot-compare-body">{markdownContent}</pre>
-              </div>
+            <div className="snapshot-diff-body">
+              <p className="snapshot-diff-meta">
+                Snapshot from {new Date(previewSnapshot.timestamp).toLocaleString()}:{' '}
+                {previewSnapshot.wordCount.toLocaleString()} words. Current draft: {wordCount.toLocaleString()} words.
+              </p>
+              <DiffView before={previewSnapshot.content} after={markdownContent} beforeLabel="the snapshot" />
             </div>
             <div className="snapshot-preview-footer">
               <button
