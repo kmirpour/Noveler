@@ -49,6 +49,8 @@
   --tag-color: #1c3b6c;
 }
 
+
+
 /* Solarized Light: low-glare cream with cool ink */
 [data-theme='solarized-light'] {
   --bg-app: #eee8d5;
@@ -251,6 +253,30 @@
   --tag-color: #f0c878;
 }
 
+/* Midnight Ember: modern charcoal with warm orange accents */
+[data-theme='midnight-ember'] {
+  --bg-app: #151719;
+  --bg-editor: #1c2023;
+  --bg-preview: #191d20;
+  --bg-sidebar: #171a1d;
+  --bg-toolbar: #202529;
+  --bg-card: #242a2e;
+
+  --text-color: #eeebe6;
+  --text-muted: #969b9d;
+  --heading-color: #fff1e4;
+
+  --border-color: #343b40;
+
+  --accent-color: #f28b45;
+  --accent-light: #3a281f;
+  --accent-hover: #ffa05f;
+
+  --btn-hover: #2b3034;
+
+  --tag-bg: #35271f;
+  --tag-color: #f5a36d;
+}
 /* ==========================================================================
    Derived tokens (defined once for every theme)
    ========================================================================== */
@@ -316,7 +342,7 @@
 :root[data-theme-kind='dark'] {
   --status-idea: #94a3b8;
   --status-draft: #fbbf24;
-  --status-revised: #c4b5fd;
+  --status-revised: #83a8c5;
   --status-final: #6ee7b7;
   --danger: #f87171;
   --danger-bg: rgba(248, 113, 113, 0.16);

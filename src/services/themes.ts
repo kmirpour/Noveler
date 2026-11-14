@@ -15,6 +15,7 @@ export const THEMES = [
   { id: 'dracula', label: 'Dracula', description: 'Charcoal with violet', kind: 'dark', swatch: ['#282a36', '#f8f8f2', '#bd93f9'] },
   { id: 'dusk', label: 'Dusk', description: 'Violet twilight, rose accent', kind: 'dark', swatch: ['#201d2d', '#dcd7ea', '#e79ab0'] },
   { id: 'ink', label: 'Ink', description: 'True black for dark rooms', kind: 'dark', swatch: ['#050505', '#d6d6d6', '#e0b15c'] },
+  { id: 'midnight-ember', label: 'Midnight Ember', description: 'Eggplant rules', kind: 'dark', swatch: ['#151719', '#fff1e4', '#f28b45'] },
 ] as const;
 
 export type Theme = (typeof THEMES)[number]['id'];
