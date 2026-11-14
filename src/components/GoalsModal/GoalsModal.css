@@ -315,3 +315,73 @@
   font-size: 12px;
   color: var(--text-secondary);
 }
+
+/* Streak & 14-day writing history */
+.writing-history-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.writing-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.streak-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent-color);
+}
+
+.writing-history-bars {
+  display: grid;
+  grid-template-columns: repeat(14, 1fr);
+  gap: 4px;
+  align-items: end;
+}
+
+.writing-history-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+
+.writing-history-track {
+  width: 100%;
+  height: 48px;
+  display: flex;
+  align-items: flex-end;
+  background: var(--bg-subtle);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.writing-history-bar {
+  width: 100%;
+  min-height: 0;
+  background: var(--text-muted);
+  border-radius: 3px 3px 0 0;
+  transition: height 0.2s ease;
+}
+
+.writing-history-bar.met {
+  background: var(--accent-color);
+}
+
+.writing-history-label {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.writing-history-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0;
+}

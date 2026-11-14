@@ -343,6 +343,16 @@ export async function readDirTree(path: string): Promise<BinderNode[]> {
   return [];
 }
 
+/**
+ * Tells the backend which folder is the open novel. Creating, renaming and moving files is only
+ * allowed inside it, so a path bug can never touch anything outside the project.
+ */
+export async function setProjectRoot(path: string | null): Promise<void> {
+  if (isTauri()) {
+    await invoke('set_project_root', { path });
+  }
+}
+
 export async function createFile(path: string, initialContent?: string): Promise<void> {
   if (isTauri()) {
     await invoke('create_file', { path, initialContent: initialContent ?? null });
@@ -370,9 +380,4 @@ export async function renamePath(oldPath: string, newPath: string): Promise<void
   }
 }
 
-export async function deleteFile(path: string): Promise<void> {
-  if (isTauri()) {
-    await invoke('delete_file', { path });
-  }
-}
 

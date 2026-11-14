@@ -211,4 +211,64 @@ The rain poured through the broken glass skylight. Miller stepped over the rubbl
     expect(created.name).toBe('outline-2.md');
     spy.mockRestore();
   });
+
+  it('keeps the saved chapter order and metadata after the folder is moved, and saves portable paths', async () => {
+    const fileService = await import('./fileService');
+    const { loadNovelProject, saveNovelProject } = await import('./projectService');
+
+    // noveler.json written at the old location, with the writer's own chapter order.
+    const saved = {
+      version: 1,
+      title: 'Moved Novel',
+      binder: [
+        { id: 'keep-b', type: 'scene', title: 'B', path: 'D:\\Old\\Place\\02-b.md', status: 'revised' },
+        { id: 'keep-a', type: 'scene', title: 'A', path: 'D:\\Old\\Place\\01-a.md' },
+      ],
+      snapshots: [
+        { id: 's1', scenePath: 'D:\\Old\\Place\\01-a.md', timestamp: '2026-01-01', label: 'x', wordCount: 1, content: 'c' },
+      ],
+    };
+    const tree = vi.spyOn(fileService, 'readDirTree').mockResolvedValue([
+      { name: '01-a.md', path: '/new/01-a.md', is_dir: false, children: [] },
+      { name: '02-b.md', path: '/new/02-b.md', is_dir: false, children: [] },
+      { name: '03-c.md', path: '/new/03-c.md', is_dir: false, children: [] },
+    ]);
+    const read = vi.spyOn(fileService, 'readFileDirect').mockImplementation(async (path: string) => {
+      if (path.endsWith('noveler.json')) return { path, name: 'noveler.json', content: JSON.stringify(saved) };
+      throw new Error('not found');
+    });
+    const writes = new Map<string, string>();
+    const write = vi.spyOn(fileService, 'saveFile').mockImplementation(async (path: string, content: string) => {
+      writes.set(path, content);
+    });
+
+    const project = await loadNovelProject('/new');
+    // Saved order first (b, a), then the chapter the project hasn't seen yet.
+    expect(project.binder.map((b) => b.path)).toEqual(['/new/02-b.md', '/new/01-a.md', '/new/03-c.md']);
+    expect(project.binder[0].id).toBe('keep-b');
+    expect(project.binder[0].status).toBe('revised');
+    // Snapshots follow the folder and are moved out of noveler.json.
+    expect(project.snapshots?.[0].scenePath).toBe('/new/01-a.md');
+    expect(JSON.parse(writes.get('/new/.noveler/snapshots.json')!)[0].scenePath).toBe('01-a.md');
+
+    await saveNovelProject('/new', project);
+    const json = JSON.parse(writes.get('/new/noveler.json')!);
+    expect(json.binder.map((b: { path: string }) => b.path)).toEqual(['02-b.md', '01-a.md', '03-c.md']);
+    expect(json.snapshots).toBeUndefined();
+
+    tree.mockRestore();
+    read.mockRestore();
+    write.mockRestore();
+  });
+
+  it('reads and writes the chapter title as a plain Markdown # heading', async () => {
+    const { extractChapterHeadingTitle, setChapterHeadingTitle } = await import('./projectService');
+    expect(extractChapterHeadingTitle('# **Chapter 2: A-Z**\n\n## OTTO\n\nText')).toBe('Chapter 2: A-Z');
+    expect(extractChapterHeadingTitle('## Only a scene\n\nText')).toBeNull();
+    expect(extractChapterHeadingTitle('No heading at all')).toBeNull();
+
+    expect(setChapterHeadingTitle('# Old\n\n## Scene\n\nText\n', 'New Title')).toBe('# New Title\n\n## Scene\n\nText\n');
+    expect(setChapterHeadingTitle('## Scene\n\nText\n', 'Added')).toBe('# Added\n\n## Scene\n\nText\n');
+    expect(setChapterHeadingTitle('', 'Fresh')).toBe('# Fresh\n');
+  });
 });

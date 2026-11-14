@@ -13,7 +13,8 @@ import {
   Trash2,
   Eye,
 } from 'lucide-react';
-import type { SceneStatus, SceneSnapshot } from '../../services/projectService';
+import type { SceneMetadata, SceneStatus, SceneSnapshot } from '../../services/projectService';
+import { sceneMetaAt } from '../../utils/sceneMetadata';
 import './Inspector.css';
 
 export function Inspector() {
@@ -30,8 +31,12 @@ export function Inspector() {
     createSceneSnapshotAction,
     restoreSceneSnapshotAction,
     deleteSceneSnapshotAction,
+    activeSceneIndex,
+    updateSceneNotesAction,
   } = useEditorStore(
     useShallow((s) => ({
+      activeSceneIndex: s.activeSceneIndex,
+      updateSceneNotesAction: s.updateSceneNotesAction,
       inspectorOpen: s.inspectorOpen,
       setInspectorOpen: s.setInspectorOpen,
       currentMetadata: s.currentMetadata,
@@ -50,27 +55,43 @@ export function Inspector() {
   const [snapshotLabel, setSnapshotLabel] = useState('');
   const [takingSnapshot, setTakingSnapshot] = useState(false);
   const [previewSnapshot, setPreviewSnapshot] = useState<SceneSnapshot | null>(null);
+  const [scopeChoice, setScopeChoice] = useState<'scene' | 'chapter'>('scene');
 
   if (!inspectorOpen) return null;
 
-  const targetWords = currentMetadata.targetWords || 0;
-  const progressPercent = targetWords > 0 ? Math.min(100, Math.round((wordCount / targetWords) * 100)) : 0;
+  // Notes can be kept for the scene the cursor is in, or for the chapter as a whole.
+  const chapterItem = novelProject?.binder.find((b) => b.path === filePath);
+  const sceneTitle = chapterItem?.scenes?.[activeSceneIndex];
+  const hasScene = Boolean(filePath && sceneTitle !== undefined);
+  const scope: 'scene' | 'chapter' = hasScene ? scopeChoice : 'chapter';
+  const meta: SceneMetadata =
+    scope === 'scene' ? sceneMetaAt(novelProject, filePath, activeSceneIndex) : currentMetadata;
+  const update = (partial: Partial<SceneMetadata>) => {
+    if (scope === 'scene' && filePath) updateSceneNotesAction(filePath, activeSceneIndex, partial);
+    else updateSceneMetadata(partial);
+  };
+  const scopeWords =
+    scope === 'scene' ? (chapterItem?.sceneWords?.[activeSceneIndex] ?? 0) : wordCount;
+  const scopeLabel = scope === 'scene' ? 'Scene' : 'Chapter';
+
+  const targetWords = meta.targetWords || 0;
+  const progressPercent = targetWords > 0 ? Math.min(100, Math.round((scopeWords / targetWords) * 100)) : 0;
 
   const handleStatusChange = (status: SceneStatus) => {
-    updateSceneMetadata({ status });
+    update({ status });
   };
 
   const handleSynopsisChange = (synopsis: string) => {
-    updateSceneMetadata({ synopsis });
+    update({ synopsis });
   };
 
   const handlePovChange = (pov: string) => {
-    updateSceneMetadata({ pov });
+    update({ pov });
   };
 
   const handleTargetChange = (e: ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
-    updateSceneMetadata({ targetWords: isNaN(val) ? 0 : Math.max(0, val) });
+    update({ targetWords: isNaN(val) ? 0 : Math.max(0, val) });
   };
 
   const sceneSnapshots = (novelProject?.snapshots || []).filter(
@@ -82,7 +103,7 @@ export function Inspector() {
       <div className="inspector-header">
         <div className="inspector-title">
           <SlidersHorizontal size={15} />
-          <span>Scene Inspector</span>
+          <span>Inspector</span>
         </div>
         <button
           className="inspector-close-btn"
@@ -96,21 +117,53 @@ export function Inspector() {
       <div className="inspector-content">
         {/* Scene Document Name & Status */}
         <div className="inspector-section">
-          <label className="inspector-label">Active Scene</label>
-          <div className="inspector-scene-name" title={fileName || 'Untitled'}>
+          {hasScene && (
+            <div className="inspector-scope-toggle" role="tablist" aria-label="Notes for">
+              <button
+                type="button"
+                role="tab"
+                aria-selected={scope === 'scene'}
+                className={`inspector-scope-btn ${scope === 'scene' ? 'active' : ''}`}
+                onClick={() => setScopeChoice('scene')}
+              >
+                This scene
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={scope === 'chapter'}
+                className={`inspector-scope-btn ${scope === 'chapter' ? 'active' : ''}`}
+                onClick={() => setScopeChoice('chapter')}
+              >
+                Whole chapter
+              </button>
+            </div>
+          )}
+          <div
+            className="inspector-scene-name"
+            title={scope === 'scene' ? sceneTitle : chapterItem?.title || fileName || 'Untitled'}
+          >
             <FileText size={14} className="inspector-meta-icon" />
-            <span>{fileName ? fileName.replace(/\.(md|markdown|txt)$/i, '') : 'Untitled Document'}</span>
+            <span>
+              {scope === 'scene'
+                ? sceneTitle
+                : chapterItem?.title ||
+                  (fileName ? fileName.replace(/\.(md|markdown|txt)$/i, '') : 'Untitled Document')}
+            </span>
           </div>
+          {scope === 'scene' && (
+            <p className="inspector-hint">Follows the cursor. Notes are saved with the project, never in the chapter file.</p>
+          )}
         </div>
 
         {/* Status Selector */}
         <div className="inspector-section">
-          <label className="inspector-label">Scene Status</label>
+          <label className="inspector-label">{scopeLabel} Status</label>
           <div className="status-button-group">
             {(['idea', 'draft', 'revised', 'final'] as SceneStatus[]).map((st) => (
               <button
                 key={st}
-                className={`status-pill-btn ${currentMetadata.status === st ? 'active' : ''} ${st}`}
+                className={`status-pill-btn ${meta.status === st ? 'active' : ''} ${st}`}
                 onClick={() => handleStatusChange(st)}
               >
                 {st.charAt(0).toUpperCase() + st.slice(1)}
@@ -128,7 +181,7 @@ export function Inspector() {
               type="text"
               className="inspector-text-input"
               placeholder="e.g. John Miller"
-              value={currentMetadata.pov || ''}
+              value={meta.pov || ''}
               onChange={(e) => handlePovChange(e.target.value)}
             />
           </div>
@@ -136,7 +189,7 @@ export function Inspector() {
 
         {/* Scene Word Goal */}
         <div className="inspector-section">
-          <label className="inspector-label">Scene Word Target</label>
+          <label className="inspector-label">{scopeLabel} Word Target</label>
           <div className="inspector-input-wrapper">
             <Target size={14} className="inspector-meta-icon" />
             <input
@@ -145,7 +198,7 @@ export function Inspector() {
               step="100"
               className="inspector-text-input"
               placeholder="e.g. 1500"
-              value={currentMetadata.targetWords || ''}
+              value={meta.targetWords || ''}
               onChange={handleTargetChange}
             />
           </div>
@@ -159,7 +212,7 @@ export function Inspector() {
                 />
               </div>
               <div className="scene-progress-text">
-                <span>{wordCount.toLocaleString()} / {targetWords.toLocaleString()} words</span>
+                <span>{scopeWords.toLocaleString()} / {targetWords.toLocaleString()} words</span>
                 <span>{progressPercent}%</span>
               </div>
             </div>
@@ -174,8 +227,12 @@ export function Inspector() {
           </div>
           <textarea
             className="inspector-textarea"
-            placeholder="Outline what happens in this scene, key dialogue, conflicts, and outcomes..."
-            value={currentMetadata.synopsis || ''}
+            placeholder={
+              scope === 'scene'
+                ? 'What happens in this scene? Beats, conflict, what changes…'
+                : 'What this chapter does for the story…'
+            }
+            value={meta.synopsis || ''}
             onChange={(e) => handleSynopsisChange(e.target.value)}
           />
         </div>
@@ -184,12 +241,12 @@ export function Inspector() {
         {novelProject && (
           <div className="inspector-section">
             <div className="snapshots-header">
-              <label className="inspector-label">Version Snapshots</label>
+              <label className="inspector-label">Chapter Snapshots</label>
               {!takingSnapshot && (
                 <button
                   className="take-snapshot-btn"
                   onClick={() => setTakingSnapshot(true)}
-                  title="Capture snapshot of current scene"
+                  title="Save a named copy of this chapter as it is now"
                 >
                   <Camera size={12} />
                   <span>Snapshot</span>
@@ -234,7 +291,7 @@ export function Inspector() {
 
             <div className="snapshot-list">
               {sceneSnapshots.length === 0 ? (
-                <div className="snapshot-empty">No snapshots saved for this scene.</div>
+                <div className="snapshot-empty">No snapshots saved for this chapter.</div>
               ) : (
                 sceneSnapshots.map((snap) => {
                   const dateStr = new Date(snap.timestamp).toLocaleTimeString([], {

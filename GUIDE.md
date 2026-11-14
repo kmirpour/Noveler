@@ -39,9 +39,12 @@ MyNovel/
 ├── 01-the-arrival.md         # Clean Markdown Chapter 1
 ├── 02-the-letter.md          # Clean Markdown Chapter 2
 ├── 03-the-confrontation.md   # Clean Markdown Chapter 3
-├── noveler.json              # Companion metadata file (settings, scratchpad, lore)
+├── scratchpad.md             # Your scratchpad notes (plain Markdown)
+├── noveler.json              # Companion metadata file (chapter order, synopses, lore, writing log)
+├── graveyard/                # Everything you "delete" lands here as plain Markdown
 └── .noveler/
-    └── backups/              # Rolling chapter revisions
+    ├── backups/              # Rolling chapter revisions
+    └── snapshots.json        # Named snapshots you take from the Inspector
 ```
 
 ### 100% Clean Markdown Guarantee
@@ -49,7 +52,8 @@ All chapter files (`.md`) contain **pure, standard Markdown**:
 - **No YAML frontmatter** is ever written into your prose.
 - **No proprietary tags or custom code syntax** are injected into your files.
 - Every `.md` file is readable and editable in any standard Markdown editor (Obsidian, VS Code, iA Writer, Ulysses, or Notepad), syncable via Git, and portable forever.
-- Any project-specific metadata (scratchpad notes, synopsis cards, tag categories) is maintained cleanly in the companion `noveler.json` file.
+- Any project-specific metadata (chapter order, synopsis cards, tag categories) is maintained cleanly in the companion `noveler.json` file. It refers to chapters by file name only, so the folder can be moved, renamed or cloned to another computer.
+- Every structural action in the app (adding, renaming, reordering or removing scenes and chapters) only ever writes ordinary `#` / `##` headings and paragraphs.
 
 ### Flat Folder Structure
 All chapters belong directly in the root of your novel's project directory. **Do not create subfolders for individual chapters**. Noveler indexes all root-level `.md` files and handles sequential sorting automatically.
@@ -81,11 +85,15 @@ Noveler uses numeric prefixes to maintain natural narrative order:
   - `01-the-arrival.md`
   - `02-shadows-over-the-harbor.md`
   - `03-an-unexpected-guest.md`
-- The sidebar displays chapters cleaned of their numbers for clear readability (e.g., *The Arrival*, *Shadows Over The Harbor*) while preserving their filenames on disk.
+- The sidebar shows each chapter under its own title: the first `# Heading` in the file. If a chapter has no heading yet, a name derived from the file name is shown instead.
+
+### Reordering
+- Drag chapters in the sidebar to reorder them. The order is saved in `noveler.json`; **chapter files are never renamed or rewritten** by reordering, so backups, snapshots and git history stay attached to each file.
+- Chapters created outside Noveler appear after the ones you have arranged, sorted by their numeric prefix.
 
 ### Renaming and Deleting
-- **Renaming**: Hover over any chapter in the sidebar and click the **Pencil** icon to rename the chapter title. Noveler updates the filename and updates project metadata.
-- **Deleting**: Click the **Trash** icon to delete a chapter file. Noveler will prompt you to confirm before deleting from disk.
+- **Renaming a chapter** rewrites its `# Heading` (or adds one). The file name does not change. Renaming a note under *Other Files* renames the file.
+- **Deleting** never destroys text. A deleted chapter or note is moved to `graveyard/` with a timestamp in its name, and a deleted scene is saved there as its own Markdown file before it is removed from the chapter. To bring something back, move or copy it out of `graveyard/`.
 
 ---
 
@@ -119,9 +127,24 @@ As you type, Noveler automatically enhances standard keyboard characters:
 - Triple periods (`...`) convert to an ellipsis character (`…`).
 
 ### Structural Headings
-- **Heading 1 (`# Title`)**: Best used for novel titles or major Book/Act divisions.
-- **Heading 2 (`## Chapter Title`)**: Standard chapter headings.
-- **Heading 3 (`### Scene / POV`)**: Subheadings for scene titles, locations, or POV indicators.
+- **Heading 1 (`# Title`)**: The chapter's title. One per chapter file, at the top.
+- **Heading 2 (`## Scene Title`)**: Starts a scene. Everything up to the next `##` belongs to it. The sidebar outline, the corkboard and scene notes are all built from these headings.
+- **Heading 3 (`### …`)**: A subheading inside a scene.
+
+The toolbar's *Scenes* menu controls how `##` scene titles look while you write and in exports: shown, replaced by `***`, or hidden. The headings stay in the file either way.
+
+### Scenes in the Sidebar
+Expand a chapter to see its scenes, each with its word count and (if set) a status dot. From there you can:
+- click a scene to jump to it, double-click to rename it, drag to reorder it;
+- add a scene below, or remove one (its text is saved to `graveyard/` first);
+- **move a scene out to its own file** (the arrow-out icon): it becomes `scene-<title>.md` under *Other Files*, ready to be parked or placed elsewhere.
+
+Each of these is a single undo step in the editor.
+
+### Loose Scenes and Notes ("Other Files")
+Files that are not chapters are listed under *Other Files*, grouped by the first word of their file name once two or more share it (for example *Scene*, *Plot*), with the rest under *Notes*. From a file's **⋮** menu:
+- **Open Beside Editor** shows it read-only next to the chapter you are writing.
+- **Insert as Scene in…** adds the note's text to the end of the chosen chapter as a new `##` scene. The note file itself is moved to `graveyard/`.
 
 ---
 
@@ -159,11 +182,12 @@ Noveler offers four workspace view modes accessible via the view pills in the to
 | **Split Mode** | ◫ Split | Side-by-side editing canvas and live book-typeset preview. |
 | **Eye Mode** | 👁️ Eye | Read-only book reader for proofreading and immersion. |
 | **Pen & Scratchpad** | 📝 Note | Split canvas with active chapter editor on the left and persistent Scratchpad on the right. |
+| **Pen & Reference** | 📖 Book | The chapter editor on the left and any other file from the novel folder on the right, read-only: your world notes, a plot outline, or an earlier chapter. Pick the file from the menu at the top of the pane. |
 
 ### Using the Scratchpad & Flushing to Graveyard
 The **Scratchpad** is an integrated free-form notepad designed for spontaneous notes that shouldn't interrupt your drafting flow:
 - **What to put here**: Snippets of dialogue, alternate phrasing, reminders for later chapters, sensory details, or beat outlines.
-- **Project-Scoped & Persistent**: Notes written in the scratchpad are saved automatically in `noveler.json` and remain accessible whenever you open this novel.
+- **Project-Scoped & Persistent**: Notes written in the scratchpad are saved automatically to `scratchpad.md` in the novel folder and remain accessible whenever you open this novel.
 - **Manuscript Isolation**: Scratchpad text is **never** added to your `.md` chapter files and is completely excluded from manuscript compilation and exports.
 - **Flush to Graveyard (`Archive` icon)**: 
   - When your scratchpad is full or you want to archive scrap scenes and research notes, click the **Flush to Graveyard** button in the scratchpad header.
@@ -211,9 +235,11 @@ Open the Codex from the toolbar to access a structured story bible:
 - Saved automatically in your project configuration.
 
 ### The Corkboard (Outlining & Synopses)
-Open the Corkboard to view your manuscript as physical index cards:
-- Each chapter appears as an index card showing its title, word count, and synopsis.
-- Draft scene summaries and outline upcoming chapters before writing prose.
+Open the Corkboard to view your manuscript as index cards:
+- Each **scene** is a card, grouped under its chapter, showing its title, word count, status, POV and synopsis.
+- Write the synopsis and set status or POV right on the card. Drag cards to reorder scenes within a chapter. **Write** jumps to that scene in the editor.
+- The same notes appear in the **Inspector** for the scene your cursor is in ("This scene"), with a second tab for notes about the whole chapter.
+- Scene notes are stored in `noveler.json` and follow a scene when it is moved or renamed inside Noveler. They are never written into the chapter file.
 
 ### Prose Analysis
 Open the Prose Analysis panel from the toolbar to analyze the linguistic quality of your chapter:
@@ -228,19 +254,20 @@ Right-click on any word or highlighted text in the editor to open a themed conte
 - **Thesaurus Flyout**: Hovering over **Thesaurus ▶** displays high-relevance **Synonyms** and **Antonyms**.
 - **1-Click Replacement**: Clicking any suggestion immediately replaces the word in your manuscript.
 - **Smart Casing & Punctuation**: Automatically preserves original casing (e.g., `"Brilliant"` ➔ `"Radiant"`, `"Misspeled"` ➔ `"Misspelled"`) and preserves punctuation (quotes, commas, periods) around the word.
-- **Hybrid Online/Offline Architecture**: Powered by the Datamuse API backed by in-memory session caching and comprehensive offline fallback dictionaries for both typos and synonyms when writing without an internet connection.
+- **Privacy**: Live spell and grammar checking runs entirely on your computer by default. A fuller online grammar check (LanguageTool) is available but **off unless you turn it on** from the Command Palette ("Toggle Online Grammar Check"), because it sends the paragraph you are editing to that web service. Thesaurus and spelling suggestions look up the single word you right-clicked via the Datamuse API, with offline fallbacks.
 - **Standard Clipboard Actions**: Includes Cut (`Ctrl + X`), Copy (`Ctrl + C`), and Paste (`Ctrl + V`).
 - **Native Context Menu Access**: Hold `Shift + Right Click` at any time to bypass the custom menu and open the native operating system/browser context menu (for system-level actions like adding custom words to the OS dictionary).
 
 ### Goals & Word Targets (`Ctrl + G`)
 Open the Goals modal to configure your writing milestones:
-- **Daily Target**: Set a session goal (e.g., 1,000 words/day). The status bar updates your daily progress bar in real time.
-- **Manuscript Target**: Set total project targets (e.g., 85,000 words).
-- **Streak Tracker**: Tracks consecutive days of writing activity.
+- **Daily Target**: Set a daily goal (e.g., 1,000 words/day). Progress counts net words added to your chapters today, across every chapter you work in, and survives closing the app. Opening a file, restoring a snapshot or removing a scene is not counted as writing.
+- **This Sitting**: A separate counter since you started the app; "New Sprint" resets it without touching today's total.
+- **Streak & History**: Shows consecutive days with words written and a bar for each of the last 14 days. The log is stored in `noveler.json`.
 
 ### Find & Replace & Command Palette
 - **Find & Replace (`Ctrl + F`)**: Clean in-editor search bar supporting case sensitivity, whole word matching, and Replace / Replace All.
-- **Command Palette (`Ctrl + K`)**: Rapid keyboard command launcher for toggling modes, opening tools, and switching views.
+- **Search the whole novel**: Turn on the project scope in Find & Replace to search every chapter and every note in the folder.
+- **Command Palette (`Ctrl + K`)**: Rapid keyboard command launcher for toggling modes, opening tools, and switching views. Type part of a chapter, scene or note name to jump straight to it.
 
 ---
 
@@ -312,6 +339,7 @@ Writing a novel represents hundreds of hours of creative labor. Noveler includes
 
 ### 1. Debounced Autosave
 - Changes are automatically saved to disk 1.5 seconds after you pause typing.
+- Switching to another chapter saves the current one first, without asking.
 - The status bar displays a live status indicator (green dot for *Saved*, orange for *Unsaved changes*).
 
 ### 2. Atomic File Writes

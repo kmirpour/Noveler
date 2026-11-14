@@ -1,5 +1,5 @@
 export type Theme = 'sepia' | 'light' | 'dark' | 'forest' | 'nord';
-export type ViewMode = 'editor' | 'split' | 'preview' | 'scratchpad';
+export type ViewMode = 'editor' | 'split' | 'preview' | 'scratchpad' | 'reference';
 export type FontFamily = 'serif' | 'sans' | 'mono';
 export type SceneTitleMode = 'hide' | 'stars' | 'show';
 
@@ -17,6 +17,8 @@ export interface AppSettings {
   typewriterMode: boolean;
   dimUnfocused: boolean;
   spellCheckEnabled: boolean;
+  /** Sends paragraphs to the LanguageTool web service for grammar checking. Off unless the writer opts in. */
+  onlineGrammarCheck: boolean;
   dailyWordGoal: number;
   lastProjectPath: string | null;
   recentFiles: string[];
@@ -38,6 +40,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   typewriterMode: false,
   dimUnfocused: false,
   spellCheckEnabled: true,
+  onlineGrammarCheck: false,
   dailyWordGoal: 1000,
   lastProjectPath: null,
   recentFiles: [],

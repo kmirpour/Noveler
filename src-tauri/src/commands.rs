@@ -1,7 +1,8 @@
 use serde::Serialize;
 use std::fs::{self, File};
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
+use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[derive(Serialize, Clone)]
@@ -30,6 +31,21 @@ const BACKUP_INTERVAL: Duration = Duration::from_secs(10 * 60);
 /// Number of backups kept per file.
 const MAX_BACKUPS: usize = 20;
 
+/// The folder of the novel that is currently open. Commands that create, move or rename files
+/// only work inside it, so a bad path can never touch anything outside the project.
+#[derive(Default)]
+pub struct ProjectRoot(pub Mutex<Option<PathBuf>>);
+
+impl ProjectRoot {
+    fn get(&self) -> Result<PathBuf, String> {
+        self.0
+            .lock()
+            .map_err(|_| "Project state is unavailable".to_string())?
+            .clone()
+            .ok_or_else(|| "No novel folder is open".to_string())
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Commands
 // ---------------------------------------------------------------------------
@@ -50,9 +66,12 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
     ensure_extension(&path, TEXT_EXTENSIONS)?;
     ensure_absolute(&path)?;
 
-    if let Err(e) = backup_existing(&path, SystemTime::now()) {
-        // A failed backup must never prevent the user from saving.
-        eprintln!("[noveler] backup failed for {}: {e}", path.display());
+    // Noveler's own bookkeeping under .noveler/ (snapshots, backups) is not itself backed up.
+    if !is_internal(&path) {
+        if let Err(e) = backup_existing(&path, SystemTime::now()) {
+            // A failed backup must never prevent the user from saving.
+            eprintln!("[noveler] backup failed for {}: {e}", path.display());
+        }
     }
     atomic_write(&path, content.as_bytes())
 }
@@ -157,10 +176,52 @@ pub fn read_dir_tree(path: String) -> Result<Vec<BinderNode>, String> {
 }
 
 #[tauri::command]
-pub fn create_file(path: String, initial_content: Option<String>) -> Result<(), String> {
+pub fn set_project_root(state: tauri::State<ProjectRoot>, path: Option<String>) -> Result<(), String> {
+    let root = match path {
+        Some(p) => {
+            let p = PathBuf::from(p);
+            ensure_absolute(&p)?;
+            if !p.is_dir() {
+                return Err(format!("Not a folder: {}", p.display()));
+            }
+            Some(p)
+        }
+        None => None,
+    };
+    *state
+        .0
+        .lock()
+        .map_err(|_| "Project state is unavailable".to_string())? = root;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn create_file(
+    state: tauri::State<ProjectRoot>,
+    path: String,
+    initial_content: Option<String>,
+) -> Result<(), String> {
+    create_file_in(&state.get()?, path, initial_content)
+}
+
+#[tauri::command]
+pub fn create_dir(state: tauri::State<ProjectRoot>, path: String) -> Result<(), String> {
+    create_dir_in(&state.get()?, path)
+}
+
+#[tauri::command]
+pub fn rename_path(
+    state: tauri::State<ProjectRoot>,
+    old_path: String,
+    new_path: String,
+) -> Result<(), String> {
+    rename_path_in(&state.get()?, old_path, new_path)
+}
+
+fn create_file_in(root: &Path, path: String, initial_content: Option<String>) -> Result<(), String> {
     let p = PathBuf::from(&path);
     ensure_extension(&p, TEXT_EXTENSIONS)?;
-    ensure_absolute(&p)?;
+    ensure_inside(root, &p)?;
     if p.exists() {
         return Err(format!("File already exists: {}", p.display()));
     }
@@ -171,36 +232,29 @@ pub fn create_file(path: String, initial_content: Option<String>) -> Result<(), 
     atomic_write(&p, content.as_bytes())
 }
 
-#[tauri::command]
-pub fn create_dir(path: String) -> Result<(), String> {
+fn create_dir_in(root: &Path, path: String) -> Result<(), String> {
     let p = PathBuf::from(&path);
-    ensure_absolute(&p)?;
+    ensure_inside(root, &p)?;
     fs::create_dir_all(&p).map_err(|e| format!("Failed to create directory: {e}"))
 }
 
-#[tauri::command]
-pub fn rename_path(old_path: String, new_path: String) -> Result<(), String> {
+/// Renames or moves a text file within the project. Never overwrites an existing file, and never
+/// moves folders. There is deliberately no delete command: the app "deletes" by moving files into
+/// the project's graveyard/ folder with this function.
+fn rename_path_in(root: &Path, old_path: String, new_path: String) -> Result<(), String> {
     let old = PathBuf::from(&old_path);
     let new = PathBuf::from(&new_path);
-    ensure_absolute(&old)?;
-    ensure_absolute(&new)?;
-    if !old.is_dir() {
-        ensure_extension(&old, TEXT_EXTENSIONS)?;
-        ensure_extension(&new, TEXT_EXTENSIONS)?;
+    ensure_inside(root, &old)?;
+    ensure_inside(root, &new)?;
+    ensure_extension(&old, TEXT_EXTENSIONS)?;
+    ensure_extension(&new, TEXT_EXTENSIONS)?;
+    if !old.is_file() {
+        return Err(format!("Not a file: {}", old.display()));
+    }
+    if new.exists() {
+        return Err(format!("A file named '{}' already exists", new.display()));
     }
     fs::rename(&old, &new).map_err(|e| format!("Failed to rename {} to {}: {e}", old.display(), new.display()))
-}
-
-#[tauri::command]
-pub fn delete_file(path: String) -> Result<(), String> {
-    let p = PathBuf::from(&path);
-    ensure_absolute(&p)?;
-    if p.is_dir() {
-        fs::remove_dir_all(&p).map_err(|e| format!("Failed to remove directory: {e}"))
-    } else {
-        ensure_extension(&p, TEXT_EXTENSIONS)?;
-        fs::remove_file(&p).map_err(|e| format!("Failed to remove file: {e}"))
-    }
 }
 
 #[derive(Serialize, Clone)]
@@ -486,6 +540,21 @@ fn ensure_absolute(path: &Path) -> Result<(), String> {
     }
 }
 
+/// The path must be an absolute path strictly inside `root`, with no `..` segments.
+fn ensure_inside(root: &Path, path: &Path) -> Result<(), String> {
+    ensure_absolute(path)?;
+    let has_parent_segment = path.components().any(|c| matches!(c, Component::ParentDir));
+    if has_parent_segment || !path.starts_with(root) || path == root {
+        return Err(format!("'{}' is outside the open novel folder", path.display()));
+    }
+    Ok(())
+}
+
+/// True for files under a `.noveler` folder (the app's own bookkeeping).
+fn is_internal(path: &Path) -> bool {
+    path.components().any(|c| c.as_os_str() == ".noveler")
+}
+
 /// Write to a temp file in the same directory, flush to disk, then rename over
 /// the target. `fs::rename` replaces the destination atomically on Windows
 /// (MoveFileExW + MOVEFILE_REPLACE_EXISTING) and on POSIX.
@@ -727,17 +796,17 @@ mod tests {
     fn test_project_tree_and_file_operations() {
         let dir = temp_dir("project_test");
         let act_dir = dir.join("Act 1");
-        create_dir(act_dir.to_string_lossy().into()).unwrap();
+        create_dir_in(&dir, act_dir.to_string_lossy().into()).unwrap();
         assert!(act_dir.is_dir());
 
         let scene1 = act_dir.join("Scene 1.md");
-        create_file(scene1.to_string_lossy().into(), Some("# Scene 1".into())).unwrap();
+        create_file_in(&dir, scene1.to_string_lossy().into(), Some("# Scene 1".into())).unwrap();
         assert!(scene1.is_file());
         assert_eq!(read_file(scene1.to_string_lossy().into()).unwrap(), "# Scene 1");
 
         // Test rename
         let scene_renamed = act_dir.join("Prologue.md");
-        rename_path(scene1.to_string_lossy().into(), scene_renamed.to_string_lossy().into()).unwrap();
+        rename_path_in(&dir, scene1.to_string_lossy().into(), scene_renamed.to_string_lossy().into()).unwrap();
         assert!(!scene1.exists());
         assert!(scene_renamed.exists());
 
@@ -750,11 +819,48 @@ mod tests {
         assert_eq!(tree[0].children[0].name, "Prologue.md");
         assert!(!tree[0].children[0].is_dir);
 
-        // Test delete
-        delete_file(scene_renamed.to_string_lossy().into()).unwrap();
-        assert!(!scene_renamed.exists());
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn file_operations_are_confined_to_the_project() {
+        let dir = temp_dir("confined");
+        let project = dir.join("novel");
+        fs::create_dir_all(&project).unwrap();
+        let outside = dir.join("outside.md");
+        fs::write(&outside, "keep me").unwrap();
+        let inside = project.join("01-chapter.md");
+        fs::write(&inside, "chapter").unwrap();
+        let s = |p: &Path| -> String { p.to_string_lossy().into() };
+
+        // Creating or moving files outside the project is refused.
+        assert!(create_file_in(&project, s(&dir.join("new.md")), None).is_err());
+        assert!(create_dir_in(&project, s(&dir.join("elsewhere"))).is_err());
+        assert!(rename_path_in(&project, s(&outside), s(&project.join("in.md"))).is_err());
+        assert!(rename_path_in(&project, s(&inside), s(&dir.join("out.md"))).is_err());
+        let sneaky = project.join("..").join("outside.md");
+        assert!(rename_path_in(&project, s(&sneaky), s(&project.join("x.md"))).is_err());
+
+        // A move never overwrites an existing file.
+        let other = project.join("02-chapter.md");
+        fs::write(&other, "second").unwrap();
+        assert!(rename_path_in(&project, s(&inside), s(&other)).is_err());
+        assert_eq!(fs::read_to_string(&other).unwrap(), "second");
+
+        // Moving into the graveyard works.
+        let grave = project.join("graveyard");
+        create_dir_in(&project, s(&grave)).unwrap();
+        let buried = grave.join("2026-01-01_00-00-00_01-chapter.md");
+        rename_path_in(&project, s(&inside), s(&buried)).unwrap();
+        assert_eq!(fs::read_to_string(&buried).unwrap(), "chapter");
+        assert_eq!(fs::read_to_string(&outside).unwrap(), "keep me");
 
         fs::remove_dir_all(dir).unwrap();
     }
-}
 
+    #[test]
+    fn internal_files_are_not_backed_up() {
+        assert!(is_internal(Path::new("C:/novel/.noveler/snapshots.json")));
+        assert!(!is_internal(Path::new("C:/novel/01-chapter.md")));
+    }
+}

@@ -1,4 +1,5 @@
 import * as fileService from './fileService';
+import type { WritingLog } from '../utils/writingLog';
 import {
   isChapterFileName,
   getNextChapterFileName,
@@ -27,6 +28,8 @@ export interface BinderItem {
   targetWords?: number;
   /** Runtime-parsed scene headers (`## Title`) inside this chapter; not persisted in noveler.json */
   scenes?: string[];
+  /** Runtime word count of each scene, parallel to `scenes`; not persisted. */
+  sceneWords?: number[];
   wordCount?: number;
   children?: BinderItem[];
   collapsed?: boolean;
@@ -65,16 +68,56 @@ export interface NovelProject {
   binder: BinderItem[];
   extraFiles?: BinderItem[];
   chapterMetadata?: Record<string, SceneMetadata>;
+  /** Notes per scene: chapter file name -> scene key (see utils/sceneMetadata) -> notes. */
+  sceneMetadata?: Record<string, Record<string, SceneMetadata>>;
   tagCategories?: string[];
   tagAssignments?: Record<string, string>;
   customDictionary?: string[];
   codex?: CodexEntry[];
+  /** Held in memory only; persisted separately in `.noveler/snapshots.json`. */
   snapshots?: SceneSnapshot[];
   gitRemoteUrl?: string;
+  /** Net words written per local calendar day (`YYYY-MM-DD`). */
+  writingLog?: WritingLog;
 }
 
 export const PROJECT_FILENAME = 'noveler.json';
 export const SCRATCHPAD_FILENAME = 'scratchpad.md';
+export const GRAVEYARD_DIRNAME = 'graveyard';
+
+export function joinProjectPath(projectPath: string, ...parts: string[]): string {
+  const sep = projectPath.includes('/') ? '/' : '\\';
+  return [projectPath, ...parts].join(sep);
+}
+
+/**
+ * Reads the chapter's own title from its first `# Heading` line, so the sidebar shows what the
+ * manuscript says rather than what the file happens to be called. Inline emphasis is stripped.
+ */
+export function extractChapterHeadingTitle(markdown: string): string | null {
+  const match = (markdown || '').match(/^[ \t]{0,3}#[ \t]+(.+?)[ \t]*#*[ \t]*$/m);
+  if (!match) return null;
+  const title = match[1]
+    .replace(/\\([\\`*_{}[\]()#+\-.!~])/g, '$1')
+    .replace(/(\*\*|__|\*|_|~~|`)/g, '')
+    .trim();
+  return title || null;
+}
+
+/**
+ * Sets the chapter's `# Heading`: rewrites the first one if present, otherwise adds one at the top.
+ * The result is ordinary Markdown.
+ */
+export function setChapterHeadingTitle(markdown: string, title: string): string {
+  const clean = title.trim();
+  if (!clean) return markdown;
+  const headingRegex = /^[ \t]{0,3}#[ \t]+.*$/m;
+  if (headingRegex.test(markdown)) {
+    return markdown.replace(headingRegex, () => `# ${clean}`);
+  }
+  const body = markdown.replace(/^\s+/, '');
+  return body ? `# ${clean}\n\n${body}` : `# ${clean}\n`;
+}
 
 /**
  * Parses front-matter metadata from scene markdown if present.
@@ -210,18 +253,6 @@ export function buildBinderFromTree(
     });
 }
 
-function createMapByPath(items: BinderItem[]): Map<string, BinderItem> {
-  const map = new Map<string, BinderItem>();
-  function traverse(list: BinderItem[]) {
-    for (const it of list) {
-      map.set(it.path, it);
-      if (it.children) traverse(it.children);
-    }
-  }
-  traverse(items);
-  return map;
-}
-
 export function normalizeProjectFilePath(projectPath: string): string {
   const sep = projectPath.includes('/') ? '/' : '\\';
   return `${projectPath}${sep}${PROJECT_FILENAME}`;
@@ -301,17 +332,31 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     }
   }
 
-  // Naturally sort chapter files in ascending order (01-, 02-, 10-, chapter-01)
-  const sortedChapterNodes = sortChapterFiles(chapterNodes);
+  // Items saved in noveler.json are matched by file name, so the project keeps working when the
+  // folder is moved, renamed or cloned onto another machine.
+  const existingMap = new Map<string, BinderItem>();
+  for (const it of [...(existingProject?.binder || []), ...(existingProject?.extraFiles || [])]) {
+    existingMap.set(fileService.extractFileName(it.path).toLowerCase(), it);
+  }
+
+  // Chapter order is whatever the writer arranged (saved in noveler.json); files are never renamed
+  // to reorder them. Chapters not yet in the saved order follow, sorted by their numeric prefix.
+  const savedOrder = new Map<string, number>();
+  (existingProject?.binder || []).forEach((it, idx) => {
+    savedOrder.set(fileService.extractFileName(it.path).toLowerCase(), idx);
+  });
+  const orderOf = (n: fileService.BinderNode) => savedOrder.get(n.name.toLowerCase());
+  const knownChapters = chapterNodes
+    .filter((n) => orderOf(n) !== undefined)
+    .sort((a, b) => orderOf(a)! - orderOf(b)!);
+  const newChapters = sortChapterFiles(chapterNodes.filter((n) => orderOf(n) === undefined));
+  const sortedChapterNodes = [...knownChapters, ...newChapters];
   const sortedExtraNodes = sortChapterFiles(extraNodes);
 
-  const existingMap = existingProject
-    ? createMapByPath([...(existingProject.binder || []), ...(existingProject.extraFiles || [])])
-    : undefined;
   const chapterMetadata = existingProject?.chapterMetadata || {};
 
   const mapNodeToBinderItem = (node: fileService.BinderNode): BinderItem => {
-    const existing = existingMap?.get(node.path);
+    const existing = existingMap.get(node.name.toLowerCase());
     const meta = chapterMetadata[node.name] || chapterMetadata[node.path] || {};
     const displayTitle = extractChapterDisplayTitle(node.name);
 
@@ -344,6 +389,7 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     binder: binderItems,
     extraFiles: extraFileItems,
     chapterMetadata,
+    sceneMetadata: existingProject?.sceneMetadata || {},
     tagCategories: existingProject?.tagCategories || ['characters', 'locations', 'items', 'scenes'],
     tagAssignments: existingProject?.tagAssignments || {},
     customDictionary: Array.from(
@@ -353,11 +399,58 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
       ])
     ),
     codex: existingProject?.codex || [],
-    snapshots: existingProject?.snapshots || [],
+    snapshots: await loadSnapshots(projectPath, existingProject?.snapshots || []),
     gitRemoteUrl: existingProject?.gitRemoteUrl,
+    writingLog: existingProject?.writingLog || {},
   };
 
   return project;
+}
+
+function snapshotsFilePath(projectPath: string): string {
+  return joinProjectPath(projectPath, '.noveler', 'snapshots.json');
+}
+
+/**
+ * Loads scene snapshots from `.noveler/snapshots.json`, merging in any that an older version of
+ * Noveler stored inside noveler.json. Snapshot paths are resolved against the current folder.
+ */
+async function loadSnapshots(projectPath: string, legacy: SceneSnapshot[]): Promise<SceneSnapshot[]> {
+  let stored: SceneSnapshot[] = [];
+  try {
+    const raw = await fileService.readFileDirect(snapshotsFilePath(projectPath));
+    const parsed = JSON.parse(raw.content) as unknown;
+    if (Array.isArray(parsed)) stored = parsed as SceneSnapshot[];
+  } catch {
+    // No snapshots saved yet
+  }
+
+  const seen = new Set<string>();
+  const merged: SceneSnapshot[] = [];
+  for (const snap of [...stored, ...legacy]) {
+    if (!snap || typeof snap.id !== 'string' || seen.has(snap.id)) continue;
+    seen.add(snap.id);
+    merged.push({
+      ...snap,
+      scenePath: joinProjectPath(projectPath, fileService.extractFileName(snap.scenePath)),
+    });
+  }
+  merged.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0));
+
+  if (legacy.length > 0) {
+    try {
+      await saveSnapshots(projectPath, merged);
+    } catch (err) {
+      console.warn('Could not migrate snapshots out of noveler.json:', err);
+    }
+  }
+  return merged;
+}
+
+/** Writes scene snapshots to `.noveler/snapshots.json`, keyed by file name rather than full path. */
+export async function saveSnapshots(projectPath: string, snapshots: SceneSnapshot[]): Promise<void> {
+  const portable = snapshots.map((s) => ({ ...s, scenePath: fileService.extractFileName(s.scenePath) }));
+  await fileService.saveFile(snapshotsFilePath(projectPath), JSON.stringify(portable, null, 2));
 }
 
 /**
@@ -416,12 +509,15 @@ export async function createExtraFile(
  * Saves project configuration to noveler.json (excluding runtime-only scene lists and scratchpad).
  */
 export async function saveNovelProject(projectPath: string, project: NovelProject): Promise<void> {
+  // Paths are stored as bare file names (the folder is flat), so noveler.json stays valid when the
+  // project folder is moved or synced to another machine. Snapshots live in their own file.
   const stripRuntimeItem = (item: BinderItem): BinderItem => {
-    const { scenes: _scenes, wordCount: _wordCount, ...rest } = item;
-    return rest;
+    const { scenes: _scenes, sceneWords: _sceneWords, wordCount: _wordCount, ...rest } = item;
+    return { ...rest, path: fileService.extractFileName(item.path) };
   };
-  const cleanProject: NovelProject = {
-    ...project,
+  const { snapshots: _snapshots, ...persisted } = project;
+  const cleanProject: Omit<NovelProject, 'snapshots'> = {
+    ...persisted,
     binder: (project.binder || []).map(stripRuntimeItem),
     extraFiles: project.extraFiles ? project.extraFiles.map(stripRuntimeItem) : undefined,
   };
@@ -477,18 +573,52 @@ export async function flushScratchpadToGraveyard(
   projectPath: string,
   content: string
 ): Promise<{ fileName: string; filePath: string }> {
-  const now = new Date();
-  const pad = (n: number) => n.toString().padStart(2, '0');
-  const timestamp = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
-  const fileName = `${timestamp}.md`;
-  const sep = projectPath.includes('/') ? '/' : '\\';
-  const graveyardDir = `${projectPath}${sep}graveyard`;
-  const filePath = `${graveyardDir}${sep}${fileName}`;
+  const fileName = `${graveyardTimestamp()}.md`;
+  const graveyardDir = joinProjectPath(projectPath, GRAVEYARD_DIRNAME);
+  const filePath = joinProjectPath(graveyardDir, fileName);
 
   await fileService.createDir(graveyardDir);
   await fileService.createFile(filePath, content);
   await fileService.saveFile(filePath, content);
 
+  return { fileName, filePath };
+}
+
+function graveyardTimestamp(now: Date = new Date()): string {
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+}
+
+/**
+ * "Deletes" a project file by moving it into `graveyard/` under a timestamped name.
+ * Nothing the writer wrote is destroyed by the app; the graveyard can be emptied by hand.
+ */
+export async function moveFileToGraveyard(
+  projectPath: string,
+  filePath: string
+): Promise<{ fileName: string; filePath: string }> {
+  const graveyardDir = joinProjectPath(projectPath, GRAVEYARD_DIRNAME);
+  const fileName = `${graveyardTimestamp()}_${fileService.extractFileName(filePath)}`;
+  const target = joinProjectPath(graveyardDir, fileName);
+  await fileService.createDir(graveyardDir);
+  await fileService.renamePath(filePath, target);
+  return { fileName, filePath: target };
+}
+
+/**
+ * Saves a piece of removed text (e.g. a deleted scene) as a standard Markdown file in `graveyard/`.
+ */
+export async function archiveTextToGraveyard(
+  projectPath: string,
+  label: string,
+  markdown: string
+): Promise<{ fileName: string; filePath: string }> {
+  const graveyardDir = joinProjectPath(projectPath, GRAVEYARD_DIRNAME);
+  const slug = slugifyTitle(label).slice(0, 48) || 'scene';
+  const fileName = `${graveyardTimestamp()}_${slug}.md`;
+  const filePath = joinProjectPath(graveyardDir, fileName);
+  await fileService.createDir(graveyardDir);
+  await fileService.createFile(filePath, markdown.endsWith('\n') ? markdown : `${markdown}\n`);
   return { fileName, filePath };
 }
 

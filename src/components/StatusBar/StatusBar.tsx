@@ -1,6 +1,7 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
 import { Target, ScrollText, BookOpen, Clock } from 'lucide-react';
+import { wordsToday } from '../../utils/writingLog';
 import './StatusBar.css';
 
 export function StatusBar() {
@@ -13,6 +14,7 @@ export function StatusBar() {
     novelWordCount,
     sessionWords,
     dailyWordGoal,
+    writingLog,
     typewriterMode,
     toggleTypewriterMode,
     setGoalsModalOpen,
@@ -28,6 +30,7 @@ export function StatusBar() {
       novelWordCount: s.novelWordCount,
       sessionWords: s.sessionWords,
       dailyWordGoal: s.dailyWordGoal,
+      writingLog: s.writingLog,
       typewriterMode: s.typewriterMode,
       toggleTypewriterMode: s.toggleTypewriterMode,
       setGoalsModalOpen: s.setGoalsModalOpen,
@@ -42,7 +45,8 @@ export function StatusBar() {
   const readTimeFormatted =
     readMinutes < 60 ? `${readMinutes} min` : `${Math.floor(readMinutes / 60)}h ${readMinutes % 60}m`;
 
-  const percent = dailyWordGoal > 0 ? Math.min(100, Math.round((sessionWords / dailyWordGoal) * 100)) : 0;
+  const todayWords = wordsToday(writingLog);
+  const percent = dailyWordGoal > 0 ? Math.min(100, Math.round((todayWords / dailyWordGoal) * 100)) : 0;
 
   return (
     <div className="status-bar">
@@ -96,7 +100,7 @@ export function StatusBar() {
           <button
             className={`status-btn goal-badge ${percent >= 100 ? 'goal-met' : ''}`}
             onClick={() => setGoalsModalOpen(true)}
-            title="Daily Writing Goal Progress (Ctrl+G)"
+            title={`Today: ${todayWords.toLocaleString()} of ${dailyWordGoal.toLocaleString()} words (Ctrl+G)`}
           >
             <Target size={12} />
             <span>{percent}%</span>

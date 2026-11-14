@@ -28,7 +28,13 @@ import {
   StickyNote,
   Plus,
   ListTree,
+  FileOutput,
+  FileInput,
+  BookOpenText,
 } from 'lucide-react';
+import { sceneKeys } from '../../utils/sceneMetadata';
+import { groupFilesByPrefix, formatWordsCompact, UNGROUPED_KEY } from '../../utils/fileGroups';
+import { extractFileName } from '../../services/fileService';
 import type { BinderItem, SceneStatus } from '../../services/projectService';
 import { getChapterScenes, type ChapterSceneItem } from '../../utils/chapterScenes';
 import { TagsTab } from './TagsTab';
@@ -68,8 +74,20 @@ function ChapterItem({
     insertSceneAfterAction,
     reorderChapterScenesAction,
     deleteSceneFromChapterAction,
+    extractSceneToFileAction,
+    insertFileAsSceneAction,
+    openReferenceAction,
+    activeWordCount,
+    sceneNotes,
+    chapters,
   } = useEditorStore(
     useShallow((s) => ({
+      extractSceneToFileAction: s.extractSceneToFileAction,
+      insertFileAsSceneAction: s.insertFileAsSceneAction,
+      openReferenceAction: s.openReferenceAction,
+      activeWordCount: s.wordCount,
+      sceneNotes: s.novelProject?.sceneMetadata?.[extractFileName(item.path)],
+      chapters: s.novelProject?.binder,
       activeScenePath: s.activeScenePath,
       activeSceneIndex: s.activeSceneIndex,
       markdownContent: s.markdownContent,
@@ -88,6 +106,7 @@ function ChapterItem({
   const isActive = activeScenePath === item.path;
 
   const [showMenu, setShowMenu] = useState(false);
+  const [showInsertTargets, setShowInsertTargets] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(item.title);
 
@@ -112,10 +131,13 @@ function ChapterItem({
       index: idx,
       title: title || `Scene ${idx + 1}`,
       customTitle: title,
-      wordCount: 0,
+      wordCount: item.sceneWords?.[idx] ?? 0,
       previewText: '',
     }));
-  }, [isExtraFile, isActive, markdownContent, item.scenes]);
+  }, [isExtraFile, isActive, markdownContent, item.scenes, item.sceneWords]);
+
+  const chapterWords = isActive ? activeWordCount : item.wordCount || 0;
+  const sceneNoteKeys = useMemo(() => sceneKeys(chapterScenes.map((s) => s.title)), [chapterScenes]);
 
   const handleClick = () => {
     void loadSceneByPath(item.path);
@@ -136,7 +158,7 @@ function ChapterItem({
 
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Delete "${item.title}"?`)) {
+    if (confirm(`Move "${item.title}" to the graveyard folder?\n\nThe file is kept in graveyard/ and can be moved back by hand.`)) {
       await deleteBinderItemAction(item.path);
     }
   };
@@ -188,9 +210,20 @@ function ChapterItem({
     }
   };
 
+  const handleExtractScene = async (e: MouseEvent, scene: ChapterSceneItem) => {
+    e.stopPropagation();
+    if (
+      confirm(
+        `Move scene "${scene.title}" out of this chapter into its own file under Other Files?`
+      )
+    ) {
+      await extractSceneToFileAction(item.path, scene.index);
+    }
+  };
+
   const handleDeleteScene = async (e: MouseEvent, scene: ChapterSceneItem) => {
     e.stopPropagation();
-    if (confirm(`Delete scene "${scene.title}" and its text from this chapter?`)) {
+    if (confirm(`Remove scene "${scene.title}" from this chapter?\n\nIts text is saved to the graveyard folder first.`)) {
       await deleteSceneFromChapterAction(item.path, scene.index);
     }
   };
@@ -317,12 +350,12 @@ function ChapterItem({
           </span>
         )}
 
-        {!isExtraFile && !isRenaming && chapterScenes.length > 0 && (
+        {!isExtraFile && !isRenaming && (
           <span
             className="chapter-scene-count-badge"
-            title={`${chapterScenes.length} ${chapterScenes.length === 1 ? 'scene' : 'scenes'} in chapter`}
+            title={`${chapterScenes.length} ${chapterScenes.length === 1 ? 'scene' : 'scenes'} · ${chapterWords.toLocaleString()} words`}
           >
-            {chapterScenes.length}
+            {formatWordsCompact(chapterWords)}
           </span>
         )}
 
@@ -348,7 +381,52 @@ function ChapterItem({
             </button>
 
             {showMenu && (
-              <div className="binder-dropdown-menu" onMouseLeave={() => setShowMenu(false)}>
+              <div
+                className="binder-dropdown-menu"
+                onMouseLeave={() => {
+                  setShowMenu(false);
+                  setShowInsertTargets(false);
+                }}
+              >
+                <button
+                  type="button"
+                  className="binder-menu-option"
+                  onClick={() => {
+                    setShowMenu(false);
+                    openReferenceAction(item.path);
+                  }}
+                >
+                  <BookOpenText size={12} />
+                  Open Beside Editor
+                </button>
+                {isExtraFile && (chapters?.length ?? 0) > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      className="binder-menu-option"
+                      onClick={() => setShowInsertTargets((v) => !v)}
+                      title="Add this note's text to a chapter as a new scene. The note is kept in the graveyard folder."
+                    >
+                      <FileInput size={12} />
+                      Insert as Scene in…
+                    </button>
+                    {showInsertTargets &&
+                      chapters!.map((ch) => (
+                        <button
+                          key={ch.path}
+                          type="button"
+                          className="binder-menu-option binder-menu-suboption"
+                          onClick={() => {
+                            setShowMenu(false);
+                            setShowInsertTargets(false);
+                            void insertFileAsSceneAction(item.path, ch.path);
+                          }}
+                        >
+                          {ch.title}
+                        </button>
+                      ))}
+                  </>
+                )}
                 {!isExtraFile && (
                   <button
                     type="button"
@@ -452,6 +530,23 @@ function ChapterItem({
                 )}
 
                 {!isSceneRenaming && (
+                  <span className="scene-outline-meta">
+                    {sceneNotes?.[sceneNoteKeys[scene.index]]?.status && (
+                      <span
+                        className="scene-status-dot"
+                        style={{
+                          backgroundColor: getStatusColor(sceneNotes[sceneNoteKeys[scene.index]].status),
+                        }}
+                        title={`Status: ${sceneNotes[sceneNoteKeys[scene.index]].status}`}
+                      />
+                    )}
+                    <span className="scene-outline-words" title={`${scene.wordCount.toLocaleString()} words`}>
+                      {formatWordsCompact(scene.wordCount)}
+                    </span>
+                  </span>
+                )}
+
+                {!isSceneRenaming && (
                   <div className="scene-hover-actions" onClick={(e) => e.stopPropagation()}>
                     <button
                       type="button"
@@ -468,6 +563,14 @@ function ChapterItem({
                       title="Rename scene title"
                     >
                       <Edit2 size={11} />
+                    </button>
+                    <button
+                      type="button"
+                      className="binder-action-mini-btn"
+                      onClick={(e) => void handleExtractScene(e, scene)}
+                      title="Move scene out to its own file (Other Files)"
+                    >
+                      <FileOutput size={11} />
                     </button>
                     <button
                       type="button"
@@ -708,7 +811,7 @@ function StandaloneChapterOutline() {
                     type="button"
                     className="binder-action-mini-btn scene-delete-btn"
                     onClick={() => {
-                      if (confirm(`Delete scene "${scene.title}"?`)) {
+                      if (confirm(`Remove scene "${scene.title}" from this chapter?`)) {
                         void deleteSceneFromChapterAction(targetPath, scene.index);
                       }
                     }}
@@ -774,6 +877,7 @@ export function Sidebar() {
   const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
   const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
   const [otherFilesExpanded, setOtherFilesExpanded] = useState(true);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
   const [isCreatingExtra, setIsCreatingExtra] = useState(false);
   const [newExtraTitle, setNewExtraTitle] = useState('');
 
@@ -783,6 +887,15 @@ export function Sidebar() {
 
   const binderItems = novelProject?.binder || [];
   const extraFiles = novelProject?.extraFiles || [];
+  const extraGroups = groupFilesByPrefix(extraFiles, (f) => extractFileName(f.path));
+  const showGroupHeaders = extraGroups.some((g) => g.key !== UNGROUPED_KEY);
+  const toggleGroup = (key: string) =>
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   const handleDragStart = (e: DragEvent, index: number) => {
     setDraggedIdx(index);
@@ -980,12 +1093,29 @@ export function Sidebar() {
                         Non-chapter files (e.g. <code>outline.md</code>, <code>notes.md</code>) appear here.
                       </div>
                     ) : (
-                      extraFiles.map((item) => (
-                        <ChapterItem
-                          key={item.id || item.path}
-                          item={item}
-                          isExtraFile
-                        />
+                      extraGroups.map((group) => (
+                        <div key={group.key} className="extra-file-group">
+                          {showGroupHeaders && (
+                            <button
+                              type="button"
+                              className="extra-group-toggle"
+                              onClick={() => toggleGroup(group.key)}
+                              aria-expanded={!collapsedGroups.has(group.key)}
+                            >
+                              {collapsedGroups.has(group.key) ? (
+                                <ChevronRight size={11} />
+                              ) : (
+                                <ChevronDown size={11} />
+                              )}
+                              <span className="extra-group-label">{group.label}</span>
+                              <span className="extra-group-count">{group.items.length}</span>
+                            </button>
+                          )}
+                          {!collapsedGroups.has(group.key) &&
+                            group.items.map((item) => (
+                              <ChapterItem key={item.id || item.path} item={item} isExtraFile />
+                            ))}
+                        </div>
                       ))
                     )}
                   </div>

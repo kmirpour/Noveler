@@ -287,6 +287,13 @@ export function CommandPalette() {
         action: () => setViewMode('scratchpad'),
       },
       {
+        id: 'view-reference',
+        category: 'View & Focus',
+        title: 'View: Pen & Reference (Editor + Notes or Another Chapter)',
+        icon: <FileText size={16} />,
+        action: () => setViewMode('reference'),
+      },
+      {
         id: 'view-sidebar',
         category: 'View & Focus',
         title: 'Toggle Chapters Sidebar',
@@ -328,6 +335,13 @@ export function CommandPalette() {
         title: 'Toggle Live Spell & Grammar Check Underlines',
         icon: <PenTool size={16} />,
         action: () => toggleSpellCheck(),
+      },
+      {
+        id: 'story-online-grammar-toggle',
+        category: 'Story Tools',
+        title: 'Toggle Online Grammar Check (sends paragraphs to LanguageTool; off by default)',
+        icon: <PenTool size={16} />,
+        action: () => useEditorStore.getState().toggleOnlineGrammarCheck(),
       },
       {
         id: 'scratchpad-flush',
@@ -487,6 +501,20 @@ export function CommandPalette() {
               icon: <FileText size={16} />,
               action: () => void loadSceneByPath(scene.path),
             })
+          )
+        : []),
+      // Jump straight to any scene in any chapter
+      ...(novelProject
+        ? novelProject.binder.flatMap((chapter) =>
+            (chapter.scenes || []).map(
+              (sceneTitle, sceneIdx): CommandItem => ({
+                id: `scene-jump-${chapter.path}-${sceneIdx}`,
+                category: 'Chapters',
+                title: `Go to Scene: ${chapter.title} › ${sceneTitle}`,
+                icon: <FileText size={16} />,
+                action: () => void useEditorStore.getState().jumpToSceneAction(chapter.path, sceneIdx),
+              })
+            )
           )
         : []),
       ...(novelProject?.extraFiles

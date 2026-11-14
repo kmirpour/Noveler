@@ -282,3 +282,20 @@
   background: var(--accent-light);
   color: var(--text-color);
 }
+
+/* Scene / chapter status colours (shared by corkboard, inspector and sidebar) */
+:root {
+  --status-idea: #64748b;
+  --status-draft: #b45309;
+  --status-revised: #7c3aed;
+  --status-final: #047857;
+}
+
+[data-theme='dark'],
+[data-theme='forest'],
+[data-theme='nord'] {
+  --status-idea: #94a3b8;
+  --status-draft: #fbbf24;
+  --status-revised: #c4b5fd;
+  --status-final: #6ee7b7;
+}

@@ -121,7 +121,11 @@ export function FindReplace() {
         setProjectMatches([]);
         return;
       }
-      const scenes = flattenScenes(novelProject.binder);
+      // Chapters first, then notes and other files (wiki, outlines, loose scenes).
+      const scenes = [
+        ...flattenScenes(novelProject.binder),
+        ...flattenScenes(novelProject.extraFiles || []),
+      ];
       const matches: ProjectSearchMatch[] = [];
       for (const scene of scenes) {
         try {
@@ -270,7 +274,7 @@ export function FindReplace() {
       await refreshProjectFiles();
       setTimeout(syncFromEditor, 10);
       void runProjectSearch(searchTerm, caseSensitive, wholeWord, useRegex);
-      setStatusMessage(`Replaced ${totalAcrossProject} occurrences across ${replacedFiles} chapters`);
+      setStatusMessage(`Replaced ${totalAcrossProject} occurrences across ${replacedFiles} files`);
       return;
     }
 
@@ -458,7 +462,7 @@ export function FindReplace() {
             <span>
               Novel Matches:{' '}
               <strong>{projectMatches.reduce((acc, m) => acc + m.count, 0)}</strong> in{' '}
-              {projectMatches.length} {projectMatches.length === 1 ? 'chapter' : 'chapters'}
+              {projectMatches.length} {projectMatches.length === 1 ? 'file' : 'files'}
             </span>
           </div>
           {projectMatches.length > 0 && (

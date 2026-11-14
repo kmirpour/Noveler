@@ -478,6 +478,23 @@ interface LanguageToolMatch {
  * and the LanguageTool Context-Aware API (`https://api.languagetool.org/v2/check`),
  * filtering out Codex entities, narrative #tags, and Custom Project Dictionary words.
  */
+let onlineGrammarEnabled = false;
+
+/**
+ * Turns the LanguageTool web check on or off. It is off by default: with it off, checking uses only
+ * the built-in offline engine and no paragraph text is sent anywhere.
+ */
+export function setOnlineGrammarEnabled(enabled: boolean): void {
+  if (onlineGrammarEnabled !== enabled) {
+    onlineGrammarEnabled = enabled;
+    textCheckCache.clear();
+  }
+}
+
+export function isOnlineGrammarEnabled(): boolean {
+  return onlineGrammarEnabled;
+}
+
 export async function checkTextSpellAndGrammar(
   text: string,
   ignoreWords: string[] = []
@@ -492,6 +509,11 @@ export async function checkTextSpellAndGrammar(
 
   const ignoreSet = new Set(ignoreWords.map((w) => w.toLowerCase()));
   const offlineIssues = checkTextOffline(text, ignoreWords);
+
+  // Manuscript text only leaves this computer if the writer has turned online checking on.
+  if (!onlineGrammarEnabled) {
+    return offlineIssues;
+  }
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 3000);

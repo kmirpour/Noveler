@@ -615,3 +615,69 @@
 .standalone-outline-section {
   padding-bottom: 4px;
 }
+
+/* Scene row: status dot + word count, swapped for the action buttons on hover */
+.scene-outline-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.chapter-scene-item:hover .scene-outline-meta {
+  display: none;
+}
+
+.scene-outline-words {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+
+.binder-menu-suboption {
+  padding-left: 26px;
+  max-width: 220px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+  color: var(--text-secondary);
+}
+
+.binder-dropdown-menu {
+  min-width: 170px;
+}
+
+/* Other Files, grouped by the first word of the file name */
+.extra-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 4px 8px 3px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  text-align: left;
+}
+
+.extra-group-toggle:hover {
+  background: var(--btn-hover);
+  color: var(--text-primary);
+}
+
+.extra-group-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.extra-group-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}

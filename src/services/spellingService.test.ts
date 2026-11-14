@@ -5,6 +5,7 @@ import {
   checkTextSpellAndGrammar,
   damerauLevenshtein,
   clearSpellingCache,
+  setOnlineGrammarEnabled,
   COMMON_TYPOS,
 } from './spellingService';
 
@@ -131,7 +132,16 @@ describe('spellingService', () => {
       }),
     } as Response);
 
+    // With online checking off (the default), nothing is sent and only offline issues come back.
+    setOnlineGrammarEnabled(false);
+    const offlineOnly = await checkTextSpellAndGrammar('Valyria walk into teh room.', ['valyria']);
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(offlineOnly.some((i) => i.matchedText === 'walk')).toBe(false);
+    expect(offlineOnly.some((i) => i.matchedText === 'teh')).toBe(true);
+
+    setOnlineGrammarEnabled(true);
     const issues = await checkTextSpellAndGrammar('Valyria walk into teh room.', ['valyria']);
+    setOnlineGrammarEnabled(false);
     // "Valyria" should be filtered out by the ignore list!
     expect(issues.some((i) => i.matchedText === 'Valyria')).toBe(false);
     // "walk" should be flagged by LanguageTool as a grammar issue

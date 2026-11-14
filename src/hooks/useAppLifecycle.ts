@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { getCurrentWebview } from '@tauri-apps/api/webview';
 import { ask } from '@tauri-apps/plugin-dialog';
-import { useEditorStore } from '../stores/editorStore';
+import { useEditorStore, flushProjectSave } from '../stores/editorStore';
 import { isTauri } from '../services/fileService';
 import { clearRecovery, loadRecovery, saveRecovery } from '../services/recovery';
 
@@ -42,7 +42,12 @@ export function useAppLifecycle() {
   useTauriListener(() =>
     getCurrentWindow().onCloseRequested(async (event) => {
       const ok = await useEditorStore.getState().confirmDiscardIfDirty();
-      if (!ok) event.preventDefault();
+      if (!ok) {
+        event.preventDefault();
+        return;
+      }
+      // Make sure pending project changes (synopsis, order, writing log) reach disk before exit.
+      await flushProjectSave();
     })
   );
 

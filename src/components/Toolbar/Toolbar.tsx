@@ -38,6 +38,7 @@ import {
   StickyNote,
   Focus,
   GitBranch,
+  BookOpenText,
 } from 'lucide-react';
 import { ThemeToggle } from '../ThemeToggle/ThemeToggle';
 import './Toolbar.css';
@@ -485,6 +486,13 @@ export function Toolbar() {
           title="Pen & Scratchpad Mode (Editor + Scratchpad)"
         >
           <StickyNote size={15} />
+        </button>
+        <button
+          className={`toolbar-button ${viewMode === 'reference' ? 'active' : ''}`}
+          onClick={() => setViewMode('reference')}
+          title="Pen & Reference Mode (Editor + your notes or another chapter, read-only)"
+        >
+          <BookOpenText size={15} />
         </button>
       </div>
     </div>

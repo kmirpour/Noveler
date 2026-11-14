@@ -1,124 +1,105 @@
-import { useState, type DragEvent, type FormEvent } from 'react';
+import { useState, type DragEvent } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
-import {
-  User,
-  Plus,
-  ArrowRight,
-  Target,
-  X,
-  LayoutGrid,
-  GripVertical,
-} from 'lucide-react';
-import {
-  type BinderItem,
-  type SceneStatus,
-  flattenScenes,
-} from '../../services/projectService';
+import { User, Plus, ArrowRight, X, LayoutGrid, GripVertical, FilePlus } from 'lucide-react';
+import { type BinderItem, type SceneStatus } from '../../services/projectService';
+import { sceneMetaAt } from '../../utils/sceneMetadata';
+import { formatWordsCompact } from '../../utils/fileGroups';
 import './Corkboard.css';
 
+const STATUSES: SceneStatus[] = ['idea', 'draft', 'revised', 'final'];
+
+/**
+ * The novel as index cards: one card per scene (each `##` heading), grouped under its chapter.
+ * Cards carry the scene's synopsis, status and POV; these notes are kept in noveler.json and are
+ * never written into the chapter files.
+ */
 export function Corkboard() {
   const {
     corkboardOpen,
     setCorkboardOpen,
     novelProject,
-    projectPath,
     activeScenePath,
+    activeSceneIndex,
+    activeWordCount,
+    jumpToSceneAction,
     loadSceneByPath,
-    createSceneAction,
-    updateSceneMetadataByPath,
-    reorderBinderItemsAction,
+    createChapterAction,
+    addSceneToChapterAction,
+    updateSceneNotesAction,
+    reorderChapterScenesAction,
   } = useEditorStore(
     useShallow((s) => ({
       corkboardOpen: s.corkboardOpen,
       setCorkboardOpen: s.setCorkboardOpen,
       novelProject: s.novelProject,
-      projectPath: s.projectPath,
       activeScenePath: s.activeScenePath,
+      activeSceneIndex: s.activeSceneIndex,
+      activeWordCount: s.wordCount,
+      jumpToSceneAction: s.jumpToSceneAction,
       loadSceneByPath: s.loadSceneByPath,
-      createSceneAction: s.createSceneAction,
-      updateSceneMetadataByPath: s.updateSceneMetadataByPath,
-      reorderBinderItemsAction: s.reorderBinderItemsAction,
+      createChapterAction: s.createChapterAction,
+      addSceneToChapterAction: s.addSceneToChapterAction,
+      updateSceneNotesAction: s.updateSceneNotesAction,
+      reorderChapterScenesAction: s.reorderChapterScenesAction,
     }))
   );
 
-  const [draggedIdx, setDraggedIdx] = useState<number | null>(null);
-  const [dragOverIdx, setDragOverIdx] = useState<number | null>(null);
-  const [addingScene, setAddingScene] = useState(false);
-  const [newSceneTitle, setNewSceneTitle] = useState('');
+  const [dragged, setDragged] = useState<{ chapter: string; index: number } | null>(null);
+  const [dragOver, setDragOver] = useState<{ chapter: string; index: number } | null>(null);
 
   if (!corkboardOpen) return null;
 
-  const scenes = novelProject ? flattenScenes(novelProject.binder) : [];
+  const chapters = novelProject?.binder || [];
+  const totalScenes = chapters.reduce((n, c) => n + (c.scenes?.length || 0), 0);
 
-  const handleOpenScene = async (path: string) => {
-    await loadSceneByPath(path);
+  const openScene = async (chapter: BinderItem, sceneIndex: number) => {
     setCorkboardOpen(false);
+    await jumpToSceneAction(chapter.path, sceneIndex);
   };
 
-  const handleUpdateSynopsis = (scene: BinderItem, synopsis: string) => {
-    updateSceneMetadataByPath(scene.path, { synopsis });
+  const openChapter = async (chapter: BinderItem) => {
+    setCorkboardOpen(false);
+    await loadSceneByPath(chapter.path);
   };
 
-  const handleUpdateStatus = (scene: BinderItem, status: SceneStatus) => {
-    updateSceneMetadataByPath(scene.path, { status });
+  const addScene = async (chapter: BinderItem) => {
+    setCorkboardOpen(false);
+    await addSceneToChapterAction(chapter.path);
   };
 
-  const handleUpdatePov = (scene: BinderItem, pov: string) => {
-    updateSceneMetadataByPath(scene.path, { pov });
+  const addChapter = async () => {
+    setCorkboardOpen(false);
+    await createChapterAction();
   };
 
-  const handleAddNewSceneSubmit = async (e: FormEvent) => {
-    e.preventDefault();
-    if (!projectPath) return;
-    if (newSceneTitle.trim()) {
-      await createSceneAction(projectPath, newSceneTitle.trim());
-    } else {
-      await createSceneAction(projectPath, '');
-    }
-    setNewSceneTitle('');
-    setAddingScene(false);
-  };
-
-  const handleDragStart = (e: DragEvent, index: number) => {
-    setDraggedIdx(index);
+  const handleDragStart = (e: DragEvent, chapter: string, index: number) => {
+    setDragged({ chapter, index });
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDragOver = (e: DragEvent, index: number) => {
+  // Scenes are reordered within their own chapter.
+  const handleDragOver = (e: DragEvent, chapter: string, index: number) => {
+    if (!dragged || dragged.chapter !== chapter) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
-    if (dragOverIdx !== index) {
-      setDragOverIdx(index);
+    if (!dragOver || dragOver.chapter !== chapter || dragOver.index !== index) {
+      setDragOver({ chapter, index });
     }
   };
 
-  const handleDrop = (e: DragEvent, index: number) => {
+  const handleDrop = (e: DragEvent, chapter: string, index: number) => {
     e.preventDefault();
-    if (draggedIdx !== null && draggedIdx !== index) {
-      void reorderBinderItemsAction(draggedIdx, index);
+    if (dragged && dragged.chapter === chapter && dragged.index !== index) {
+      void reorderChapterScenesAction(chapter, dragged.index, index);
     }
-    setDraggedIdx(null);
-    setDragOverIdx(null);
+    setDragged(null);
+    setDragOver(null);
   };
 
   const handleDragEnd = () => {
-    setDraggedIdx(null);
-    setDragOverIdx(null);
-  };
-
-  const getStatusColor = (status?: SceneStatus) => {
-    switch (status) {
-      case 'final':
-        return '#10b981';
-      case 'revised':
-        return '#8b5cf6';
-      case 'draft':
-        return '#f59e0b';
-      case 'idea':
-      default:
-        return '#64748b';
-    }
+    setDragged(null);
+    setDragOver(null);
   };
 
   return (
@@ -126,13 +107,16 @@ export function Corkboard() {
       <div className="corkboard-header">
         <div className="corkboard-header-title">
           <LayoutGrid size={18} className="corkboard-header-icon" />
-          <h2>Index Card Corkboard & Outline</h2>
-          <span className="corkboard-count">{scenes.length} Scenes</span>
+          <h2>Corkboard</h2>
+          <span className="corkboard-count">
+            {chapters.length} {chapters.length === 1 ? 'chapter' : 'chapters'} · {totalScenes}{' '}
+            {totalScenes === 1 ? 'scene' : 'scenes'}
+          </span>
         </div>
         <button
           className="corkboard-close-btn"
           onClick={() => setCorkboardOpen(false)}
-          title="Return to Manuscript Editor"
+          title="Return to the editor (Esc)"
         >
           <X size={18} />
           <span>Back to Editor</span>
@@ -140,138 +124,153 @@ export function Corkboard() {
       </div>
 
       <div className="corkboard-canvas">
-        <div className="corkboard-grid">
-          {scenes.map((scene, idx) => {
-            const isActive = activeScenePath === scene.path;
-            const statusColor = getStatusColor(scene.status);
+        <div className="corkboard-chapters">
+          {chapters.map((chapter, chapterIdx) => {
+            const sceneTitles = chapter.scenes || [];
+            const isActiveChapter = activeScenePath === chapter.path;
+            const chapterWords = isActiveChapter ? activeWordCount : chapter.wordCount || 0;
 
             return (
-              <div
-                key={scene.id || scene.path}
-                className={`index-card ${isActive ? 'active-card' : ''} ${dragOverIdx === idx && draggedIdx !== idx ? 'drag-over-card' : ''}`}
-                draggable
-                onDragStart={(e) => handleDragStart(e, idx)}
-                onDragOver={(e) => handleDragOver(e, idx)}
-                onDrop={(e) => handleDrop(e, idx)}
-                onDragEnd={handleDragEnd}
-              >
-                {/* Pin / Header bar */}
-                <div className="index-card-header">
-                  <span title="Drag to reorder chapter" style={{ display: 'inline-flex' }}>
-                    <GripVertical size={13} className="card-drag-handle" />
-                  </span>
-                  <div className="index-card-number">#{idx + 1}</div>
-                  <h3 className="index-card-title" title={scene.title}>
-                    {scene.title}
+              <section key={chapter.id || chapter.path} className="corkboard-chapter">
+                <header className="corkboard-chapter-header">
+                  <span className="corkboard-chapter-number">{chapterIdx + 1}</span>
+                  <h3 className="corkboard-chapter-title" title={chapter.title}>
+                    {chapter.title}
                   </h3>
-                  <select
-                    className="status-selector"
-                    value={scene.status || 'draft'}
-                    style={{ borderColor: statusColor, color: statusColor }}
-                    onChange={(e) => handleUpdateStatus(scene, e.target.value as SceneStatus)}
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <option value="idea">Idea</option>
-                    <option value="draft">Draft</option>
-                    <option value="revised">Revised</option>
-                    <option value="final">Final</option>
-                  </select>
-                </div>
-
-                {/* Synopsis / Beat note */}
-                <div className="index-card-body">
-                  <textarea
-                    key={`${scene.path}-synopsis-${scene.synopsis || ''}`}
-                    className="index-card-synopsis"
-                    placeholder="Write scene synopsis, plot beats, or character conflict here..."
-                    defaultValue={scene.synopsis || ''}
-                    onBlur={(e) => handleUpdateSynopsis(scene, e.target.value)}
-                  />
-                </div>
-
-                {/* Card Footer: POV character & word target */}
-                <div className="index-card-footer">
-                  <div className="card-meta-row">
-                    <div className="card-pov-input-wrapper" title="POV Character">
-                      <User size={12} className="card-meta-icon" />
-                      <input
-                        key={`${scene.path}-pov-${scene.pov || ''}`}
-                        type="text"
-                        className="card-pov-input"
-                        placeholder="POV Character"
-                        defaultValue={scene.pov || ''}
-                        onBlur={(e) => handleUpdatePov(scene, e.target.value)}
-                      />
-                    </div>
-
-                    {scene.targetWords ? (
-                      <span className="card-target-words" title="Word Target">
-                        <Target size={12} />
-                        {scene.targetWords}w
-                      </span>
-                    ) : null}
-                  </div>
-
+                  <span className="corkboard-chapter-stats">
+                    {sceneTitles.length} {sceneTitles.length === 1 ? 'scene' : 'scenes'} ·{' '}
+                    {chapterWords.toLocaleString()} words
+                  </span>
                   <button
                     className="open-scene-card-btn"
-                    onClick={() => handleOpenScene(scene.path)}
-                    title="Open this scene in the editor"
+                    onClick={() => void openChapter(chapter)}
+                    title="Open this chapter in the editor"
                   >
-                    <span>Write</span>
+                    <span>Open</span>
                     <ArrowRight size={13} />
                   </button>
+                </header>
+
+                <div className="corkboard-grid">
+                  {sceneTitles.map((sceneTitle, sceneIdx) => {
+                    const meta = sceneMetaAt(novelProject, chapter.path, sceneIdx);
+                    const words = chapter.sceneWords?.[sceneIdx] ?? 0;
+                    const isActive = isActiveChapter && activeSceneIndex === sceneIdx;
+                    const isDragOver =
+                      dragOver?.chapter === chapter.path &&
+                      dragOver.index === sceneIdx &&
+                      dragged?.index !== sceneIdx;
+                    const status = meta.status || '';
+
+                    return (
+                      <div
+                        key={`${chapter.path}-${sceneIdx}-${sceneTitle}`}
+                        className={`index-card ${isActive ? 'active-card' : ''} ${isDragOver ? 'drag-over-card' : ''}`}
+                        draggable={sceneTitles.length > 1}
+                        onDragStart={(e) => handleDragStart(e, chapter.path, sceneIdx)}
+                        onDragOver={(e) => handleDragOver(e, chapter.path, sceneIdx)}
+                        onDrop={(e) => handleDrop(e, chapter.path, sceneIdx)}
+                        onDragEnd={handleDragEnd}
+                      >
+                        <div className="index-card-header">
+                          {sceneTitles.length > 1 && (
+                            <span title="Drag to reorder within this chapter" style={{ display: 'inline-flex' }}>
+                              <GripVertical size={13} className="card-drag-handle" />
+                            </span>
+                          )}
+                          <div className="index-card-number">{sceneIdx + 1}</div>
+                          <h3 className="index-card-title" title={sceneTitle}>
+                            {sceneTitle}
+                          </h3>
+                          <select
+                            className={`status-selector status-${status || 'none'}`}
+                            value={status}
+                            onChange={(e) =>
+                              updateSceneNotesAction(chapter.path, sceneIdx, {
+                                status: (e.target.value || undefined) as SceneStatus | undefined,
+                              })
+                            }
+                            aria-label={`Status of scene ${sceneTitle}`}
+                          >
+                            <option value="">No status</option>
+                            {STATUSES.map((st) => (
+                              <option key={st} value={st}>
+                                {st.charAt(0).toUpperCase() + st.slice(1)}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="index-card-body">
+                          <textarea
+                            key={`synopsis-${meta.synopsis || ''}`}
+                            className="index-card-synopsis"
+                            placeholder="What happens in this scene? Beats, conflict, what changes…"
+                            defaultValue={meta.synopsis || ''}
+                            onBlur={(e) => {
+                              if (e.target.value !== (meta.synopsis || '')) {
+                                updateSceneNotesAction(chapter.path, sceneIdx, { synopsis: e.target.value });
+                              }
+                            }}
+                          />
+                        </div>
+
+                        <div className="index-card-footer">
+                          <div className="card-meta-row">
+                            <div className="card-pov-input-wrapper" title="Point-of-view character">
+                              <User size={12} className="card-meta-icon" />
+                              <input
+                                key={`pov-${meta.pov || ''}`}
+                                type="text"
+                                className="card-pov-input"
+                                placeholder="POV"
+                                defaultValue={meta.pov || ''}
+                                onBlur={(e) => {
+                                  if (e.target.value !== (meta.pov || '')) {
+                                    updateSceneNotesAction(chapter.path, sceneIdx, { pov: e.target.value });
+                                  }
+                                }}
+                              />
+                            </div>
+                            <span className="card-target-words" title={`${words.toLocaleString()} words`}>
+                              {formatWordsCompact(words)}
+                              {meta.targetWords ? ` / ${formatWordsCompact(meta.targetWords)}` : ''} w
+                            </span>
+                          </div>
+
+                          <button
+                            className="open-scene-card-btn"
+                            onClick={() => void openScene(chapter, sceneIdx)}
+                            title="Go to this scene in the editor"
+                          >
+                            <span>Write</span>
+                            <ArrowRight size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  <button
+                    className="index-card add-card-btn"
+                    onClick={() => void addScene(chapter)}
+                    title="Adds a new ## scene heading at the end of this chapter"
+                  >
+                    <Plus size={22} className="add-card-icon" />
+                    <span>{sceneTitles.length === 0 ? 'Add the first scene' : 'Add scene'}</span>
+                  </button>
                 </div>
-              </div>
+              </section>
             );
           })}
 
-          {/* Add New Scene Card */}
-          {addingScene ? (
-            <form className="index-card new-scene-form-card" onSubmit={handleAddNewSceneSubmit}>
-              <div className="index-card-header">
-                <h3 className="index-card-title">New Chapter / Scene</h3>
-              </div>
-              <div className="index-card-body" style={{ flexDirection: 'column', gap: 8, justifyContent: 'center' }}>
-                <input
-                  type="text"
-                  autoFocus
-                  className="new-scene-title-input"
-                  placeholder="Chapter title (optional)..."
-                  value={newSceneTitle}
-                  onChange={(e) => setNewSceneTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') {
-                      setAddingScene(false);
-                      setNewSceneTitle('');
-                    }
-                  }}
-                />
-              </div>
-              <div className="index-card-footer" style={{ justifyContent: 'flex-end' }}>
-                <button
-                  type="button"
-                  className="open-scene-card-btn"
-                  onClick={() => {
-                    setAddingScene(false);
-                    setNewSceneTitle('');
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="open-scene-card-btn"
-                  style={{ background: '#3b82f6', color: '#fff', borderColor: '#3b82f6' }}
-                >
-                  Create
-                </button>
-              </div>
-            </form>
-          ) : (
-            <button className="index-card add-card-btn" onClick={() => setAddingScene(true)}>
-              <Plus size={24} className="add-card-icon" />
-              <span>Add New Scene</span>
+          {novelProject ? (
+            <button className="corkboard-add-chapter-btn" onClick={() => void addChapter()}>
+              <FilePlus size={15} />
+              <span>Add chapter</span>
             </button>
+          ) : (
+            <p className="corkboard-empty">Open a novel folder to see its chapters and scenes as cards.</p>
           )}
         </div>
       </div>

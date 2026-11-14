@@ -6,16 +6,17 @@ use tauri::Manager;
 pub fn run() {
   tauri::Builder::default()
     .plugin(tauri_plugin_dialog::init())
+    .manage(commands::ProjectRoot::default())
     .invoke_handler(tauri::generate_handler![
       commands::read_file,
       commands::write_file,
       commands::write_binary_file,
       commands::read_dir,
       commands::read_dir_tree,
+      commands::set_project_root,
       commands::create_file,
       commands::create_dir,
       commands::rename_path,
-      commands::delete_file,
       commands::git_get_status,
       commands::git_sync
     ])

@@ -22,6 +22,11 @@ export interface CompileOptions {
   selectedPaths: string[];
 }
 
+/** True when the chapter text begins with a Markdown `#` heading of its own. */
+function startsWithHeading(body: string): boolean {
+  return /^#[ \t]+\S/.test(body.trimStart());
+}
+
 export interface CompiledResult {
   fileName: string;
   wordCount: number;
@@ -66,7 +71,8 @@ export async function compileNovel(
 
     for (let i = 0; i < loadedScenes.length; i++) {
       const { item, body } = loadedScenes[i];
-      mdParts.push(`## ${item.title}\n\n${body}`);
+      // A chapter that opens with its own `# Heading` already carries its title.
+      mdParts.push(startsWithHeading(body) ? body : `## ${item.title}\n\n${body}`);
       if (i < loadedScenes.length - 1) {
         mdParts.push(`\n\n${sceneSymbol}\n\n`);
       }
@@ -168,8 +174,8 @@ export async function compileNovel(
   for (let i = 0; i < loadedScenes.length; i++) {
     const { item, body } = loadedScenes[i];
 
-    // Scene / Chapter Title Header
-    paragraphs.push(
+    // Chapter title header (skipped when the chapter text opens with its own heading)
+    if (!startsWithHeading(body)) paragraphs.push(
       new Paragraph({
         alignment: AlignmentType.CENTER,
         children: [

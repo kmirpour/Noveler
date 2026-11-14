@@ -442,3 +442,39 @@
 }
 
 
+
+/* Scene / chapter scope switch */
+.inspector-scope-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  margin-bottom: 8px;
+  background: var(--bg-subtle);
+  border-radius: 6px;
+}
+
+.inspector-scope-btn {
+  padding: 4px 6px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.inspector-scope-btn.active {
+  background: var(--bg-card);
+  color: var(--text-color);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.inspector-hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}

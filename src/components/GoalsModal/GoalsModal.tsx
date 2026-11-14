@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
-import { Target, X, RotateCcw, BookOpen, Clock, FileText, Sparkles } from 'lucide-react';
+import { Target, X, RotateCcw, BookOpen, Clock, FileText, Sparkles, Flame } from 'lucide-react';
+import { wordsToday, currentStreak, recentDays } from '../../utils/writingLog';
 import { useEditorStore } from '../../stores/editorStore';
 import './GoalsModal.css';
 
@@ -11,6 +12,7 @@ export function GoalsModal() {
     dailyWordGoal,
     setDailyWordGoal,
     sessionWords,
+    writingLog,
     resetSessionWords,
     wordCount,
     charCount,
@@ -25,6 +27,7 @@ export function GoalsModal() {
       dailyWordGoal: s.dailyWordGoal,
       setDailyWordGoal: s.setDailyWordGoal,
       sessionWords: s.sessionWords,
+      writingLog: s.writingLog,
       resetSessionWords: s.resetSessionWords,
       wordCount: s.wordCount,
       charCount: s.charCount,
@@ -50,8 +53,13 @@ export function GoalsModal() {
   // Count scenes by standard Markdown horizontal rules / scene breaks
   const sceneCount = (content.match(/^(?:---|\*\*\*|___)\s*$/gm) || []).length + 1;
 
-  const percent = dailyWordGoal > 0 ? Math.min(100, Math.round((sessionWords / dailyWordGoal) * 100)) : 0;
-  const isGoalReached = dailyWordGoal > 0 && sessionWords >= dailyWordGoal;
+  const todayWords = wordsToday(writingLog);
+  const streak = currentStreak(writingLog);
+  const history = recentDays(writingLog, 14);
+  const historyMax = Math.max(dailyWordGoal, ...history.map((d) => d.words), 1);
+
+  const percent = dailyWordGoal > 0 ? Math.min(100, Math.round((todayWords / dailyWordGoal) * 100)) : 0;
+  const isGoalReached = dailyWordGoal > 0 && todayWords >= dailyWordGoal;
 
   const handleGoalSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,7 +88,7 @@ export function GoalsModal() {
           {/* Today's Sprint / Session Progress */}
           <div className={`session-goal-card ${isGoalReached ? 'goal-achieved' : ''}`}>
             <div className="goal-card-header">
-              <span className="goal-card-title">Today's Session</span>
+              <span className="goal-card-title">Today</span>
               {isGoalReached && (
                 <span className="goal-achieved-badge">
                   <Sparkles size={13} />
@@ -90,7 +98,7 @@ export function GoalsModal() {
             </div>
 
             <div className="goal-counter">
-              <span className="goal-current">{sessionWords.toLocaleString()}</span>
+              <span className="goal-current">{todayWords.toLocaleString()}</span>
               <span className="goal-separator">/</span>
               <span className="goal-target">{dailyWordGoal.toLocaleString()} words</span>
             </div>
@@ -103,16 +111,49 @@ export function GoalsModal() {
               />
             </div>
             <div className="progress-bar-caption">
-              <span>{percent}% completed</span>
+              <span>
+                {percent}% of daily goal · {sessionWords.toLocaleString()} this sitting
+              </span>
               <button
                 className="reset-session-btn"
                 onClick={resetSessionWords}
-                title="Reset session counter to zero for a new sprint"
+                title="Reset the 'this sitting' counter to zero for a new sprint (today's total is kept)"
               >
                 <RotateCcw size={12} />
                 New Sprint
               </button>
             </div>
+          </div>
+
+          {/* Streak & recent days */}
+          <div className="writing-history-section">
+            <div className="writing-history-header">
+              <label className="section-label">Last 14 Days</label>
+              <span className="streak-badge" title="Consecutive days with words written">
+                <Flame size={13} />
+                {streak} {streak === 1 ? 'day' : 'days'} streak
+              </span>
+            </div>
+            <div className="writing-history-bars" role="img" aria-label="Words written per day, last 14 days">
+              {history.map((d) => (
+                <div
+                  key={d.key}
+                  className="writing-history-day"
+                  title={`${d.date.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}: ${d.words.toLocaleString()} words`}
+                >
+                  <div className="writing-history-track">
+                    <div
+                      className={`writing-history-bar ${dailyWordGoal > 0 && d.words >= dailyWordGoal ? 'met' : ''}`}
+                      style={{ height: `${Math.round((d.words / historyMax) * 100)}%` }}
+                    />
+                  </div>
+                  <span className="writing-history-label">{d.date.getDate()}</span>
+                </div>
+              ))}
+            </div>
+            {!projectPath && (
+              <p className="writing-history-note">Open a novel folder to keep this history between sessions.</p>
+            )}
           </div>
 
           {/* Goal Preset Selector */}

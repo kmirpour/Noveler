@@ -12,6 +12,7 @@ import { CompileModal } from './components/CompileModal/CompileModal';
 import { CodexModal } from './components/Codex/CodexModal';
 import { ProseAnalysisModal } from './components/ProseAnalysis/ProseAnalysisModal';
 import { Scratchpad } from './components/Scratchpad/Scratchpad';
+import { Reference } from './components/Reference/Reference';
 import { useEditorStore } from './stores/editorStore';
 import { useEffect } from 'react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -39,14 +40,19 @@ function App() {
         <main className="app-main">
           {viewMode !== 'preview' && (
             <div
-              className={`pane editor-pane ${viewMode === 'split' || viewMode === 'scratchpad' ? 'split' : 'full'}`}
+              className={`pane editor-pane ${viewMode === 'split' || viewMode === 'scratchpad' || viewMode === 'reference' ? 'split' : 'full'}`}
             >
               <Editor />
             </div>
           )}
-          {viewMode !== 'editor' && viewMode !== 'scratchpad' && (
+          {viewMode !== 'editor' && viewMode !== 'scratchpad' && viewMode !== 'reference' && (
             <div className={`pane preview-pane ${viewMode === 'split' ? 'split' : 'full'}`}>
               <Preview />
+            </div>
+          )}
+          {viewMode === 'reference' && (
+            <div className="pane reference-pane split">
+              <Reference />
             </div>
           )}
           {viewMode === 'scratchpad' && (

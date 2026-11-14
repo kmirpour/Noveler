@@ -9,6 +9,7 @@ vi.mock('../services/fileService', async (importOriginal) => {
 import * as fileService from '../services/fileService';
 import { loadRecovery, saveRecovery } from '../services/recovery';
 import { useEditorStore } from './editorStore';
+import { wordsToday } from '../utils/writingLog';
 
 const prompt = vi.mocked(fileService.promptUnsavedChanges);
 
@@ -118,6 +119,7 @@ describe('WritingSlice', () => {
   });
 
   it('tracks session words and resets sprint', () => {
+    useEditorStore.setState({ countBaseline: null, sessionWords: 0, writingLog: {}, novelProject: null });
     const store = useEditorStore.getState();
     store.updateCounts('First chapter begins here with seven words');
     expect(useEditorStore.getState().wordCount).toBe(7);
@@ -126,10 +128,120 @@ describe('WritingSlice', () => {
     store.updateCounts('First chapter begins here with seven words and now six more');
     expect(useEditorStore.getState().wordCount).toBe(11);
     expect(useEditorStore.getState().sessionWords).toBe(4);
+    expect(wordsToday(useEditorStore.getState().writingLog)).toBe(4);
 
     store.resetSessionWords();
     expect(useEditorStore.getState().sessionWords).toBe(0);
-    expect(useEditorStore.getState().sessionStartWordCount).toBe(11);
+    // A new sprint does not erase what was written today.
+    expect(wordsToday(useEditorStore.getState().writingLog)).toBe(4);
+  });
+
+  it("keeps today's words when switching chapters, and never counts a loaded file as writing", () => {
+    useEditorStore.setState({ countBaseline: null, sessionWords: 0, writingLog: {}, novelProject: null });
+    const store = useEditorStore.getState();
+    store.loadDocument({ markdown: 'one two three', fileName: 'a.md', filePath: 'C:/novel/a.md' });
+    store.updateCounts('one two three four five');
+    expect(wordsToday(useEditorStore.getState().writingLog)).toBe(2);
+
+    // Opening a much longer chapter adds nothing by itself...
+    store.loadDocument({
+      markdown: 'a long chapter with quite a few more words in it',
+      fileName: 'b.md',
+      filePath: 'C:/novel/b.md',
+    });
+    expect(wordsToday(useEditorStore.getState().writingLog)).toBe(2);
+    expect(useEditorStore.getState().sessionWords).toBe(2);
+
+    // ...and writing there adds to the same daily total.
+    store.updateCounts('a long chapter with quite a few more words in it plus three');
+    expect(wordsToday(useEditorStore.getState().writingLog)).toBe(4);
+    expect(useEditorStore.getState().sessionWords).toBe(4);
+  });
+
+  it('moves a note into a chapter as a scene and lifts a scene out to its own file', async () => {
+    const chapterPath = '/novel/01-chapter.md';
+    const notePath = '/novel/scene-armageddon.md';
+    const files = new Map<string, string>([
+      [chapterPath, '# Chapter 1\n\n## One\n\nFirst scene.\n'],
+      [notePath, '# Scene Armageddon\n\nThe *end* began on a Tuesday.\n'],
+    ]);
+    const read = vi.spyOn(fileService, 'readFileDirect').mockImplementation(async (path: string) => {
+      if (!files.has(path)) throw new Error(`missing ${path}`);
+      return { path, name: path.split('/').pop()!, content: files.get(path)! };
+    });
+    const save = vi.spyOn(fileService, 'saveFile').mockImplementation(async (path: string, content: string) => {
+      files.set(path, content);
+    });
+    const create = vi
+      .spyOn(fileService, 'createFile')
+      .mockImplementation(async (path: string, content?: string) => {
+        files.set(path, content ?? '');
+      });
+    const rename = vi.spyOn(fileService, 'renamePath').mockImplementation(async (from: string, to: string) => {
+      files.set(to, files.get(from)!);
+      files.delete(from);
+    });
+    const tree = vi.spyOn(fileService, 'readDirTree').mockImplementation(async () =>
+      [...files.keys()]
+        .filter((p) => p.startsWith('/novel/') && !p.includes('/graveyard/') && p.endsWith('.md'))
+        .map((p) => ({ name: p.split('/').pop()!, path: p, is_dir: false, children: [] }))
+    );
+
+    useEditorStore.setState({ editorInstance: null, isDirty: false, filePath: null, fileName: null });
+    expect(await useEditorStore.getState().loadProjectByPath('/novel')).toBe(true);
+    await vi.waitFor(() => expect(useEditorStore.getState().filePath).toBe(chapterPath));
+
+    // Note -> last scene of the chapter; the note itself is kept in the graveyard.
+    expect(await useEditorStore.getState().insertFileAsSceneAction(notePath, chapterPath)).toBe(true);
+    const afterInsert = useEditorStore.getState().markdownContent;
+    expect(afterInsert).toContain('## One\n\nFirst scene.');
+    expect(afterInsert).toContain('## Armageddon\n\nThe *end* began on a Tuesday.');
+    expect(files.has(notePath)).toBe(false);
+    expect([...files.keys()].some((p) => p.includes('/graveyard/') && p.endsWith('scene-armageddon.md'))).toBe(true);
+    expect(wordsToday(useEditorStore.getState().writingLog)).toBe(0);
+
+    // Scene -> its own standard Markdown file under Other Files.
+    expect(await useEditorStore.getState().extractSceneToFileAction(chapterPath, 0)).toBe(true);
+    const afterExtract = useEditorStore.getState().markdownContent;
+    expect(afterExtract).not.toContain('First scene.');
+    expect(afterExtract).toContain('## Armageddon');
+    expect(files.get('/novel/scene-one.md')).toBe('# One\n\nFirst scene.\n');
+    expect(useEditorStore.getState().novelProject?.extraFiles?.map((f) => f.path)).toContain('/novel/scene-one.md');
+
+    for (const spy of [read, save, create, rename, tree]) spy.mockRestore();
+    useEditorStore.setState({ projectPath: null, novelProject: null, writingLog: {}, isDirty: false });
+  });
+
+  it('reorders chapters without renaming any file', async () => {
+    const mk = (name: string) => ({
+      id: name,
+      type: 'scene' as const,
+      title: name,
+      path: `C:/novel/${name}`,
+    });
+    useEditorStore.setState({
+      projectPath: 'C:/novel',
+      novelProject: {
+        version: 1,
+        title: 'T',
+        author: 'A',
+        targetWordCount: 1,
+        dailyTarget: 1,
+        createdAt: '',
+        updatedAt: '',
+        binder: [mk('01-a.md'), mk('02-b.md'), mk('03-c.md')],
+      },
+    });
+    const rename = vi.spyOn(fileService, 'renamePath');
+    expect(await useEditorStore.getState().reorderBinderItemsAction(2, 0)).toBe(true);
+    expect(useEditorStore.getState().novelProject?.binder.map((b) => b.path)).toEqual([
+      'C:/novel/03-c.md',
+      'C:/novel/01-a.md',
+      'C:/novel/02-b.md',
+    ]);
+    expect(rename).not.toHaveBeenCalled();
+    rename.mockRestore();
+    useEditorStore.setState({ projectPath: null, novelProject: null });
   });
 
   it('manages daily word goals and selected word count', () => {
