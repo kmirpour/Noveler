@@ -70,7 +70,7 @@ export const createProjectToolsSlice: SliceCreator<ProjectToolsPart> = (set, get
     }
     setDirty(true);
     setStatusMessage(message);
-    if (get().filePath && get().autoSaveEnabled && fileService.isTauri()) void get().saveFileAction();
+    if (get().filePath && get().autoSaveEnabled && fileService.canWriteToDisk(get().filePath)) void get().saveFileAction();
   },
 
   copyContextPackAction: async () => {

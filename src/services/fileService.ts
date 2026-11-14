@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { message, open, save } from '@tauri-apps/plugin-dialog';
+import * as webFiles from './webFiles';
 
 /** File types Noveler can open/save as text. Mirrors TEXT_EXTENSIONS in commands.rs. */
 export const TEXT_EXTENSIONS = ['md', 'markdown', 'txt', 'json'];
@@ -28,6 +29,21 @@ export interface FileEntry {
 
 export function isTauri(): boolean {
   return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
+}
+
+/**
+ * True when this file can be written back to the writer's own disk. Always true in the desktop app.
+ * In a browser it is true only for folders and files the writer opened through the browser's
+ * pickers (desktop Chrome, Edge, Opera); everywhere else saving would mean a download.
+ */
+export function canWriteToDisk(path?: string | null): boolean {
+  if (isTauri()) return true;
+  return webFiles.owns(path);
+}
+
+/** True in a browser that can open a folder and save back into it. */
+export function canOpenFolders(): boolean {
+  return !isTauri() && webFiles.isWebFilesSupported();
 }
 
 export function extractFileName(filePath: string): string {
@@ -64,6 +80,11 @@ export async function openFile(): Promise<OpenedFile | null> {
       console.error('Failed to open file via Tauri:', err);
       throw err;
     }
+  }
+
+  // Browser with file access: open the real file, so it can be saved back
+  if (canOpenFolders()) {
+    return await webFiles.pickTextFile();
   }
 
   // Browser Fallback (e.g. testing in Chrome)
@@ -104,6 +125,9 @@ export async function readFileDirect(path: string): Promise<OpenedFile> {
     const name = extractFileName(path);
     return { path, name, content };
   }
+  if (webFiles.owns(path)) {
+    return { path, name: extractFileName(path), content: await webFiles.readText(path) };
+  }
   if (browserVirtualFiles.has(path)) {
     return {
       path,
@@ -142,6 +166,13 @@ export async function openFolder(): Promise<{ path: string; name: string; entrie
       console.error('Failed to open folder via Tauri:', err);
       throw err;
     }
+  }
+
+  // Browser with folder access: open the real folder
+  if (canOpenFolders()) {
+    const picked = await webFiles.pickFolder();
+    if (!picked) return null;
+    return { path: picked.path, name: picked.name, entries: await webFiles.listDir(picked.path) };
   }
 
   // Browser Fallback (e.g. testing in browser or npm run dev)
@@ -194,6 +225,9 @@ export async function readDirectory(path: string): Promise<FileEntry[]> {
   if (isTauri()) {
     return await invoke<FileEntry[]>('read_dir', { path });
   }
+  if (webFiles.owns(path)) {
+    return await webFiles.listDir(path);
+  }
   return [];
 }
 
@@ -201,6 +235,10 @@ export async function readDirectory(path: string): Promise<FileEntry[]> {
  * Save content to an existing file path
  */
 export async function saveFile(path: string, content: string): Promise<void> {
+  if (!isTauri() && webFiles.owns(path)) {
+    await webFiles.writeText(path, content);
+    return;
+  }
   browserVirtualFiles.set(path, content);
   if (isTauri()) {
     await invoke('write_file', { path, content });
@@ -248,6 +286,11 @@ export async function saveFileAs(
     return { path: targetPath, name };
   }
 
+  // Browser with file access: ask where, save there, and keep the file open for autosave
+  if (canOpenFolders()) {
+    return await webFiles.saveTextAs(content, defaultName);
+  }
+
   // Browser Fallback: download
   const blob = new Blob([content], { type: 'text/markdown;charset=utf-8' });
   const url = URL.createObjectURL(blob);
@@ -281,6 +324,12 @@ export async function saveBinaryAs(
     // Tauri serializes command args as JSON, so send a plain number[] -> Vec<u8>.
     await invoke('write_binary_file', { path: targetPath, bytes: Array.from(bytes) });
     return { path: targetPath, name: extractFileName(targetPath) };
+  }
+
+  // Browser with file access: ask where and write the exported file there
+  if (canOpenFolders()) {
+    const saved = await webFiles.saveBlobAs(data, defaultName, filter);
+    return saved ? { path: saved.name, name: saved.name } : null;
   }
 
   // Browser Fallback: download
@@ -332,6 +381,9 @@ export async function readDirTree(path: string): Promise<BinderNode[]> {
   if (isTauri()) {
     return await invoke<BinderNode[]>('read_dir_tree', { path });
   }
+  if (webFiles.owns(path)) {
+    return await webFiles.readTree(path);
+  }
   if (browserVirtualFolder && browserVirtualFolder.path === path) {
     return browserVirtualFolder.entries.map((entry) => ({
       name: entry.name,
@@ -356,6 +408,10 @@ export async function setProjectRoot(path: string | null): Promise<void> {
 export async function createFile(path: string, initialContent?: string): Promise<void> {
   if (isTauri()) {
     await invoke('create_file', { path, initialContent: initialContent ?? null });
+    return;
+  }
+  if (webFiles.owns(path) || webFiles.owns(path.slice(0, path.lastIndexOf('/')))) {
+    await webFiles.createFile(path, initialContent ?? '');
     return;
   }
   browserVirtualFiles.set(path, initialContent ?? '');
@@ -389,12 +445,20 @@ export async function readBackup(path: string, name: string): Promise<string> {
 export async function createDir(path: string): Promise<void> {
   if (isTauri()) {
     await invoke('create_dir', { path });
+    return;
+  }
+  if (webFiles.owns(path.slice(0, path.lastIndexOf('/'))) || webFiles.owns(path)) {
+    await webFiles.createDir(path);
   }
 }
 
 export async function renamePath(oldPath: string, newPath: string): Promise<void> {
   if (isTauri()) {
     await invoke('rename_path', { oldPath, newPath });
+    return;
+  }
+  if (webFiles.owns(oldPath)) {
+    await webFiles.renamePath(oldPath, newPath);
   }
 }
 

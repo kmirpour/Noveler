@@ -61,7 +61,7 @@ export const createProjectFilesSlice: SliceCreator<ProjectFilesPart> = (set, get
       await fileService.setProjectRoot(path);
       const project = await loadNovelProject(path);
       const scratchpadText = await loadScratchpadFile(path);
-      set({ recentProjects: addRecentProject(path).recentProjects });
+      if (fileService.isTauri()) set({ recentProjects: addRecentProject(path).recentProjects });
       const name = fileService.extractFileName(path);
 
       let totalWords = 0;
@@ -207,7 +207,7 @@ export const createProjectFilesSlice: SliceCreator<ProjectFilesPart> = (set, get
           } else {
             get().setMarkdownContent(setChapterHeadingTitle(markdownContent, safeTitle));
             get().setDirty(true);
-            if (get().autoSaveEnabled && fileService.isTauri()) void get().saveFileAction();
+            if (get().autoSaveEnabled && fileService.canWriteToDisk(get().filePath)) void get().saveFileAction();
           }
         } else {
           const file = await fileService.readFileDirect(oldPath);

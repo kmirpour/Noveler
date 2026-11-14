@@ -128,7 +128,7 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
     // With autosave on, a file that already lives on disk is simply saved: the writer asked for
     // that, and a prompt here only appears because autosave hadn't fired yet (e.g. switching
     // chapters right after typing). Untitled documents still ask.
-    if (autoSaveEnabled && filePath && fileService.isTauri()) {
+    if (autoSaveEnabled && filePath && fileService.canWriteToDisk(filePath)) {
       return await saveFileAction();
     }
 
@@ -218,8 +218,8 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
       const opened = await fileService.openFile();
       if (!opened) return false;
 
-      const path = fileService.isTauri() ? opened.path : null;
-      if (path) {
+      const path = fileService.canWriteToDisk(opened.path) ? opened.path : null;
+      if (path && fileService.isTauri()) {
         const updated = addRecentFile(path);
         set({ recentFiles: updated.recentFiles });
       }
@@ -248,8 +248,7 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
       if (!(await get().confirmDiscardIfDirty())) return false;
 
       const opened = await fileService.readFileDirect(path);
-      const updated = addRecentFile(path);
-      set({ recentFiles: updated.recentFiles });
+      if (fileService.isTauri()) set({ recentFiles: addRecentFile(path).recentFiles });
 
       get().loadDocument({
         markdown: opened.content,
@@ -299,7 +298,7 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
         if (metaChanged) persistProject();
       }
 
-      const updated = addRecentFile(filePath);
+      const updated = fileService.isTauri() ? addRecentFile(filePath) : { recentFiles: get().recentFiles };
 
       scheduleGitRefresh();
       // Autosave is routine: the status bar's "Saved" time covers it without a message each time.
@@ -327,8 +326,8 @@ export const createDocumentSlice: SliceCreator<DocumentSlice> = (set, get) => ({
       const saved = await fileService.saveFileAs(body, defaultName);
       if (!saved) return false;
 
-      const path = fileService.isTauri() ? saved.path : null;
-      if (path) {
+      const path = fileService.canWriteToDisk(saved.path) ? saved.path : null;
+      if (path && fileService.isTauri()) {
         const updated = addRecentFile(path);
         set({ recentFiles: updated.recentFiles });
       }

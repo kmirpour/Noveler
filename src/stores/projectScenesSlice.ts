@@ -188,7 +188,7 @@ export const createProjectScenesSlice: SliceCreator<ProjectScenesPart> = (set, g
       });
       get().setDirty(true);
 
-      if (targetPath && get().autoSaveEnabled && fileService.isTauri()) {
+      if (targetPath && get().autoSaveEnabled && fileService.canWriteToDisk(targetPath)) {
         void get().saveFileAction();
       }
       return;
@@ -271,7 +271,7 @@ export const createProjectScenesSlice: SliceCreator<ProjectScenesPart> = (set, g
     });
     get().setDirty(true);
 
-    if (targetPath && get().autoSaveEnabled && fileService.isTauri()) {
+    if (targetPath && get().autoSaveEnabled && fileService.canWriteToDisk(targetPath)) {
       void get().saveFileAction();
     }
 
@@ -320,7 +320,7 @@ export const createProjectScenesSlice: SliceCreator<ProjectScenesPart> = (set, g
       });
       get().setDirty(true);
 
-      if (targetPath && get().autoSaveEnabled && fileService.isTauri()) {
+      if (targetPath && get().autoSaveEnabled && fileService.canWriteToDisk(targetPath)) {
         void get().saveFileAction();
       }
       return true;
@@ -375,7 +375,7 @@ export const createProjectScenesSlice: SliceCreator<ProjectScenesPart> = (set, g
         get().setDirty(true);
       }
       // The chapter now holds the text: save it before the note leaves the folder.
-      if (fileService.isTauri() && !(await get().saveFileAction())) return false;
+      if (fileService.canWriteToDisk(get().filePath) && !(await get().saveFileAction())) return false;
 
       const moved = await moveFileToGraveyard(projectPath, notePath);
       await get().refreshProjectFiles();
@@ -415,7 +415,7 @@ export const createProjectScenesSlice: SliceCreator<ProjectScenesPart> = (set, g
       if (!(await get().deleteSceneFromChapterAction(chapterPath, sceneIndex, { archive: false }))) {
         return false;
       }
-      if (fileService.isTauri()) await get().saveFileAction();
+      if (fileService.canWriteToDisk(get().filePath)) await get().saveFileAction();
       await get().refreshProjectFiles();
       get().setStatusMessage(`Moved scene "${title}" to Other Files as ${created.name}`);
       return true;
@@ -505,7 +505,7 @@ export const createProjectScenesSlice: SliceCreator<ProjectScenesPart> = (set, g
     });
     get().setDirty(true);
 
-    if (targetPath && get().autoSaveEnabled && fileService.isTauri()) {
+    if (targetPath && get().autoSaveEnabled && fileService.canWriteToDisk(targetPath)) {
       void get().saveFileAction();
     }
     return true;

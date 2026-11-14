@@ -21,7 +21,7 @@ import {
   type DocumentSpellIssue,
 } from '../../extensions/spellAndGrammar';
 import { useEditorStore } from '../../stores/editorStore';
-import { isTauri, isSupportedTextFile } from '../../services/fileService';
+import { isTauri, isSupportedTextFile, canWriteToDisk } from '../../services/fileService';
 import { extractWordsFromCodexEntry } from '../../services/projectService';
 import { applyCasing } from '../../services/thesaurusService';
 import { clearSpellingCache } from '../../services/spellingService';
@@ -171,7 +171,7 @@ export function Editor() {
       }
 
       // Autosave to real on-disk files
-      if (store.autoSaveEnabled && store.filePath && isTauri()) {
+      if (store.autoSaveEnabled && store.filePath && canWriteToDisk(store.filePath)) {
         if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
         autoSaveTimerRef.current = setTimeout(() => {
           const latest = useEditorStore.getState();
