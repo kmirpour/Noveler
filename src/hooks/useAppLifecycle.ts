@@ -5,6 +5,7 @@ import { ask } from '@tauri-apps/plugin-dialog';
 import { useEditorStore, flushProjectSave } from '../stores/editorStore';
 import { isTauri } from '../services/fileService';
 import { clearRecovery, loadRecovery, saveRecovery } from '../services/recovery';
+import { loadWindowState, saveWindowState } from '../services/settings';
 
 const RECOVERY_DEBOUNCE_MS = 1000;
 
@@ -61,6 +62,76 @@ export function useAppLifecycle() {
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
+  }, []);
+
+  // --- Remember the window's size and position ------------------------------
+  useEffect(() => {
+    if (!isTauri()) return;
+    let disposed = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const unlisten: (() => void)[] = [];
+
+    void (async () => {
+      try {
+        const win = getCurrentWindow();
+        const { PhysicalPosition, PhysicalSize } = await import('@tauri-apps/api/dpi');
+        const { availableMonitors } = await import('@tauri-apps/api/window');
+
+        const saved = loadWindowState();
+        if (saved) {
+          // Only return to a position that is still on a connected screen.
+          const monitors = await availableMonitors();
+          const onScreen = monitors.some(
+            (m) =>
+              saved.x + 80 < m.position.x + m.size.width &&
+              saved.x + saved.width - 80 > m.position.x &&
+              saved.y >= m.position.y - 10 &&
+              saved.y + 40 < m.position.y + m.size.height
+          );
+          await win.setSize(new PhysicalSize(saved.width, saved.height));
+          if (onScreen) await win.setPosition(new PhysicalPosition(saved.x, saved.y));
+          if (saved.maximized) await win.maximize();
+        }
+        if (disposed) return;
+
+        const remember = () => {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(async () => {
+            try {
+              const maximized = await win.isMaximized();
+              if (maximized) {
+                // Keep the last normal size; just note that the window was maximized.
+                const previous = loadWindowState();
+                if (previous) saveWindowState({ ...previous, maximized: true });
+                return;
+              }
+              if (await win.isMinimized()) return;
+              const size = await win.outerSize();
+              const position = await win.outerPosition();
+              saveWindowState({
+                width: size.width,
+                height: size.height,
+                x: position.x,
+                y: position.y,
+                maximized: false,
+              });
+            } catch {
+              // best effort
+            }
+          }, 400);
+        };
+        unlisten.push(await win.onResized(remember), await win.onMoved(remember));
+        if (disposed) unlisten.forEach((fn) => fn());
+      } catch (err) {
+        console.warn('Could not restore window state:', err);
+      }
+    })();
+
+    return () => {
+      disposed = true;
+      if (timer) clearTimeout(timer);
+      unlisten.forEach((fn) => fn());
+    };
   }, []);
 
   // --- Native drag & drop (desktop) ---------------------------------------

@@ -44,6 +44,7 @@ import {
 import { useEditorStore } from '../../stores/editorStore';
 import { flattenScenes } from '../../services/projectService';
 import { extractFileName } from '../../services/fileService';
+import { THEMES } from '../../services/themes';
 import './CommandPalette.css';
 
 interface CommandItem {
@@ -215,6 +216,28 @@ export function CommandPalette() {
         title: 'Push Manuscript to GitHub',
         icon: <GitBranch size={16} />,
         action: () => void syncGitAction(),
+      },
+      {
+        id: 'file-backups',
+        category: 'File',
+        title: 'Backups of This File: Browse and Restore Earlier Versions',
+        icon: <FileText size={16} />,
+        action: () => useEditorStore.getState().setBackupsOpen(true),
+      },
+      {
+        id: 'app-settings',
+        category: 'View & Focus',
+        title: 'Settings (Theme, Typeface, Page, Autosave, Privacy)',
+        shortcut: 'Ctrl+,',
+        icon: <FileText size={16} />,
+        action: () => useEditorStore.getState().setSettingsOpen(true),
+      },
+      {
+        id: 'story-context-pack',
+        category: 'Story Tools',
+        title: 'Copy Context for an AI Assistant (Story Bible, Outline, Notes, Current Scene)',
+        icon: <FileText size={16} />,
+        action: () => void useEditorStore.getState().copyContextPackAction(),
       },
 
       // View & Focus
@@ -490,6 +513,16 @@ export function CommandPalette() {
         icon: <Compass size={16} />,
         action: () => setTheme('nord'),
       },
+      // The newer themes (the original five have their own entries above)
+      ...THEMES.filter((t) => !['sepia', 'light', 'dark', 'forest', 'nord'].includes(t.id)).map(
+        (t): CommandItem => ({
+          id: `theme-${t.id}`,
+          category: 'Theme',
+          title: `Theme: ${t.label} (${t.description})`,
+          icon: <FileText size={16} />,
+          action: () => setTheme(t.id),
+        })
+      ),
       // Dynamic Chapter Quick Switcher
       ...(novelProject
         ? flattenScenes(novelProject.binder).map(

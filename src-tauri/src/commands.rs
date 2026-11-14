@@ -258,6 +258,53 @@ fn rename_path_in(root: &Path, old_path: String, new_path: String) -> Result<(),
 }
 
 #[derive(Serialize, Clone)]
+pub struct BackupEntry {
+    /** File name inside the backup folder, e.g. `2026-11-13_201500_02-a-z.md`. */
+    pub name: String,
+    /** When the backup was taken, in seconds since the Unix epoch (UTC). */
+    pub timestamp: u64,
+    pub size: u64,
+}
+
+/// Lists the rolling backups kept for a document, newest first.
+#[tauri::command]
+pub fn list_backups(path: String) -> Result<Vec<BackupEntry>, String> {
+    let path = PathBuf::from(path);
+    ensure_extension(&path, TEXT_EXTENSIONS)?;
+    ensure_absolute(&path)?;
+    let dir = backup_dir_for(&path).ok_or("Cannot determine backup directory")?;
+    if !dir.is_dir() {
+        return Ok(Vec::new());
+    }
+
+    let mut entries: Vec<BackupEntry> = fs::read_dir(&dir)
+        .map_err(|e| format!("Failed to read backups: {e}"))?
+        .flatten()
+        .filter_map(|e| {
+            let name = e.file_name().to_string_lossy().to_string();
+            let timestamp = parse_stamp(&name)?;
+            let size = e.metadata().ok()?.len();
+            Some(BackupEntry { name, timestamp, size })
+        })
+        .collect();
+    entries.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+    Ok(entries)
+}
+
+/// Reads one backup of a document. `name` must be a backup file name returned by `list_backups`.
+#[tauri::command]
+pub fn read_backup(path: String, name: String) -> Result<String, String> {
+    let path = PathBuf::from(path);
+    ensure_extension(&path, TEXT_EXTENSIONS)?;
+    ensure_absolute(&path)?;
+    if name.contains('/') || name.contains('\\') || name.contains("..") || parse_stamp(&name).is_none() {
+        return Err(format!("Not a backup file name: {name}"));
+    }
+    let dir = backup_dir_for(&path).ok_or("Cannot determine backup directory")?;
+    fs::read_to_string(dir.join(&name)).map_err(|e| format!("Failed to read backup: {e}"))
+}
+
+#[derive(Serialize, Clone)]
 pub struct GitRepoStatus {
     pub git_installed: bool,
     pub is_repo: bool,
@@ -855,6 +902,31 @@ mod tests {
         assert_eq!(fs::read_to_string(&buried).unwrap(), "chapter");
         assert_eq!(fs::read_to_string(&outside).unwrap(), "keep me");
 
+        fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn backups_can_be_listed_and_read() {
+        let dir = temp_dir("list-backups");
+        let file = dir.join("ch1.md");
+        let path: String = file.to_string_lossy().into();
+        assert!(list_backups(path.clone()).unwrap().is_empty());
+
+        let t0 = UNIX_EPOCH + Duration::from_secs(1_790_000_000);
+        fs::write(&file, "first draft").unwrap();
+        backup_existing(&file, t0).unwrap();
+        fs::write(&file, "second draft").unwrap();
+        backup_existing(&file, t0 + BACKUP_INTERVAL * 2).unwrap();
+
+        let list = list_backups(path.clone()).unwrap();
+        assert_eq!(list.len(), 2);
+        assert!(list[0].timestamp > list[1].timestamp, "newest first");
+        assert_eq!(read_backup(path.clone(), list[0].name.clone()).unwrap(), "second draft");
+        assert_eq!(read_backup(path.clone(), list[1].name.clone()).unwrap(), "first draft");
+
+        // Only real backup names are accepted.
+        assert!(read_backup(path.clone(), "../ch1.md".into()).is_err());
+        assert!(read_backup(path, "ch1.md".into()).is_err());
         fs::remove_dir_all(dir).unwrap();
     }
 

@@ -17,6 +17,8 @@ pub fn run() {
       commands::create_file,
       commands::create_dir,
       commands::rename_path,
+      commands::list_backups,
+      commands::read_backup,
       commands::git_get_status,
       commands::git_sync
     ])

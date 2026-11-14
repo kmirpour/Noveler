@@ -13,6 +13,9 @@ import {
   type CodexCategory,
   findEntityMentions,
 } from '../../services/projectService';
+import { confirmDialog } from '../../services/dialogs';
+import { WikiImport } from './WikiImport';
+import '../Sidebar/CastTab.css';
 import './CodexModal.css';
 
 export function CodexModal() {
@@ -122,7 +125,14 @@ export function CodexModal() {
 
   const handleDelete = async () => {
     if (!selectedId) return;
-    if (confirm(`Delete "${formName}" from Story Bible?`)) {
+    if (
+      await confirmDialog({
+        title: `Delete "${formName}" from the Story Bible?`,
+        message: 'This entry and its notes are removed. The manuscript text is not changed.',
+        confirmLabel: 'Delete entry',
+        danger: true,
+      })
+    ) {
       await deleteCodexEntryAction(selectedId);
       setSelectedId(null);
       setIsNew(false);
@@ -171,6 +181,8 @@ export function CodexModal() {
                 ))}
               </div>
             </div>
+
+            <WikiImport />
 
             <div className="codex-list">
               {filteredEntries.length === 0 ? (

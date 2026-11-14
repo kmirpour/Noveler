@@ -392,12 +392,14 @@ export async function loadNovelProject(projectPath: string): Promise<NovelProjec
     sceneMetadata: existingProject?.sceneMetadata || {},
     tagCategories: existingProject?.tagCategories || ['characters', 'locations', 'items', 'scenes'],
     tagAssignments: existingProject?.tagAssignments || {},
-    customDictionary: Array.from(
-      new Set([
-        ...(existingProject?.customDictionary || []),
-        ...extractWordsFromCodex(existingProject?.codex || []),
-      ])
-    ),
+    // Only words the writer added by hand are stored. Names from the story bible are recognised
+    // automatically at check time, so copies of them saved by older versions are dropped here.
+    customDictionary: (() => {
+      const fromCodex = new Set(extractWordsFromCodex(existingProject?.codex || []));
+      return Array.from(new Set(existingProject?.customDictionary || [])).filter(
+        (w) => typeof w === 'string' && w.trim() !== '' && !fromCodex.has(w)
+      );
+    })(),
     codex: existingProject?.codex || [],
     snapshots: await loadSnapshots(projectPath, existingProject?.snapshots || []),
     gitRemoteUrl: existingProject?.gitRemoteUrl,

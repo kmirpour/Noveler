@@ -28,3 +28,7 @@ coverage
 *.njsproj
 *.sln
 *.sw?
+
+# Old binary backups and the author's own manuscript (its own repository)
+*.back
+/Manuscript/

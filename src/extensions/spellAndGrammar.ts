@@ -1,12 +1,14 @@
 import { Extension } from '@tiptap/core';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
-import { Decoration, DecorationSet } from '@tiptap/pm/view';
+import { Decoration, DecorationSet, type EditorView } from '@tiptap/pm/view';
 import type { Node as PmNode } from '@tiptap/pm/model';
 import {
   checkTextOffline,
   checkTextSpellAndGrammar,
+  collectLikelyNames,
   type SpellGrammarIssue,
 } from '../services/spellingService';
+import { loadDictionary } from '../services/dictionary';
 
 export interface DocumentSpellIssue extends SpellGrammarIssue {
   from: number;
@@ -82,7 +84,24 @@ function buildDecorations(doc: PmNode, issues: DocumentSpellIssue[]): Decoration
 /**
  * Scans all textblocks in the document synchronously with the fast offline engine.
  */
-function scanDocOffline(doc: PmNode, ignoreWords: string[]): DocumentSpellIssue[] {
+/**
+ * The project's own words plus every name this document uses (words capitalised mid-sentence),
+ * so that "Zzyzx" is not flagged merely because one sentence happens to begin with it.
+ */
+function ignoreWordsFor(doc: PmNode, projectWords: string[]): string[] {
+  const names = new Set<string>();
+  doc.descendants((node) => {
+    if (node.isTextblock) {
+      for (const name of collectLikelyNames(node.textContent)) names.add(name);
+      return false;
+    }
+    return true;
+  });
+  return names.size > 0 ? [...projectWords, ...names] : projectWords;
+}
+
+function scanDocOffline(doc: PmNode, projectWords: string[]): DocumentSpellIssue[] {
+  const ignoreWords = ignoreWordsFor(doc, projectWords);
   const allIssues: DocumentSpellIssue[] = [];
   doc.descendants((node, pos) => {
     if (node.isTextblock && node.type.name !== 'codeBlock') {
@@ -172,6 +191,9 @@ export const SpellAndGrammar = Extension.create<SpellAndGrammarOptions>({
               const mappedIssues: DocumentSpellIssue[] = [];
 
               for (const iss of prevIssues) {
+                // On-device findings are recomputed below; only results from the online service
+                // need to be carried across the edit.
+                if (iss.source === 'offline') continue;
                 const mappedFrom = tr.mapping.map(iss.from, 1);
                 const mappedTo = tr.mapping.map(iss.to, -1);
                 if (mappedTo <= mappedFrom) {
@@ -248,7 +270,7 @@ export const SpellAndGrammar = Extension.create<SpellAndGrammarOptions>({
               const textToCheck = targetNode.textContent;
               if (!textToCheck || textToCheck.trim().length < 2) return;
 
-              const ignoreWords = getIgnoreWords();
+              const ignoreWords = ignoreWordsFor(editorView.state.doc, getIgnoreWords());
               isCheckingActiveBlock = true;
 
               try {
@@ -304,7 +326,7 @@ export const SpellAndGrammar = Extension.create<SpellAndGrammarOptions>({
               if (!isEnabled() || editorView.isDestroyed) return;
 
               const doc = editorView.state.doc;
-              const ignoreWords = getIgnoreWords();
+              const ignoreWords = ignoreWordsFor(doc, getIgnoreWords());
               const blocks: { node: PmNode; pos: number; text: string }[] = [];
 
               doc.descendants((node, pos) => {
@@ -365,6 +387,21 @@ export const SpellAndGrammar = Extension.create<SpellAndGrammarOptions>({
           // Run initial check shortly after mount
           scheduleInitialDocCheck();
 
+          // The dictionary loads in the background; once it is ready, check the whole document.
+          void loadDictionary().then((ok) => {
+            if (!ok || editorView.isDestroyed || !isEnabled()) return;
+            const online = (spellAndGrammarPluginKey.getState(editorView.state)?.issues || []).filter(
+              (iss) => iss.source !== 'offline'
+            );
+            const local = scanDocOffline(editorView.state.doc, getIgnoreWords());
+            editorView.dispatch(
+              editorView.state.tr.setMeta(
+                spellAndGrammarPluginKey,
+                [...online, ...local].sort((a, b) => a.from - b.from)
+              )
+            );
+          });
+
           return {
             update(view, prevState) {
               if (view.state.doc !== prevState.doc) {
@@ -380,3 +417,22 @@ export const SpellAndGrammar = Extension.create<SpellAndGrammarOptions>({
     ];
   },
 });
+
+/**
+ * Re-checks the whole document with the on-device engine (for example after spell check is turned
+ * back on, or a word is added to the novel's dictionary). Findings from the online service are
+ * kept unless their word is now on the ignore list.
+ */
+export function rescanSpelling(view: EditorView, projectWords: string[]): void {
+  const ignore = new Set(projectWords.map((w) => w.toLowerCase()));
+  const kept = (spellAndGrammarPluginKey.getState(view.state)?.issues || []).filter(
+    (iss) => iss.source !== 'offline' && !ignore.has(iss.matchedText.toLowerCase())
+  );
+  const local = scanDocOffline(view.state.doc, projectWords);
+  view.dispatch(
+    view.state.tr.setMeta(
+      spellAndGrammarPluginKey,
+      [...kept, ...local].sort((a, b) => a.from - b.from)
+    )
+  );
+}

@@ -14,6 +14,8 @@ import {
   Check,
   BookPlus,
   Sparkles,
+  StickyNote,
+  ClipboardCheck,
 } from 'lucide-react';
 import './EditorContextMenu.css';
 
@@ -27,6 +29,8 @@ export interface EditorContextMenuProps {
   onCut: () => void;
   onCopy: () => void;
   onPaste: () => void;
+  onPasteClean?: () => void;
+  onMoveToScratchpad?: () => void;
   onClose: () => void;
 }
 
@@ -40,6 +44,8 @@ export function EditorContextMenu({
   onCut,
   onCopy,
   onPaste,
+  onPasteClean,
+  onMoveToScratchpad,
   onClose,
 }: EditorContextMenuProps) {
   const menuRef = useRef<HTMLDivElement>(null);
@@ -278,6 +284,37 @@ export function EditorContextMenu({
         <span className="menu-label">Paste</span>
         <span className="menu-shortcut">Ctrl+V</span>
       </button>
+
+      {onPasteClean && (
+        <button
+          type="button"
+          className="context-menu-item"
+          title="Tidies text copied from a chat assistant or web page before pasting"
+          onClick={() => {
+            onPasteClean();
+            onClose();
+          }}
+        >
+          <ClipboardCheck size={14} className="menu-icon" />
+          <span className="menu-label">Paste and tidy</span>
+        </button>
+      )}
+
+      {onMoveToScratchpad && (
+        <button
+          type="button"
+          className="context-menu-item"
+          title="Cut the selection and keep it in the scratchpad"
+          onClick={() => {
+            onMoveToScratchpad();
+            onClose();
+          }}
+          disabled={!hasSelection}
+        >
+          <StickyNote size={14} className="menu-icon" />
+          <span className="menu-label">Move to scratchpad</span>
+        </button>
+      )}
 
       <div className="context-menu-divider" />
 

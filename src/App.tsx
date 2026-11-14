@@ -13,6 +13,11 @@ import { CodexModal } from './components/Codex/CodexModal';
 import { ProseAnalysisModal } from './components/ProseAnalysis/ProseAnalysisModal';
 import { Scratchpad } from './components/Scratchpad/Scratchpad';
 import { Reference } from './components/Reference/Reference';
+import { DialogHost } from './components/Dialog/DialogHost';
+import { SettingsModal } from './components/Settings/SettingsModal';
+import { BackupsModal } from './components/Settings/BackupsModal';
+import { Welcome } from './components/Welcome/Welcome';
+import { applyTheme } from './services/themes';
 import { useEditorStore } from './stores/editorStore';
 import { useEffect } from 'react';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
@@ -29,7 +34,7 @@ function App() {
 
   // Sync theme with root DOM attribute for zero-re-render CSS variable cascade
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', theme);
+    applyTheme(theme);
   }, [theme]);
 
   return (
@@ -62,6 +67,7 @@ function App() {
           )}
         </main>
         {!focusMode && <Inspector />}
+        <Welcome />
       </div>
       {!focusMode && <StatusBar />}
 
@@ -85,6 +91,9 @@ function App() {
       <CompileModal />
       <CodexModal />
       <ProseAnalysisModal />
+      <SettingsModal />
+      <BackupsModal />
+      <DialogHost />
     </div>
   );
 }

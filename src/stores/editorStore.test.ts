@@ -10,6 +10,7 @@ import * as fileService from '../services/fileService';
 import { loadRecovery, saveRecovery } from '../services/recovery';
 import { useEditorStore } from './editorStore';
 import { wordsToday } from '../utils/writingLog';
+import { THEME_IDS } from '../services/themes';
 
 const prompt = vi.mocked(fileService.promptUnsavedChanges);
 
@@ -269,23 +270,26 @@ describe('WritingSlice', () => {
     expect(useEditorStore.getState().goalsModalOpen).toBe(true);
   });
 
-  it('cycles across all 5 themes per THEMES_SPECIFICATION.md', () => {
+  it('cycles through every theme and back to the first, marking light and dark surfaces', () => {
     const store = useEditorStore.getState();
     store.setTheme('sepia');
     expect(useEditorStore.getState().theme).toBe('sepia');
+    expect(document.documentElement.getAttribute('data-theme-kind')).toBe('light');
 
-    store.cycleTheme();
-    expect(useEditorStore.getState().theme).toBe('light');
+    const seen: string[] = [];
+    for (let i = 0; i < THEME_IDS.length - 1; i++) {
+      store.cycleTheme();
+      seen.push(useEditorStore.getState().theme);
+    }
+    expect(new Set(seen).size).toBe(THEME_IDS.length - 1);
+    expect(seen).toContain('nord');
+    expect(seen).toContain('dusk');
 
-    store.cycleTheme();
-    expect(useEditorStore.getState().theme).toBe('dark');
+    store.setTheme('ink');
+    expect(document.documentElement.getAttribute('data-theme')).toBe('ink');
+    expect(document.documentElement.getAttribute('data-theme-kind')).toBe('dark');
 
-    store.cycleTheme();
-    expect(useEditorStore.getState().theme).toBe('forest');
-
-    store.cycleTheme();
-    expect(useEditorStore.getState().theme).toBe('nord');
-
+    store.setTheme(THEME_IDS[THEME_IDS.length - 1]);
     store.cycleTheme();
     expect(useEditorStore.getState().theme).toBe('sepia');
   });

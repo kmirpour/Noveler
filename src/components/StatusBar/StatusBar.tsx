@@ -1,6 +1,6 @@
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorStore } from '../../stores/editorStore';
-import { Target, ScrollText, BookOpen, Clock } from 'lucide-react';
+import { Target, Check } from 'lucide-react';
 import { wordsToday } from '../../utils/writingLog';
 import './StatusBar.css';
 
@@ -9,113 +9,107 @@ export function StatusBar() {
     fileName,
     filePath,
     isDirty,
+    lastSavedAt,
+    autoSaveEnabled,
     wordCount,
     selectedWordCount,
     novelWordCount,
-    sessionWords,
     dailyWordGoal,
     writingLog,
-    typewriterMode,
-    toggleTypewriterMode,
     setGoalsModalOpen,
     statusMessage,
     projectPath,
+    sceneTitle,
+    chapterTitle,
   } = useEditorStore(
-    useShallow((s) => ({
-      fileName: s.fileName,
-      filePath: s.filePath,
-      isDirty: s.isDirty,
-      wordCount: s.wordCount,
-      selectedWordCount: s.selectedWordCount,
-      novelWordCount: s.novelWordCount,
-      sessionWords: s.sessionWords,
-      dailyWordGoal: s.dailyWordGoal,
-      writingLog: s.writingLog,
-      typewriterMode: s.typewriterMode,
-      toggleTypewriterMode: s.toggleTypewriterMode,
-      setGoalsModalOpen: s.setGoalsModalOpen,
-      statusMessage: s.statusMessage,
-      projectPath: s.projectPath,
-    }))
+    useShallow((s) => {
+      const chapter = s.novelProject?.binder.find((b) => b.path === s.filePath);
+      return {
+        fileName: s.fileName,
+        filePath: s.filePath,
+        isDirty: s.isDirty,
+        lastSavedAt: s.lastSavedAt,
+        autoSaveEnabled: s.autoSaveEnabled,
+        wordCount: s.wordCount,
+        selectedWordCount: s.selectedWordCount,
+        novelWordCount: s.novelWordCount,
+        dailyWordGoal: s.dailyWordGoal,
+        writingLog: s.writingLog,
+        setGoalsModalOpen: s.setGoalsModalOpen,
+        statusMessage: s.statusMessage,
+        projectPath: s.projectPath,
+        sceneTitle: chapter?.scenes?.[s.activeSceneIndex],
+        chapterTitle: chapter?.title,
+      };
+    })
   );
-
-  const totalWords = projectPath ? (novelWordCount || wordCount) : wordCount;
-  const estimatedPages = Math.max(1, Math.round(totalWords / 250));
-  const readMinutes = Math.max(1, Math.ceil(totalWords / 250));
-  const readTimeFormatted =
-    readMinutes < 60 ? `${readMinutes} min` : `${Math.floor(readMinutes / 60)}h ${readMinutes % 60}m`;
 
   const todayWords = wordsToday(writingLog);
   const percent = dailyWordGoal > 0 ? Math.min(100, Math.round((todayWords / dailyWordGoal) * 100)) : 0;
+  const goalMet = dailyWordGoal > 0 && todayWords >= dailyWordGoal;
+
+  const savedTime = lastSavedAt
+    ? new Date(lastSavedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
+  const saveState = isDirty
+    ? { className: 'unsaved', label: filePath && autoSaveEnabled ? 'Saving…' : 'Unsaved changes' }
+    : savedTime
+      ? { className: 'saved', label: `Saved ${savedTime}` }
+      : null;
 
   return (
-    <div className="status-bar">
+    <div className="status-bar" role="status">
       <div className="status-bar-left">
         <span className="file-info" title={filePath || 'Untitled document'}>
-          {fileName || 'Untitled'}
+          {chapterTitle || fileName || 'Untitled'}
         </span>
-        {isDirty && <span className="dirty-indicator" title="Unsaved changes"></span>}
+        {sceneTitle && (
+          <span className="status-scene" title="Scene the cursor is in">
+            › {sceneTitle}
+          </span>
+        )}
+        {saveState && (
+          <span className={`save-state ${saveState.className}`}>
+            <span className="save-dot" aria-hidden="true" />
+            {saveState.label}
+          </span>
+        )}
         {statusMessage && <span className="status-badge">{statusMessage}</span>}
       </div>
+
       <div className="status-bar-right">
         {selectedWordCount > 0 ? (
-          <span className="status-stat" title="Selected words out of chapter words">
+          <span className="status-stat" title="Words selected, of words in this file">
             <strong>{selectedWordCount.toLocaleString()}</strong> of {wordCount.toLocaleString()} words
           </span>
         ) : (
-          <span className="status-stat" title="Words in current chapter">
+          <span className="status-stat" title="Words in this file">
             {wordCount.toLocaleString()} words
           </span>
         )}
 
         {projectPath && novelWordCount > 0 && (
-          <span className="status-stat novel-stat" title="Total words across entire novel">
-            Novel: <strong>{novelWordCount.toLocaleString()}</strong>
-          </span>
-        )}
-
-        <span
-          className="status-stat"
-          title="Estimated Book Pages (publishing standard of 250 words per paperback page)"
-        >
-          <BookOpen size={11} style={{ marginRight: 3, verticalAlign: 'middle' }} />
-          ~{estimatedPages} {estimatedPages === 1 ? 'page' : 'pages'}
-        </span>
-
-        <span
-          className="status-stat"
-          title="Estimated reading time (adult average of 250 words per minute)"
-        >
-          <Clock size={11} style={{ marginRight: 3, verticalAlign: 'middle' }} />
-          {readTimeFormatted}
-        </span>
-
-        {sessionWords > 0 && (
-          <span className="status-stat session-stat" title="Words written in this writing session">
-            +{sessionWords.toLocaleString()} session
+          <span className="status-stat" title="Words across all chapters">
+            Novel <strong>{novelWordCount.toLocaleString()}</strong>
           </span>
         )}
 
         {dailyWordGoal > 0 && (
           <button
-            className={`status-btn goal-badge ${percent >= 100 ? 'goal-met' : ''}`}
+            className={`status-btn goal-badge ${goalMet ? 'goal-met' : ''}`}
             onClick={() => setGoalsModalOpen(true)}
-            title={`Today: ${todayWords.toLocaleString()} of ${dailyWordGoal.toLocaleString()} words (Ctrl+G)`}
+            title="Today's words toward your daily goal. Click for goals, streak and manuscript statistics (Ctrl+G)"
           >
-            <Target size={12} />
-            <span>{percent}%</span>
+            {goalMet ? <Check size={12} /> : <Target size={12} />}
+            <span>
+              {todayWords.toLocaleString()} / {dailyWordGoal.toLocaleString()}
+            </span>
+            <span className="goal-meter" aria-hidden="true">
+              <span style={{ width: `${percent}%` }} />
+            </span>
           </button>
         )}
-
-        <button
-          className={`status-btn typewriter-toggle-btn ${typewriterMode ? 'active' : ''}`}
-          onClick={toggleTypewriterMode}
-          title={`Typewriter Scrolling: ${typewriterMode ? 'ON' : 'OFF'} (Ctrl+Shift+T)`}
-        >
-          <ScrollText size={12} />
-        </button>
       </div>
     </div>
   );
 }
-

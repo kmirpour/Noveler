@@ -1,0 +1,220 @@
+.cast-tab {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 10px 10px 16px;
+}
+
+.cast-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cast-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cast-heading {
+  margin: 0;
+  font-size: var(--ui-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.cast-empty {
+  margin: 0;
+  font-size: var(--ui-text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.cast-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.cast-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 3px 8px;
+  background: var(--tag-bg);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--tag-color);
+  font-size: var(--ui-text-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cast-chip:hover {
+  border-color: var(--accent-color);
+}
+
+.cast-chip.cast-location,
+.cast-chip.cast-item,
+.cast-chip.cast-lore {
+  background: transparent;
+  border-color: var(--border-color);
+  color: var(--text-color);
+}
+
+.cast-count {
+  font-size: var(--ui-text-xs);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.75;
+}
+
+.cast-scenes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cast-scene {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-left: 8px;
+  border-left: 2px solid var(--border-color);
+}
+
+.cast-scene-title {
+  font-size: var(--ui-text-sm);
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.cast-scene-names {
+  font-size: var(--ui-text-sm);
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.cast-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  align-self: flex-start;
+  padding: 3px 8px;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  color: var(--text-color);
+  font-size: var(--ui-text-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.cast-action:hover:not(:disabled) {
+  background: var(--btn-hover);
+}
+
+.cast-table-wrap {
+  overflow-x: auto;
+}
+
+.cast-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ui-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.cast-table th,
+.cast-table td {
+  padding: 3px 4px;
+  text-align: right;
+  color: var(--text-color);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.cast-table th[scope='row'],
+.cast-table thead th:first-child {
+  max-width: 110px;
+  text-align: left;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cast-table thead th {
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.cast-table tr.cast-absent th,
+.cast-table tr.cast-absent td {
+  color: var(--text-muted);
+}
+
+.cast-col-btn {
+  padding: 0 2px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.cast-col-btn:hover {
+  color: var(--accent-color);
+  text-decoration: underline;
+}
+
+/* Story-bible import panel (inside the story bible window) */
+.codex-import-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 10px 8px;
+  padding: 5px 8px;
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: var(--ui-text-sm);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.codex-import-toggle:hover {
+  border-color: var(--accent-color);
+  color: var(--accent-color);
+}
+
+.codex-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 10px 8px;
+  padding: 10px;
+  background: var(--bg-app);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.codex-import-summary {
+  margin: 0;
+  font-size: var(--ui-text-sm);
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.codex-import-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}

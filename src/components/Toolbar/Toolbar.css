@@ -109,3 +109,114 @@
 .toolbar-select:focus {
   border-color: var(--accent-color, #3b82f6);
 }
+
+/* Single-row toolbar: no wrapping; rarer actions live in the More menu */
+.toolbar {
+  flex-wrap: nowrap;
+  gap: 6px;
+}
+
+.toolbar-button.has-changes {
+  color: var(--warning);
+}
+
+.toolbar-button.has-changes::after {
+  background: var(--warning);
+}
+
+.toolbar-button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.toolbar-more {
+  position: relative;
+}
+
+.toolbar-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-popover);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(220px, auto));
+  gap: 4px 12px;
+  padding: 10px;
+  max-width: calc(100vw - 24px);
+  max-height: calc(100vh - 80px);
+  overflow-y: auto;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px var(--shadow-color);
+}
+
+.toolbar-menu-heading {
+  padding: 4px 8px 6px;
+  font-size: var(--ui-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.toolbar-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-color);
+  font-size: var(--ui-text-md);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toolbar-menu-item svg {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.toolbar-menu-item:hover:not(:disabled) {
+  background: var(--btn-hover);
+}
+
+.toolbar-menu-item.active {
+  background: var(--accent-light);
+}
+
+.toolbar-menu-item.active svg {
+  color: var(--accent-color);
+}
+
+.toolbar-menu-item:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.toolbar-menu-label {
+  flex: 1;
+  white-space: nowrap;
+}
+
+.toolbar-menu-shortcut {
+  font-family: inherit;
+  font-size: var(--ui-text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .toolbar-menu {
+    grid-template-columns: 1fr;
+    width: 280px;
+  }
+
+  .theme-toggle-btn .theme-label {
+    display: none;
+  }
+}

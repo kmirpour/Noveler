@@ -21,7 +21,7 @@ import {
   Trash2,
   Edit2,
   BookText,
-  Hash,
+  Users,
   GripVertical,
   ChevronDown,
   ChevronRight,
@@ -35,9 +35,10 @@ import {
 import { sceneKeys } from '../../utils/sceneMetadata';
 import { groupFilesByPrefix, formatWordsCompact, UNGROUPED_KEY } from '../../utils/fileGroups';
 import { extractFileName } from '../../services/fileService';
+import { confirmDialog } from '../../services/dialogs';
 import type { BinderItem, SceneStatus } from '../../services/projectService';
 import { getChapterScenes, type ChapterSceneItem } from '../../utils/chapterScenes';
-import { TagsTab } from './TagsTab';
+import { CastTab } from './CastTab';
 import './Sidebar.css';
 
 interface ChapterItemProps {
@@ -158,7 +159,14 @@ function ChapterItem({
 
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    if (confirm(`Move "${item.title}" to the graveyard folder?\n\nThe file is kept in graveyard/ and can be moved back by hand.`)) {
+    if (
+      await confirmDialog({
+        title: `Move "${item.title}" to the graveyard?`,
+        message: 'The file is kept in the graveyard folder and can be moved back by hand.',
+        confirmLabel: 'Move to graveyard',
+        danger: true,
+      })
+    ) {
       await deleteBinderItemAction(item.path);
     }
   };
@@ -213,9 +221,11 @@ function ChapterItem({
   const handleExtractScene = async (e: MouseEvent, scene: ChapterSceneItem) => {
     e.stopPropagation();
     if (
-      confirm(
-        `Move scene "${scene.title}" out of this chapter into its own file under Other Files?`
-      )
+      await confirmDialog({
+        title: `Move scene "${scene.title}" to its own file?`,
+        message: 'It leaves this chapter and appears under Other Files, where it can be placed elsewhere later.',
+        confirmLabel: 'Move to file',
+      })
     ) {
       await extractSceneToFileAction(item.path, scene.index);
     }
@@ -223,7 +233,14 @@ function ChapterItem({
 
   const handleDeleteScene = async (e: MouseEvent, scene: ChapterSceneItem) => {
     e.stopPropagation();
-    if (confirm(`Remove scene "${scene.title}" from this chapter?\n\nIts text is saved to the graveyard folder first.`)) {
+    if (
+      await confirmDialog({
+        title: `Remove scene "${scene.title}"?`,
+        message: 'Its text is saved to the graveyard folder first. Ctrl+Z also brings it back.',
+        confirmLabel: 'Remove scene',
+        danger: true,
+      })
+    ) {
       await deleteSceneFromChapterAction(item.path, scene.index);
     }
   };
@@ -810,8 +827,15 @@ function StandaloneChapterOutline() {
                   <button
                     type="button"
                     className="binder-action-mini-btn scene-delete-btn"
-                    onClick={() => {
-                      if (confirm(`Remove scene "${scene.title}" from this chapter?`)) {
+                    onClick={async () => {
+                      if (
+                        await confirmDialog({
+                          title: `Remove scene "${scene.title}"?`,
+                          message: 'Ctrl+Z brings it back.',
+                          confirmLabel: 'Remove scene',
+                          danger: true,
+                        })
+                      ) {
                         void deleteSceneFromChapterAction(targetPath, scene.index);
                       }
                     }}
@@ -980,8 +1004,8 @@ export function Sidebar() {
               className={`sidebar-tab-btn ${activeTab === 'tags' ? 'active' : ''}`}
               onClick={() => setActiveTab('tags')}
             >
-              <Hash size={13} />
-              <span>Tags</span>
+              <Users size={13} />
+              <span>Cast</span>
             </button>
           </div>
 
@@ -1125,7 +1149,7 @@ export function Sidebar() {
           ) : (
             /* Narrative Tags Panel */
             <div className="sidebar-tab-content">
-              <TagsTab />
+              <CastTab />
             </div>
           )}
         </>

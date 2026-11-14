@@ -368,6 +368,24 @@ export async function createFile(path: string, initialContent?: string): Promise
   }
 }
 
+export interface BackupEntry {
+  name: string;
+  /** Seconds since the Unix epoch (UTC). */
+  timestamp: number;
+  size: number;
+}
+
+/** Rolling backups kept for a document under `.noveler/backups/`, newest first. */
+export async function listBackups(path: string): Promise<BackupEntry[]> {
+  if (!isTauri()) return [];
+  return await invoke<BackupEntry[]>('list_backups', { path });
+}
+
+export async function readBackup(path: string, name: string): Promise<string> {
+  if (!isTauri()) throw new Error('Backups are available in the desktop app');
+  return await invoke<string>('read_backup', { path, name });
+}
+
 export async function createDir(path: string): Promise<void> {
   if (isTauri()) {
     await invoke('create_dir', { path });

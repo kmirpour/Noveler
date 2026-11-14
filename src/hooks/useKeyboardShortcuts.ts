@@ -19,6 +19,12 @@ export function useKeyboardShortcuts() {
 
       // Escape -> dismiss open dialogs, corkboard, or exit focus mode
       if (e.key === 'Escape') {
+        if (store.settingsOpen) {
+          return handled(() => store.setSettingsOpen(false));
+        }
+        if (store.backupsOpen) {
+          return handled(() => store.setBackupsOpen(false));
+        }
         if (store.commandPaletteOpen) {
           return handled(() => store.setCommandPaletteOpen(false));
         }
@@ -50,6 +56,9 @@ export function useKeyboardShortcuts() {
       if (!isModifier) return;
 
       const key = e.key.toLowerCase();
+
+      // Ctrl+, -> Settings
+      if (key === ',') return handled(() => store.setSettingsOpen(true));
 
       // Ctrl+K -> Command Palette
       if (!e.shiftKey && key === 'k') return handled(() => store.setCommandPaletteOpen(true));

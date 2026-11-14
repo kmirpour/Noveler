@@ -9,6 +9,8 @@
  * 5. Automatic Codex & Custom Project Dictionary whitelisting
  */
 
+import { isDictionaryReady, isKnownWord, suggestWords } from './dictionary';
+
 export interface SpellingItem {
   word: string;
   defs?: string[];
@@ -31,6 +33,8 @@ export interface SpellGrammarIssue {
   shortMessage: string;
   /** Ranked replacement candidates for the matched span */
   replacements: string[];
+  /** Where the issue came from: the on-device engine (recomputed on every edit) or the online service. */
+  source?: 'offline' | 'online';
 }
 
 /**
@@ -424,40 +428,97 @@ export function checkTextOffline(text: string, ignoreWords: string[] = []): Spel
     }
   }
 
-  // 2. Single-Word Offline Typos (COMMON_TYPOS)
-  const wordRegex = /\b[a-zA-Z][a-zA-Z'-]{1,}\b/g;
-  let wordMatch: RegExpExecArray | null;
-  while ((wordMatch = wordRegex.exec(text)) !== null) {
-    const rawWord = wordMatch[0];
-    const startIdx = wordMatch.index;
+  // 2. Single words: known typos first, then the on-device dictionary
+  for (const token of tokenizeWords(text)) {
+    const { word: rawWord, index: startIdx } = token;
 
     // Skip hashtags (#character)
     if (startIdx > 0 && text[startIdx - 1] === '#') continue;
 
-    const lower = rawWord.toLowerCase();
+    const normalized = rawWord.replace(/[’‘]/g, "'");
+    const lower = normalized.toLowerCase();
     if (isWordIgnored(lower, ignoreSet)) continue;
 
     const typoFixes = COMMON_TYPOS[lower];
-    if (typoFixes && typoFixes.length > 0) {
-      // Avoid duplicating if already covered by a multi-word grammar issue
-      const overlaps = issues.some(
-        (iss) => startIdx < iss.offset + iss.length && startIdx + rawWord.length > iss.offset
-      );
-      if (!overlaps) {
-        issues.push({
-          offset: startIdx,
-          length: rawWord.length,
-          matchedText: rawWord,
-          category: 'spelling',
-          message: `Possible spelling mistake: "${rawWord}".`,
-          shortMessage: 'Spelling mistake',
-          replacements: typoFixes.map((fix) => preserveLeadCase(rawWord, fix)),
-        });
-      }
+    const isTypo = Boolean(typoFixes && typoFixes.length > 0);
+    if (!isTypo && !(isDictionaryReady() && isCheckableWord(token, text) && !isKnownWord(normalized))) {
+      continue;
     }
+
+    // Avoid duplicating if already covered by a multi-word grammar issue
+    const overlaps = issues.some(
+      (iss) => startIdx < iss.offset + iss.length && startIdx + rawWord.length > iss.offset
+    );
+    if (overlaps) continue;
+
+    issues.push({
+      offset: startIdx,
+      length: rawWord.length,
+      matchedText: rawWord,
+      category: 'spelling',
+      message: isTypo
+        ? `Possible spelling mistake: "${rawWord}".`
+        : `"${rawWord}" is not in the dictionary. Right-click for suggestions, or add it to this novel's dictionary.`,
+      shortMessage: 'Spelling mistake',
+      // Dictionary suggestions are worked out when the writer asks for them (right-click).
+      replacements: isTypo ? typoFixes.map((fix) => preserveLeadCase(rawWord, fix)) : [],
+    });
   }
 
-  return issues.sort((a, b) => a.offset - b.offset);
+  return issues.map((iss) => ({ ...iss, source: 'offline' as const })).sort((a, b) => a.offset - b.offset);
+}
+
+interface WordToken {
+  word: string;
+  index: number;
+}
+
+/** Splits text into words (letters, with inner apostrophes and hyphens), Unicode-aware. */
+function tokenizeWords(text: string): WordToken[] {
+  const tokens: WordToken[] = [];
+  const regex = /\p{L}[\p{L}\p{N}'’‘-]*/gu;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    const word = match[0].replace(/['’‘-]+$/, '');
+    if (word.length >= 2) tokens.push({ word, index: match.index });
+  }
+  return tokens;
+}
+
+/** True when the word starts a sentence (or a line of dialogue), where any word is capitalised. */
+function isSentenceStart(text: string, index: number): boolean {
+  let i = index - 1;
+  while (i >= 0 && /[\s"'“‘([*_—–-]/.test(text[i])) i--;
+  return i < 0 || /[.!?…:]/.test(text[i]);
+}
+
+const isCapitalized = (word: string) => /^\p{Lu}/u.test(word);
+
+/**
+ * Whether a word is something a dictionary can judge. Left alone: words with digits or non-English
+ * letters, acronyms, ordinals like "5th", and capitalised words inside a sentence (names).
+ */
+function isCheckableWord(token: WordToken, text: string): boolean {
+  const { word, index } = token;
+  if (!/^[A-Za-z'’‘-]+$/.test(word)) return false;
+  if (index > 0 && /[\p{N}\p{L}]/u.test(text[index - 1])) return false;
+  if (word.length > 1 && word === word.toUpperCase()) return false;
+  if (isCapitalized(word) && !isSentenceStart(text, index)) return false;
+  return true;
+}
+
+/**
+ * Words that appear capitalised in the middle of a sentence are names (people, places, invented
+ * terms). They are returned in lower case so the same name is also accepted at the start of a sentence.
+ */
+export function collectLikelyNames(text: string): string[] {
+  const names = new Set<string>();
+  for (const token of tokenizeWords(text)) {
+    if (!isCapitalized(token.word) || token.word === token.word.toUpperCase()) continue;
+    if (isSentenceStart(text, token.index)) continue;
+    names.add(token.word.replace(/[’‘]/g, "'").replace(/'s$/i, '').toLowerCase());
+  }
+  return Array.from(names);
 }
 
 interface LanguageToolMatch {
@@ -586,6 +647,7 @@ export async function checkTextSpellAndGrammar(
         message: m.message || 'Possible writing issue',
         shortMessage: m.shortMessage || (isSpelling ? 'Spelling mistake' : 'Grammar / Usage'),
         replacements,
+        source: 'online',
       });
     }
 
@@ -634,7 +696,14 @@ export async function fetchSpellingSuggestions(
     return offlineMatch;
   }
 
-  // 2. Query Datamuse spelling endpoint with timeout
+  // 2. On-device dictionary: no network needed, and nothing leaves the computer
+  if (isDictionaryReady()) {
+    const suggestions = isKnownWord(clean) ? [] : suggestWords(clean, 5).map((s) => preserveLeadCase(clean, s));
+    spellingCache.set(lower, suggestions);
+    return suggestions;
+  }
+
+  // 3. Fallback while the dictionary is unavailable: Datamuse spelling endpoint with timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 2500);
 

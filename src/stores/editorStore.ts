@@ -13,7 +13,14 @@ import {
   loadSettings,
   saveSettings,
   addRecentFile,
+  addRecentProject,
+  TYPEFACES,
+  FONT_SIZE_RANGE,
+  LINE_HEIGHT_RANGE,
+  LINE_WIDTH_RANGE,
 } from '../services/settings';
+import { THEME_IDS } from '../services/themes';
+import { promptDialog } from '../services/dialogs';
 import {
   type NovelProject,
   type SceneMetadata,
@@ -34,8 +41,6 @@ import {
   archiveTextToGraveyard,
   extractChapterHeadingTitle,
   setChapterHeadingTitle,
-  extractWordsFromCodexEntry,
-  extractWordsFromCodex,
 } from '../services/projectService';
 import { buildRenamedChapterFileName, extractChapterDisplayTitle } from '../utils/chapterNaming';
 import {
@@ -61,6 +66,8 @@ import {
 } from '../utils/sceneDocOps';
 import { type WritingLog, addWords } from '../utils/writingLog';
 import { migrateSceneKeys, withSceneMeta } from '../utils/sceneMetadata';
+import { buildContextPack } from '../utils/contextPack';
+import type { WikiImportPlan } from '../utils/storyBible';
 import { getGitStatus, syncGit } from '../services/gitService';
 import { setOnlineGrammarEnabled } from '../services/spellingService';
 import { getCurrentWindow } from '@tauri-apps/api/window';
@@ -156,6 +163,14 @@ export interface ProjectSlice {
   addCustomDictionaryWordAction: (word: string) => Promise<void>;
   saveProjectConfigAction: () => Promise<void>;
   setScratchpadContent: (content: string) => void;
+  /** Adds text to the end of the scratchpad (e.g. a passage cut from the manuscript). */
+  appendToScratchpadAction: (text: string) => void;
+  /** Replaces the open document's text (restore from a snapshot or backup). Undoable with Ctrl+Z. */
+  replaceDocumentTextAction: (markdown: string, message: string) => void;
+  /** Copies a briefing (story bible, outline, notes, current scene) to the clipboard. */
+  copyContextPackAction: () => Promise<boolean>;
+  /** Adds or fills in story-bible entries read from a notes file. */
+  applyWikiImportAction: (plan: WikiImportPlan) => Promise<number>;
   addTagCategoryAction: (category: string) => Promise<void>;
   assignTagCategoryAction: (tagName: string, category: string) => Promise<void>;
   setCorkboardOpen: (open: boolean) => void;
@@ -189,7 +204,14 @@ export interface SettingsSlice {
   /** Off by default: when on, paragraphs are sent to the LanguageTool web service for grammar checks. */
   onlineGrammarCheck: boolean;
   recentFiles: string[];
+  recentProjects: string[];
+  lineHeight: number;
+  lineWidth: number;
+  smartQuotes: boolean;
 
+  setLineHeight: (lineHeight: number) => void;
+  setLineWidth: (lineWidth: number) => void;
+  setSmartQuotes: (enabled: boolean) => void;
   toggleOnlineGrammarCheck: () => void;
   setTheme: (theme: Theme) => void;
   cycleTheme: () => void;
@@ -225,6 +247,12 @@ export interface WritingSlice {
   compileModalOpen: boolean;
   codexModalOpen: boolean;
   proseAnalysisOpen: boolean;
+  settingsOpen: boolean;
+  backupsOpen: boolean;
+  /** When the open document was last written to disk (epoch ms), for the "Saved" indicator. */
+  lastSavedAt: number | null;
+  setSettingsOpen: (open: boolean) => void;
+  setBackupsOpen: (open: boolean) => void;
 
   toggleFocusMode: () => void;
   setFocusMode: (val: boolean) => void;
@@ -532,6 +560,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       isDirty: dirty,
       statusMessage: statusMessage ?? null,
       selectedWordCount: 0,
+      lastSavedAt: null,
       countBaseline: { path: filePath, count: get().wordCount },
     });
     updateWindowTitle(fileName, dirty);
@@ -633,11 +662,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       const updated = addRecentFile(filePath);
 
+      // Autosave is routine: the status bar's "Saved" time covers it without a message each time.
       set({
         markdownContent: body,
         isDirty: false,
         recentFiles: updated.recentFiles,
-        statusMessage: `Saved ${fileName || 'file'}`,
+        lastSavedAt: Date.now(),
       });
 
       updateWindowTitle(fileName, false);
@@ -740,7 +770,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       await fileService.setProjectRoot(path);
       const project = await loadNovelProject(path);
       const scratchpadText = await loadScratchpadFile(path);
-      saveSettings({ lastProjectPath: path });
+      set({ recentProjects: addRecentProject(path).recentProjects });
       const name = fileService.extractFileName(path);
 
       let totalWords = 0;
@@ -755,11 +785,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           // ignore
         }
       }
-
-      // Ensure all story bible names are merged into the custom dictionary
-      const codexWords = extractWordsFromCodex(project.codex);
-      const mergedDict = Array.from(new Set([...(project.customDictionary || []), ...codexWords]));
-      project.customDictionary = mergedDict;
 
       set({
         projectPath: path,
@@ -1540,6 +1565,113 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
   },
 
+  appendToScratchpadAction: (text: string) => {
+    const clean = text.trim();
+    if (!clean) return;
+    const current = get().scratchpadContent.replace(/\s+$/, '');
+    get().setScratchpadContent(current ? `${current}\n\n${clean}\n` : `${clean}\n`);
+    get().setStatusMessage('Moved to scratchpad');
+  },
+
+  replaceDocumentTextAction: (markdown: string, message: string) => {
+    const { editorInstance, setMarkdownContent, updateCounts, setDirty, setStatusMessage } = get();
+    // Bringing back an old version is not words written today.
+    set({ skipNextCountDelta: true });
+    setMarkdownContent(markdown);
+    if (editorInstance && !editorInstance.isDestroyed) {
+      editorInstance.commands.setContent(markdown, { contentType: 'markdown', emitUpdate: false });
+      updateCounts(editorInstance.getText());
+    } else {
+      updateCounts(markdown);
+    }
+    setDirty(true);
+    setStatusMessage(message);
+    if (get().filePath && get().autoSaveEnabled && fileService.isTauri()) void get().saveFileAction();
+  },
+
+  copyContextPackAction: async () => {
+    const { novelProject, filePath, activeSceneIndex, editorInstance, markdownContent } = get();
+    if (!novelProject) {
+      get().setStatusMessage('Open a novel folder to build a context pack');
+      return false;
+    }
+    try {
+      const hasEditor = Boolean(editorInstance && !editorInstance.isDestroyed);
+      const md = hasEditor ? editorInstance!.getMarkdown() : markdownContent;
+      const isChapter = novelProject.binder.some((b) => b.path === filePath);
+      const scene = isChapter ? splitChapterIntoScenes(md).scenes[activeSceneIndex] : undefined;
+      const currentText = scene ? `### ${scene.title || `Scene ${activeSceneIndex + 1}`}\n\n${scene.body}` : isChapter ? md : '';
+
+      let selection = '';
+      if (hasEditor) {
+        const { from, to } = editorInstance!.state.selection;
+        if (from !== to) selection = editorInstance!.state.doc.textBetween(from, to, '\n\n');
+      }
+
+      // World notes: files whose names say they hold the world, cast or lore.
+      const notes: { title: string; markdown: string }[] = [];
+      for (const file of novelProject.extraFiles || []) {
+        if (!/wiki|world|character|cast|bible|lore|glossary/i.test(fileService.extractFileName(file.path))) continue;
+        try {
+          const content =
+            file.path === filePath ? md : (await fileService.readFileDirect(file.path)).content;
+          notes.push({ title: file.title, markdown: content });
+        } catch {
+          // skip unreadable notes
+        }
+      }
+
+      const pack = buildContextPack({
+        project: novelProject,
+        activePath: filePath,
+        activeSceneIndex,
+        currentText,
+        selection,
+        notes,
+      });
+      await navigator.clipboard.writeText(pack);
+      get().setStatusMessage(
+        `Copied context to the clipboard (${countWords(pack).toLocaleString()} words): paste it into your assistant`
+      );
+      return true;
+    } catch (err) {
+      console.error('Error building context pack:', err);
+      get().setStatusMessage(`Could not copy context: ${errorMessage(err)}`);
+      return false;
+    }
+  },
+
+  applyWikiImportAction: async (plan: WikiImportPlan) => {
+    const { novelProject } = get();
+    if (!novelProject) return 0;
+    const stamp = Date.now();
+    const added: CodexEntry[] = plan.toAdd.map((p, i) => ({
+      id: `codex_${stamp}_${i}_${Math.random().toString(36).slice(2, 7)}`,
+      name: p.name,
+      category: p.category,
+      aliases: p.aliases,
+      summary: p.summary,
+      description: p.description,
+    }));
+    const updates = new Map(plan.toUpdate.map((u) => [u.existing.id, u.parsed]));
+    const codex = (novelProject.codex || []).map((entry) => {
+      const parsed = updates.get(entry.id);
+      if (!parsed) return entry;
+      // Fill gaps only: anything the writer already typed is kept.
+      return {
+        ...entry,
+        summary: entry.summary?.trim() ? entry.summary : parsed.summary,
+        description: entry.description?.trim() ? entry.description : parsed.description,
+        aliases: Array.from(new Set([...(entry.aliases || []), ...parsed.aliases])),
+      };
+    });
+    set({ novelProject: { ...novelProject, codex: [...codex, ...added] } });
+    persistProject();
+    const total = added.length + updates.size;
+    get().setStatusMessage(`Story bible: ${added.length} added, ${updates.size} filled in`);
+    return total;
+  },
+
   flushScratchpadAction: async () => {
     const { projectPath, scratchpadContent } = get();
     if (!projectPath) {
@@ -1583,9 +1715,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
       let remoteUrl = status.remote_url || novelProject?.gitRemoteUrl || null;
       if (!remoteUrl) {
-        const entered = window.prompt(
-          'Enter your GitHub repository URL (e.g. https://github.com/username/my-novel.git):'
-        );
+        const entered = await promptDialog({
+          title: 'Where should the manuscript be pushed?',
+          message: 'Paste the address of your GitHub repository. It is remembered for this novel.',
+          placeholder: 'https://github.com/username/my-novel.git',
+          confirmLabel: 'Push',
+        });
         if (!entered || !entered.trim()) {
           get().setStatusMessage('GitHub push cancelled (no repository URL provided)');
           return false;
@@ -1659,14 +1794,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       ...entry,
       id: `codex_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     };
-    const codexWords = extractWordsFromCodexEntry(newEntry);
-    const customDictSet = new Set(novelProject.customDictionary || []);
-    for (const w of codexWords) customDictSet.add(w);
-
     const updatedProject: NovelProject = {
       ...novelProject,
       codex: [...(novelProject.codex || []), newEntry],
-      customDictionary: Array.from(customDictSet),
     };
     set({ novelProject: updatedProject });
     persistProject();
@@ -1676,15 +1806,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { novelProject, projectPath } = get();
     if (!novelProject || !projectPath) return;
     const codex = (novelProject.codex || []).map((e) => (e.id === entry.id ? entry : e));
-    const codexWords = extractWordsFromCodexEntry(entry);
-    const customDictSet = new Set(novelProject.customDictionary || []);
-    for (const w of codexWords) customDictSet.add(w);
-
-    const updatedProject: NovelProject = {
-      ...novelProject,
-      codex,
-      customDictionary: Array.from(customDictSet),
-    };
+    const updatedProject: NovelProject = { ...novelProject, codex };
     set({ novelProject: updatedProject });
     persistProject();
   },
@@ -1720,21 +1842,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   restoreSceneSnapshotAction: async (snapshotId: string) => {
-    const { novelProject, setMarkdownContent, editorInstance, updateCounts, setDirty, setStatusMessage } = get();
+    const { novelProject } = get();
     if (!novelProject) return;
     const snap = (novelProject.snapshots || []).find((s) => s.id === snapshotId);
     if (!snap) return;
-    // Restoring an old version is not words written today.
-    set({ skipNextCountDelta: true });
-    setMarkdownContent(snap.content);
-    if (editorInstance) {
-      editorInstance.commands.setContent(snap.content, { contentType: 'markdown', emitUpdate: false });
-      updateCounts(editorInstance.getText());
-    } else {
-      updateCounts(snap.content);
-    }
-    setDirty(true);
-    setStatusMessage(`Restored snapshot from ${new Date(snap.timestamp).toLocaleTimeString()}`);
+    get().replaceDocumentTextAction(
+      snap.content,
+      `Restored snapshot "${snap.label}" (Ctrl+Z undoes this)`
+    );
   },
 
   deleteSceneSnapshotAction: async (snapshotId: string) => {
@@ -1766,11 +1881,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   cycleTheme: () => {
-    const THEME_ORDER: Theme[] = ['sepia', 'light', 'dark', 'forest', 'nord'];
-    const current = get().theme;
-    const currentIndex = THEME_ORDER.indexOf(current);
-    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % THEME_ORDER.length;
-    get().setTheme(THEME_ORDER[nextIndex]);
+    const currentIndex = THEME_IDS.indexOf(get().theme);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % THEME_IDS.length;
+    get().setTheme(THEME_IDS[nextIndex]);
   },
 
   setViewMode: (viewMode: ViewMode) => {
@@ -1800,14 +1913,44 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
 
   cycleFontFamily: () => {
-    const current = get().fontFamily;
-    const next: FontFamily = current === 'serif' ? 'sans' : current === 'sans' ? 'mono' : 'serif';
+    const ids = TYPEFACES.map((t) => t.id);
+    const next: FontFamily = ids[(ids.indexOf(get().fontFamily) + 1) % ids.length];
     get().setFontFamily(next);
+    get().setStatusMessage(`Typeface: ${TYPEFACES.find((t) => t.id === next)?.label}`);
   },
 
-  setFontSize: (fontSize: number) => {
+  setFontSize: (value: number) => {
+    const fontSize = Math.min(FONT_SIZE_RANGE.max, Math.max(FONT_SIZE_RANGE.min, Math.round(value)));
     saveSettings({ fontSize });
     set({ fontSize });
+  },
+
+  lineHeight: initialSettings.lineHeight,
+  lineWidth: initialSettings.lineWidth,
+  smartQuotes: initialSettings.smartQuotes,
+  recentProjects: initialSettings.recentProjects,
+
+  setLineHeight: (value: number) => {
+    const lineHeight =
+      Math.round(Math.min(LINE_HEIGHT_RANGE.max, Math.max(LINE_HEIGHT_RANGE.min, value)) * 100) / 100;
+    saveSettings({ lineHeight });
+    set({ lineHeight });
+  },
+
+  setLineWidth: (value: number) => {
+    const lineWidth = Math.round(Math.min(LINE_WIDTH_RANGE.max, Math.max(LINE_WIDTH_RANGE.min, value)));
+    saveSettings({ lineWidth });
+    set({ lineWidth });
+  },
+
+  setSmartQuotes: (smartQuotes: boolean) => {
+    // The editor is rebuilt for this setting; hand it the very latest text first.
+    const { editorInstance } = get();
+    if (editorInstance && !editorInstance.isDestroyed) {
+      set({ markdownContent: editorInstance.getMarkdown() });
+    }
+    saveSettings({ smartQuotes });
+    set({ smartQuotes });
   },
 
   toggleParagraphIndent: () => {
@@ -1905,6 +2048,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   toggleCompileModal: () => set({ compileModalOpen: !get().compileModalOpen }),
   setCodexModalOpen: (codexModalOpen: boolean) => set({ codexModalOpen }),
   toggleCodexModal: () => set({ codexModalOpen: !get().codexModalOpen }),
+  settingsOpen: false,
+  backupsOpen: false,
+  lastSavedAt: null,
+  setSettingsOpen: (settingsOpen: boolean) => set({ settingsOpen }),
+  setBackupsOpen: (backupsOpen: boolean) => set({ backupsOpen }),
   setProseAnalysisOpen: (proseAnalysisOpen: boolean) => set({ proseAnalysisOpen }),
   toggleProseAnalysis: () => set({ proseAnalysisOpen: !get().proseAnalysisOpen }),
 }));

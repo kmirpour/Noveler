@@ -103,3 +103,80 @@
   border-color: rgba(59, 130, 246, 0.3);
 }
 
+
+/* Save state, scene crumb and goal meter */
+.status-bar-left {
+  min-width: 0;
+}
+
+.file-info,
+.status-scene {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 28vw;
+}
+
+.status-scene {
+  color: var(--text-muted);
+}
+
+.save-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.save-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.save-state.unsaved .save-dot {
+  background: var(--warning);
+}
+
+.status-stat {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.status-btn.goal-badge {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.status-btn.goal-badge.goal-met {
+  background: transparent;
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.goal-meter {
+  width: 44px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border-color);
+  overflow: hidden;
+}
+
+.goal-meter span {
+  display: block;
+  height: 100%;
+  background: var(--accent-color);
+}
+
+.goal-badge.goal-met .goal-meter span {
+  background: var(--success);
+}
+
+@media (max-width: 720px) {
+  .status-scene,
+  .goal-meter {
+    display: none;
+  }
+}

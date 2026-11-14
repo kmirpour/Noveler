@@ -122,7 +122,7 @@ Fiction publishing uses strict paragraph conventions that differ from standard w
 
 ### Smart Quotes & Punctuation
 As you type, Noveler automatically enhances standard keyboard characters:
-- Straight quotes (`"` and `'`) convert to directional curly quotes (`“ ”` and `‘ ’`).
+- Straight quotes (`"` and `'`) convert to directional curly quotes (`“ ”` and `‘ ’`) when **Curly quotes as you type** is turned on in Settings (it is off by default).
 - Double hyphens (`--`) convert to an em-dash (`—`).
 - Triple periods (`...`) convert to an ellipsis character (`…`).
 
@@ -193,6 +193,7 @@ The **Scratchpad** is an integrated free-form notepad designed for spontaneous n
   - When your scratchpad is full or you want to archive scrap scenes and research notes, click the **Flush to Graveyard** button in the scratchpad header.
   - Noveler automatically creates a `graveyard/` subfolder in your novel project and writes your notes to a timestamped Markdown file (e.g. `graveyard/2026-10-04_22-45-00.md`).
   - Clears the active scratchpad so you can start fresh with a clean slate while preserving all past notes on disk forever.
+- **Move text in and out**: Select a passage in the manuscript, right-click, and choose **Move to scratchpad** to park it. In the scratchpad, select text and press the **arrow** button to move it back into the manuscript at the cursor.
 - **Word Counter & Clear**: Includes a live word counter and an **Eraser** button for quick clearing.
 
 ---
@@ -228,11 +229,25 @@ Click the **Tags** tab at the top of the sidebar to view:
 
 ## 8. The Novelist's Auxiliary Suite
 
-### The Codex (Worldbuilding)
-Open the Codex from the toolbar to access a structured story bible:
+### The Story Bible (Codex)
+Open the story bible from the toolbar to keep structured notes on your world:
 - **Categories**: Characters, Locations, Items, and Lore.
 - **Entity Cards**: Track descriptions, roles, character aliases, relationships, and private author notes.
+- **Import from notes…**: If you already keep a wiki-style notes file, the story bible can read it. Entries are recognised by a bold lead-in, for example `**Azie (Azar Zarin):** a fifth-year resident…`; the nearest heading above (such as *Characters*) decides the category. New entries are added and empty ones filled in. Nothing you have typed into the story bible is overwritten, and the notes file is only read.
+- Names and aliases in the story bible are never flagged by the spell checker.
 - Saved automatically in your project configuration.
+
+### The Cast Panel
+The sidebar's **Cast** tab shows where the people, places and things in your story bible appear, with no tagging needed:
+- **In this file**: everyone mentioned in the open chapter, with counts. Click a name to jump to its next mention.
+- **Scene by scene**: who appears in each scene of the chapter.
+- **Across the novel**: press **Count** for a table of mentions per chapter, which makes it easy to spot a character who vanishes for too long.
+- If you use `#hashtags` in your prose, the hashtag list described below still appears at the bottom of this tab.
+
+### Working with an AI Assistant
+If you brainstorm with a chat assistant, two tools save retyping:
+- **Copy context for AI** (⋯ More menu or Command Palette) puts a briefing on the clipboard: your story bible, the chapter and scene outline with synopses, your world notes (files with *wiki*, *world*, *character*, *cast*, *bible*, *lore* or *glossary* in their names, trimmed if long), and the scene you are in, or just your selection if you have one. Nothing is sent anywhere; you paste it where you choose.
+- **Paste and tidy** (right-click in the editor) cleans text copied from a chat or web page before inserting it: stray HTML entities such as `&amp;`, invisible characters, bold markers inside headings, and a closing "Would you like me to…?" line are removed.
 
 ### The Corkboard (Outlining & Synopses)
 Open the Corkboard to view your manuscript as index cards:
@@ -254,6 +269,7 @@ Right-click on any word or highlighted text in the editor to open a themed conte
 - **Thesaurus Flyout**: Hovering over **Thesaurus ▶** displays high-relevance **Synonyms** and **Antonyms**.
 - **1-Click Replacement**: Clicking any suggestion immediately replaces the word in your manuscript.
 - **Smart Casing & Punctuation**: Automatically preserves original casing (e.g., `"Brilliant"` ➔ `"Radiant"`, `"Misspeled"` ➔ `"Misspelled"`) and preserves punctuation (quotes, commas, periods) around the word.
+- **How spelling is checked**: Every word is looked up in an English (US) dictionary of about 49,000 base words that ships inside the app, plus a set of common grammar slips (*could of*, *their/there*, repeated words). Left alone: names in your story bible, words you add with **Add to dictionary** in the right-click menu, capitalised words in the middle of a sentence (treated as names), acronyms, and words with accents or digits. Technical vocabulary the dictionary doesn't know is underlined until you add it.
 - **Privacy**: Live spell and grammar checking runs entirely on your computer by default. A fuller online grammar check (LanguageTool) is available but **off unless you turn it on** from the Command Palette ("Toggle Online Grammar Check"), because it sends the paragraph you are editing to that web service. Thesaurus and spelling suggestions look up the single word you right-clicked via the Datamuse API, with offline fallbacks.
 - **Standard Clipboard Actions**: Includes Cut (`Ctrl + X`), Copy (`Ctrl + C`), and Paste (`Ctrl + V`).
 - **Native Context Menu Access**: Hold `Shift + Right Click` at any time to bypass the custom menu and open the native operating system/browser context menu (for system-level actions like adding custom words to the OS dictionary).
@@ -287,20 +303,38 @@ Noveler provides real-time statistics tailored to the traditional publishing ind
 
 ## 10. Visual Themes & Eye Comfort
 
-Noveler features a modular 16-token theme system built for long writing sessions:
+Noveler has twelve themes, five light and seven dark:
 
-| Theme | Inspiration | Best For |
+| Theme | Kind | Character |
 |---|---|---|
-| **Sepia** *(Default)* | Warm cream book paper | Long daytime writing sessions with reduced eye fatigue. |
-| **Light** | Crisp modern editorial paper | High-contrast daytime drafting and proofreading. |
-| **Dark** | Deep slate and midnight navy | Night writing and low-light environments. |
-| **Forest** | Calming organic moss and pine | Relaxing, nature-inspired creative flow. |
-| **Nord** | Arctic frost and cold slate | Cool, modern, muted contrast. |
+| **Sepia** *(Default)* | Light | Warm cream book paper for long daytime sessions. |
+| **Light** | Light | Crisp white paper, high contrast for proofreading. |
+| **Solarized Light** | Light | Low-glare cream with cool blue-grey ink. |
+| **Rose** | Light | Soft blush paper with a deep rose accent. |
+| **Typewriter** | Light | Grey manuscript paper, black ink, red ribbon. |
+| **Dark** | Dark | Deep slate and navy with an amber accent. |
+| **Forest** | Dark | Calming moss and pine. |
+| **Nord** | Dark | Cold arctic blues, muted contrast. |
+| **Solarized Dark** | Dark | Deep teal with soft contrast. |
+| **Dracula** | Dark | Charcoal with violet accents. |
+| **Dusk** | Dark | Violet twilight with a rose accent. |
+| **Ink** | Dark | True black, for OLED screens and dark rooms. |
 
 ### How to Switch Themes
-- Click the **Theme Toggle** button in the toolbar (displays active theme icon and name).
+- Click the **theme button** in the toolbar (palette icon and the current theme's name) and pick from the list, which shows a small preview of each.
+- Or open **Settings** (`Ctrl + ,`) and choose a theme card.
 - Press `Ctrl + Shift + D` to cycle to the next theme.
-- Theme switching is instantaneous with zero screen flicker and custom text selection colors tailored to each palette.
+
+### Settings (`Ctrl + ,`)
+Everything about how the page looks and behaves is in one panel, opened from the **⋯ More** menu or with `Ctrl + ,`:
+- **Page**: typeface (Georgia, Palatino, Sitka, Cambria, Constantia, Garamond, Times, three sans-serifs and two monospaced faces, all already on your computer), text size, line spacing and line width, with a live sample. Paragraph style and how scene headings are displayed.
+- **Writing**: autosave, curly quotes as you type, typewriter scrolling, paragraph focus.
+- **Spelling & privacy**: the on-device spell check, and the optional online grammar check.
+
+### The Toolbar
+The toolbar is one row of what you reach for while drafting: sidebar, save, bold, italic, scene heading, scene break, find, corkboard, inspector, story bible, distraction-free mode, theme and the five views. Everything else (file operations, rarer formatting, tools, settings) is in the **⋯ More** menu at the right, with shortcuts shown, and in the Command Palette (`Ctrl + K`).
+
+The status bar shows the chapter and the scene your cursor is in, whether the file is saved (with the time of the last save), word counts, and today's progress toward your daily goal.
 
 ---
 
@@ -356,7 +390,7 @@ Writing a novel represents hundreds of hours of creative labor. Noveler includes
   <NovelFolder>/.noveler/backups/<chapter-name>/
   ```
 - Keeps the last 20 revisions of each chapter (at most one snapshot per 10-minute interval).
-- If you accidentally delete text or want to recover an earlier revision, previous drafts are preserved locally on disk.
+- **Browse and restore**: open **⋯ More → Backups of this file…** to see every saved version of the open file with its date and time, read it, and restore it. A restore replaces the text in the editor and can be undone with `Ctrl + Z`.
 
 ### 5. Git & GitHub Cloud Synchronization
 - Noveler includes built-in Git integration to back up and version your entire novel to GitHub:
@@ -385,7 +419,7 @@ Keep your hands on the keyboard with these shortcuts:
 | Shortcut | Action |
 |---|---|
 | `Ctrl + \` | Toggle Sidebar (collapse / expand) |
-| `Ctrl + Shift + D` | Cycle Theme (Sepia → Light → Dark → Forest → Nord) |
+| `Ctrl + Shift + D` | Cycle to the next theme |
 | `Ctrl + Shift + T` | Toggle Typewriter Scrolling Mode |
 | `Ctrl + Shift + P` | Toggle Paragraph Focus Mode |
 | `Ctrl + Shift + F` / `F11` | Toggle Fullscreen Distraction-Free Focus Mode |
@@ -397,6 +431,7 @@ Keep your hands on the keyboard with these shortcuts:
 | `Ctrl + F` | Find and Replace in chapter |
 | `Ctrl + K` | Open Command Palette |
 | `Ctrl + G` | Open Goals & Word Statistics Modal |
+| `Ctrl + ,` | Open Settings |
 
 ---
 

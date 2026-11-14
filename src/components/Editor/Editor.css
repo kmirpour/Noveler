@@ -226,3 +226,18 @@
   border-radius: 2px;
   cursor: pointer;
 }
+
+/* Page typography comes from Settings (typeface, line spacing, line width) */
+.editor-container .tiptap {
+  font-family: var(--editor-font, Georgia, 'Palatino Linotype', serif);
+  line-height: var(--editor-line-height, 1.85);
+  max-width: var(--editor-width, 780px);
+}
+
+.spell-error-spelling {
+  text-decoration-color: var(--danger);
+}
+
+.spell-error-grammar {
+  text-decoration-color: var(--warning);
+}

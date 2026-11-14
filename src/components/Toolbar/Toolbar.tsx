@@ -1,7 +1,7 @@
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useEditorState } from '@tiptap/react';
 import { useEditorStore } from '../../stores/editorStore';
-import type { SceneTitleMode } from '../../services/settings';
 import {
   PanelLeft,
   FilePlus,
@@ -22,8 +22,6 @@ import {
   Quote,
   Minus,
   Highlighter,
-  Type,
-  AlignLeft,
   Columns2,
   BookOpen,
   PenTool,
@@ -39,321 +37,222 @@ import {
   Focus,
   GitBranch,
   BookOpenText,
+  MoreHorizontal,
+  Settings,
+  History,
+  ScrollText,
+  ClipboardCopy,
 } from 'lucide-react';
 import { ThemeToggle } from '../ThemeToggle/ThemeToggle';
 import './Toolbar.css';
 
+interface MenuEntry {
+  label: string;
+  icon: ReactNode;
+  shortcut?: string;
+  active?: boolean;
+  disabled?: boolean;
+  run: () => void;
+}
+
+/**
+ * The toolbar keeps only what a novelist reaches for while drafting. Everything else (file
+ * operations, rarer formatting, tools, settings) lives in the "More" menu and the command palette.
+ */
 export function Toolbar() {
-  const {
-    editorInstance: editor,
-    newFile,
-    openProjectFolderAction,
-    saveFileAction,
-    saveFileAsAction,
-    printAction,
-    syncGitAction,
-    isDirty,
-    sidebarOpen,
-    toggleSidebar,
-    viewMode,
-    setViewMode,
-    fontFamily,
-    cycleFontFamily,
-    paragraphIndent,
-    toggleParagraphIndent,
-    sceneTitleMode,
-    setSceneTitleMode,
-    focusMode,
-    toggleFocusMode,
-    dimUnfocused,
-    toggleDimUnfocused,
-    setFindReplaceOpen,
-    setGoalsModalOpen,
-    setCommandPaletteOpen,
-    corkboardOpen,
-    toggleCorkboard,
-    inspectorOpen,
-    toggleInspector,
-    novelProject,
-    toggleCompileModal,
-    codexModalOpen,
-    toggleCodexModal,
-    proseAnalysisOpen,
-    toggleProseAnalysis,
-  } = useEditorStore(
-    useShallow((s) => ({
-      editorInstance: s.editorInstance,
-      newFile: s.newFile,
-      openProjectFolderAction: s.openProjectFolderAction,
-      saveFileAction: s.saveFileAction,
-      saveFileAsAction: s.saveFileAsAction,
-      printAction: s.printAction,
-      syncGitAction: s.syncGitAction,
-      isDirty: s.isDirty,
-      sidebarOpen: s.sidebarOpen,
-      toggleSidebar: s.toggleSidebar,
-      viewMode: s.viewMode,
-      setViewMode: s.setViewMode,
-      fontFamily: s.fontFamily,
-      cycleFontFamily: s.cycleFontFamily,
-      paragraphIndent: s.paragraphIndent,
-      toggleParagraphIndent: s.toggleParagraphIndent,
-      sceneTitleMode: s.sceneTitleMode,
-      setSceneTitleMode: s.setSceneTitleMode,
-      focusMode: s.focusMode,
-      toggleFocusMode: s.toggleFocusMode,
-      dimUnfocused: s.dimUnfocused,
-      toggleDimUnfocused: s.toggleDimUnfocused,
-      setFindReplaceOpen: s.setFindReplaceOpen,
-      setGoalsModalOpen: s.setGoalsModalOpen,
-      setCommandPaletteOpen: s.setCommandPaletteOpen,
-      corkboardOpen: s.corkboardOpen,
-      toggleCorkboard: s.toggleCorkboard,
-      inspectorOpen: s.inspectorOpen,
-      toggleInspector: s.toggleInspector,
-      novelProject: s.novelProject,
-      toggleCompileModal: s.toggleCompileModal,
-      codexModalOpen: s.codexModalOpen,
-      toggleCodexModal: s.toggleCodexModal,
-      proseAnalysisOpen: s.proseAnalysisOpen,
-      toggleProseAnalysis: s.toggleProseAnalysis,
+  const s = useEditorStore(
+    useShallow((st) => ({
+      editor: st.editorInstance,
+      newFile: st.newFile,
+      openProjectFolderAction: st.openProjectFolderAction,
+      saveFileAction: st.saveFileAction,
+      saveFileAsAction: st.saveFileAsAction,
+      printAction: st.printAction,
+      syncGitAction: st.syncGitAction,
+      isDirty: st.isDirty,
+      sidebarOpen: st.sidebarOpen,
+      toggleSidebar: st.toggleSidebar,
+      viewMode: st.viewMode,
+      setViewMode: st.setViewMode,
+      focusMode: st.focusMode,
+      toggleFocusMode: st.toggleFocusMode,
+      dimUnfocused: st.dimUnfocused,
+      toggleDimUnfocused: st.toggleDimUnfocused,
+      typewriterMode: st.typewriterMode,
+      toggleTypewriterMode: st.toggleTypewriterMode,
+      setFindReplaceOpen: st.setFindReplaceOpen,
+      setGoalsModalOpen: st.setGoalsModalOpen,
+      setCommandPaletteOpen: st.setCommandPaletteOpen,
+      corkboardOpen: st.corkboardOpen,
+      toggleCorkboard: st.toggleCorkboard,
+      inspectorOpen: st.inspectorOpen,
+      toggleInspector: st.toggleInspector,
+      hasProject: Boolean(st.novelProject),
+      toggleCompileModal: st.toggleCompileModal,
+      codexModalOpen: st.codexModalOpen,
+      toggleCodexModal: st.toggleCodexModal,
+      toggleProseAnalysis: st.toggleProseAnalysis,
+      setSettingsOpen: st.setSettingsOpen,
+      setBackupsOpen: st.setBackupsOpen,
+      copyContextPackAction: st.copyContextPackAction,
     }))
   );
+  const { editor, viewMode } = s;
 
-  // Reactive active formatting state from TipTap cursor position
-  const activeFormats = useEditorState({
+  const active = useEditorState({
     editor,
     selector: (ctx) => {
       const ed = ctx.editor;
-      if (!ed) {
-        return {
-          bold: false,
-          italic: false,
-          underline: false,
-          strike: false,
-          h1: false,
-          h2: false,
-          h3: false,
-          bulletList: false,
-          orderedList: false,
-          blockquote: false,
-          highlight: false,
-        };
-      }
+      const is = (name: string, attrs?: Record<string, unknown>) => Boolean(ed?.isActive(name, attrs));
       return {
-        bold: ed.isActive('bold'),
-        italic: ed.isActive('italic'),
-        underline: ed.isActive('underline'),
-        strike: ed.isActive('strike'),
-        h1: ed.isActive('heading', { level: 1 }),
-        h2: ed.isActive('heading', { level: 2 }),
-        h3: ed.isActive('heading', { level: 3 }),
-        bulletList: ed.isActive('bulletList'),
-        orderedList: ed.isActive('orderedList'),
-        blockquote: ed.isActive('blockquote'),
-        highlight: ed.isActive('highlight'),
+        bold: is('bold'),
+        italic: is('italic'),
+        underline: is('underline'),
+        strike: is('strike'),
+        h1: is('heading', { level: 1 }),
+        h2: is('heading', { level: 2 }),
+        h3: is('heading', { level: 3 }),
+        bulletList: is('bulletList'),
+        orderedList: is('orderedList'),
+        blockquote: is('blockquote'),
+        highlight: is('highlight'),
       };
     },
   });
 
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setMenuOpen(false);
+      }
+    };
+    window.addEventListener('pointerdown', onPointerDown);
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => {
+      window.removeEventListener('pointerdown', onPointerDown);
+      window.removeEventListener('keydown', onKeyDown, true);
+    };
+  }, [menuOpen]);
+
+  const canFormat = Boolean(editor) && viewMode !== 'preview';
+  const chain = () => editor!.chain().focus();
+
+  const sections: { title: string; entries: MenuEntry[] }[] = [
+    {
+      title: 'File',
+      entries: [
+        { label: 'New chapter', icon: <FilePlus size={15} />, shortcut: 'Ctrl+N', run: () => void s.newFile() },
+        { label: 'Open novel folder…', icon: <FolderOpen size={15} />, shortcut: 'Ctrl+O', run: () => void s.openProjectFolderAction() },
+        { label: 'Save as…', icon: <SaveAll size={15} />, shortcut: 'Ctrl+Shift+S', run: () => void s.saveFileAsAction() },
+        { label: 'Export manuscript…', icon: <BookDown size={15} />, shortcut: 'Ctrl+E', run: s.toggleCompileModal },
+        { label: 'Print / save as PDF', icon: <Printer size={15} />, shortcut: 'Ctrl+P', run: s.printAction },
+        { label: 'Push to GitHub', icon: <GitBranch size={15} />, run: () => void s.syncGitAction() },
+        { label: 'Backups of this file…', icon: <History size={15} />, run: () => s.setBackupsOpen(true) },
+      ],
+    },
+    {
+      title: 'Format',
+      entries: [
+        { label: 'Chapter title (H1)', icon: <Heading1 size={15} />, active: active?.h1, disabled: !canFormat, run: () => chain().toggleHeading({ level: 1 }).run() },
+        { label: 'Subheading (H3)', icon: <Heading3 size={15} />, active: active?.h3, disabled: !canFormat, run: () => chain().toggleHeading({ level: 3 }).run() },
+        { label: 'Underline', icon: <Underline size={15} />, active: active?.underline, disabled: !canFormat, run: () => chain().toggleUnderline().run() },
+        { label: 'Strikethrough', icon: <Strikethrough size={15} />, active: active?.strike, disabled: !canFormat, run: () => chain().toggleStrike().run() },
+        { label: 'Highlight', icon: <Highlighter size={15} />, active: active?.highlight, disabled: !canFormat, run: () => chain().toggleHighlight().run() },
+        { label: 'Block quote (letter, excerpt)', icon: <Quote size={15} />, active: active?.blockquote, disabled: !canFormat, run: () => chain().toggleBlockquote().run() },
+        { label: 'Bullet list', icon: <List size={15} />, active: active?.bulletList, disabled: !canFormat, run: () => chain().toggleBulletList().run() },
+        { label: 'Numbered list', icon: <ListOrdered size={15} />, active: active?.orderedList, disabled: !canFormat, run: () => chain().toggleOrderedList().run() },
+      ],
+    },
+    {
+      title: 'Tools',
+      entries: [
+        { label: 'Goals & statistics', icon: <Target size={15} />, shortcut: 'Ctrl+G', run: () => s.setGoalsModalOpen(true) },
+        { label: 'Prose analysis', icon: <Sparkles size={15} />, run: s.toggleProseAnalysis },
+        { label: 'Copy context for AI', icon: <ClipboardCopy size={15} />, disabled: !s.hasProject, run: () => void s.copyContextPackAction() },
+        { label: 'Paragraph focus', icon: <Focus size={15} />, shortcut: 'Ctrl+Shift+P', active: s.dimUnfocused, run: s.toggleDimUnfocused },
+        { label: 'Typewriter scrolling', icon: <ScrollText size={15} />, shortcut: 'Ctrl+Shift+T', active: s.typewriterMode, run: s.toggleTypewriterMode },
+        { label: 'Command palette', icon: <CommandIcon size={15} />, shortcut: 'Ctrl+K', run: () => s.setCommandPaletteOpen(true) },
+        { label: 'Settings…', icon: <Settings size={15} />, shortcut: 'Ctrl+,', run: () => s.setSettingsOpen(true) },
+      ],
+    },
+  ];
+
+  const viewModes = [
+    { mode: 'editor', icon: <PenTool size={15} />, title: 'Write (editor only)' },
+    { mode: 'split', icon: <Columns2 size={15} />, title: 'Write + typeset preview' },
+    { mode: 'preview', icon: <BookOpen size={15} />, title: 'Read (preview only)' },
+    { mode: 'scratchpad', icon: <StickyNote size={15} />, title: 'Write + scratchpad' },
+    { mode: 'reference', icon: <BookOpenText size={15} />, title: 'Write + notes or another chapter (read-only)' },
+  ] as const;
+
   return (
-    <div className="toolbar">
-      {/* Sidebar Toggle */}
+    <div className="toolbar" role="toolbar" aria-label="Main toolbar">
       <div className="toolbar-group">
         <button
-          className={`toolbar-button ${sidebarOpen ? 'active' : ''}`}
-          onClick={toggleSidebar}
-          title={sidebarOpen ? 'Hide Sidebar' : 'Show Sidebar'}
+          className={`toolbar-button ${s.sidebarOpen ? 'active' : ''}`}
+          onClick={s.toggleSidebar}
+          title={s.sidebarOpen ? 'Hide sidebar (Ctrl+\\)' : 'Show sidebar (Ctrl+\\)'}
+          aria-label="Toggle sidebar"
+          aria-pressed={s.sidebarOpen}
         >
           <PanelLeft size={18} />
         </button>
-      </div>
-
-      <div className="toolbar-separator" />
-
-      {/* File Operations */}
-      <div className="toolbar-group file-actions">
         <button
-          className="toolbar-button"
-          onClick={() => void newFile()}
-          title="New Chapter (Ctrl+N)"
-        >
-          <FilePlus size={18} />
-        </button>
-        <button
-          className="toolbar-button"
-          onClick={() => void openProjectFolderAction()}
-          title="Open Novel Folder (Ctrl+O)"
-        >
-          <FolderOpen size={18} />
-        </button>
-        <button
-          className={`toolbar-button ${isDirty ? 'has-changes' : ''}`}
-          onClick={() => void saveFileAction()}
-          title={isDirty ? 'Save Changes (Ctrl+S) • Unsaved' : 'Save File (Ctrl+S)'}
+          className={`toolbar-button ${s.isDirty ? 'has-changes' : ''}`}
+          onClick={() => void s.saveFileAction()}
+          title={s.isDirty ? 'Save now (Ctrl+S): unsaved changes' : 'Saved (Ctrl+S)'}
+          aria-label="Save"
         >
           <Save size={18} />
         </button>
-        <button
-          className="toolbar-button"
-          onClick={() => void saveFileAsAction()}
-          title="Save As... (Ctrl+Shift+S)"
-        >
-          <SaveAll size={18} />
-        </button>
       </div>
 
-      <div className="toolbar-separator" />
-
-      {/* Export Operations */}
-      <div className="toolbar-group export-actions">
-        <button
-          className="toolbar-button"
-          onClick={toggleCompileModal}
-          title="Export Manuscript (Ctrl+E)"
-        >
-          <BookDown size={18} />
-        </button>
-        <button
-          className="toolbar-button"
-          onClick={() => printAction()}
-          title="Print / Save as PDF (Ctrl+P)"
-        >
-          <Printer size={18} />
-        </button>
-        <button
-          className="toolbar-button"
-          onClick={() => void syncGitAction()}
-          title="Push Manuscript to GitHub"
-        >
-          <GitBranch size={18} />
-        </button>
-      </div>
-
-      <div className="toolbar-separator" />
-
-      {/* Formatting Operations */}
-      {editor && viewMode !== 'preview' && (
+      {canFormat && (
         <>
+          <div className="toolbar-separator" />
           <div className="toolbar-group">
             <button
-              className={`toolbar-button ${activeFormats?.bold ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleBold().run()}
-              title="Bold"
+              className={`toolbar-button ${active?.bold ? 'active' : ''}`}
+              onClick={() => chain().toggleBold().run()}
+              title="Bold (Ctrl+B)"
+              aria-label="Bold"
+              aria-pressed={active?.bold}
             >
               <Bold size={18} />
             </button>
             <button
-              className={`toolbar-button ${activeFormats?.italic ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleItalic().run()}
-              title="Italic"
+              className={`toolbar-button ${active?.italic ? 'active' : ''}`}
+              onClick={() => chain().toggleItalic().run()}
+              title="Italic (Ctrl+I)"
+              aria-label="Italic"
+              aria-pressed={active?.italic}
             >
               <Italic size={18} />
             </button>
             <button
-              className={`toolbar-button ${activeFormats?.underline ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleUnderline().run()}
-              title="Underline"
-            >
-              <Underline size={18} />
-            </button>
-            <button
-              className={`toolbar-button ${activeFormats?.strike ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleStrike().run()}
-              title="Strikethrough"
-            >
-              <Strikethrough size={18} />
-            </button>
-          </div>
-
-          <div className="toolbar-separator" />
-
-          <div className="toolbar-group">
-            <button
-              className={`toolbar-button ${activeFormats?.h1 ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
-              title="Heading 1 (Chapter Title)"
-            >
-              <Heading1 size={18} />
-            </button>
-            <button
-              className={`toolbar-button ${activeFormats?.h2 ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
-              title="Heading 2 (Scene Header - ##)"
+              className={`toolbar-button ${active?.h2 ? 'active' : ''}`}
+              onClick={() => chain().toggleHeading({ level: 2 }).run()}
+              title="Scene heading (## starts a new scene)"
+              aria-label="Scene heading"
+              aria-pressed={active?.h2}
             >
               <Heading2 size={18} />
             </button>
             <button
-              className={`toolbar-button ${activeFormats?.h3 ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
-              title="Heading 3 (Section Title)"
-            >
-              <Heading3 size={18} />
-            </button>
-          </div>
-
-          <div className="toolbar-separator" />
-
-          <div className="toolbar-group">
-            <button
-              className={`toolbar-button ${activeFormats?.bulletList ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleBulletList().run()}
-              title="Bullet List"
-            >
-              <List size={18} />
-            </button>
-            <button
-              className={`toolbar-button ${activeFormats?.orderedList ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleOrderedList().run()}
-              title="Ordered List"
-            >
-              <ListOrdered size={18} />
-            </button>
-          </div>
-
-          <div className="toolbar-separator" />
-
-          <div className="toolbar-group">
-            <button
-              className={`toolbar-button ${activeFormats?.blockquote ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleBlockquote().run()}
-              title="Blockquote (Letter / Excerpt)"
-            >
-              <Quote size={18} />
-            </button>
-            <button
               className="toolbar-button"
-              onClick={() => editor.chain().focus().setHorizontalRule().run()}
-              title="Scene Break (* * *)"
+              onClick={() => chain().setHorizontalRule().run()}
+              title="Scene break (✦ ✦ ✦)"
+              aria-label="Insert scene break"
             >
               <Minus size={18} />
-            </button>
-            <button
-              className={`toolbar-button ${activeFormats?.highlight ? 'active' : ''}`}
-              onClick={() => editor.chain().focus().toggleHighlight().run()}
-              title="Highlight"
-            >
-              <Highlighter size={18} />
-            </button>
-          </div>
-
-          <div className="toolbar-separator" />
-
-          {/* Typography Settings */}
-          <div className="toolbar-group">
-            <button
-              className="toolbar-button"
-              onClick={cycleFontFamily}
-              title={`Font Family: ${fontFamily === 'serif' ? 'Serif (Georgia)' : fontFamily === 'sans' ? 'Sans-Serif (System)' : 'Monospace (Consolas)'}`}
-            >
-              <Type size={17} />
-            </button>
-            <button
-              className={`toolbar-button ${paragraphIndent ? 'active' : ''}`}
-              onClick={toggleParagraphIndent}
-              title={`Paragraph Style: ${paragraphIndent ? 'Fiction First-Line Indents' : 'Web Block Spacing'}`}
-            >
-              <AlignLeft size={17} />
             </button>
           </div>
         </>
@@ -361,139 +260,107 @@ export function Toolbar() {
 
       <div className="toolbar-separator" />
 
-      {/* Scene Header (##) Manuscript Display Mode Dropdown */}
       <div className="toolbar-group">
-        <select
-          className="toolbar-select"
-          value={sceneTitleMode}
-          onChange={(e) => setSceneTitleMode(e.target.value as SceneTitleMode)}
-          title="Choose how ## scene titles are displayed in the manuscript"
-          aria-label="Scene title display mode in manuscript"
+        <button className="toolbar-button" onClick={() => s.setFindReplaceOpen(true)} title="Find & replace (Ctrl+F)" aria-label="Find and replace">
+          <Search size={17} />
+        </button>
+        <button
+          className={`toolbar-button ${s.corkboardOpen ? 'active' : ''}`}
+          onClick={s.toggleCorkboard}
+          title="Corkboard: scenes as index cards"
+          aria-label="Corkboard"
+          aria-pressed={s.corkboardOpen}
         >
-          <option value="hide">Scenes: Hide Titles</option>
-          <option value="stars">Scenes: Show ***</option>
-          <option value="show">Scenes: Show Titles</option>
-        </select>
+          <LayoutGrid size={17} />
+        </button>
+        <button
+          className={`toolbar-button ${s.inspectorOpen ? 'active' : ''}`}
+          onClick={s.toggleInspector}
+          title="Inspector: notes for this scene or chapter"
+          aria-label="Inspector"
+          aria-pressed={s.inspectorOpen}
+        >
+          <SlidersHorizontal size={17} />
+        </button>
+        {s.hasProject && (
+          <button
+            className={`toolbar-button ${s.codexModalOpen ? 'active' : ''}`}
+            onClick={s.toggleCodexModal}
+            title="Story bible: characters, places, lore"
+            aria-label="Story bible"
+            aria-pressed={s.codexModalOpen}
+          >
+            <BookMarked size={17} />
+          </button>
+        )}
       </div>
 
-      <div className="toolbar-separator" />
+      <div className="toolbar-spacer" />
 
-      {/* Writing Tools */}
       <div className="toolbar-group">
         <button
-          className="toolbar-button"
-          onClick={() => setFindReplaceOpen(true)}
-          title="Find & Replace (Ctrl+F)"
-        >
-          <Search size={16} />
-        </button>
-        <button
-          className="toolbar-button"
-          onClick={() => setGoalsModalOpen(true)}
-          title="Writing Goals & Statistics (Ctrl+G)"
-        >
-          <Target size={16} />
-        </button>
-        <button
-          className="toolbar-button"
-          onClick={() => setCommandPaletteOpen(true)}
-          title="Command Palette (Ctrl+K)"
-        >
-          <CommandIcon size={16} />
-        </button>
-        <button
-          className={`toolbar-button ${dimUnfocused ? 'active' : ''}`}
-          onClick={toggleDimUnfocused}
-          title={`Paragraph Focus Mode (${dimUnfocused ? 'Active' : 'Inactive'}) (Ctrl+Shift+P)`}
-        >
-          <Focus size={16} />
-        </button>
-        <button
-          className={`toolbar-button ${focusMode ? 'active' : ''}`}
-          onClick={toggleFocusMode}
-          title="Distraction-Free Focus Mode (F11 / Ctrl+Shift+F)"
+          className={`toolbar-button ${s.focusMode ? 'active' : ''}`}
+          onClick={s.toggleFocusMode}
+          title="Distraction-free mode (F11)"
+          aria-label="Distraction-free mode"
         >
           <Maximize2 size={16} />
         </button>
-        <button
-          className={`toolbar-button ${corkboardOpen ? 'active' : ''}`}
-          onClick={toggleCorkboard}
-          title="Corkboard & Outline View"
-        >
-          <LayoutGrid size={16} />
-        </button>
-        <button
-          className={`toolbar-button ${inspectorOpen ? 'active' : ''}`}
-          onClick={toggleInspector}
-          title="Scene Inspector (Synopsis, POV, Status)"
-        >
-          <SlidersHorizontal size={16} />
-        </button>
-        {novelProject && (
-          <button
-            className={`toolbar-button ${codexModalOpen ? 'active' : ''}`}
-            onClick={toggleCodexModal}
-            title="Story Bible & Codex (Characters, Locations, Lore)"
-          >
-            <BookMarked size={16} />
-          </button>
-        )}
-        <button
-          className={`toolbar-button ${proseAnalysisOpen ? 'active' : ''}`}
-          onClick={toggleProseAnalysis}
-          title="Prose Diagnostics & Style Analysis"
-        >
-          <Sparkles size={16} />
-        </button>
-      </div>
-
-      {/* Flexible Spacer */}
-      <div className="toolbar-spacer" />
-
-      {/* Theme Switcher */}
-      <div className="toolbar-group">
         <ThemeToggle />
       </div>
 
-      <div className="toolbar-separator" />
+      <div className="toolbar-group segmented-control view-modes" role="group" aria-label="View">
+        {viewModes.map((v) => (
+          <button
+            key={v.mode}
+            className={`toolbar-button ${viewMode === v.mode ? 'active' : ''}`}
+            onClick={() => s.setViewMode(v.mode)}
+            title={v.title}
+            aria-label={v.title}
+            aria-pressed={viewMode === v.mode}
+          >
+            {v.icon}
+          </button>
+        ))}
+      </div>
 
-      {/* View Mode Switcher */}
-      <div className="toolbar-group segmented-control view-modes">
+      <div className="toolbar-more" ref={menuRef}>
         <button
-          className={`toolbar-button ${viewMode === 'editor' ? 'active' : ''}`}
-          onClick={() => setViewMode('editor')}
-          title="Pen Mode (Editor Only)"
+          className={`toolbar-button ${menuOpen ? 'active' : ''}`}
+          onClick={() => setMenuOpen((v) => !v)}
+          title="More: file, formatting, tools, settings"
+          aria-label="More actions"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
         >
-          <PenTool size={15} />
+          <MoreHorizontal size={18} />
         </button>
-        <button
-          className={`toolbar-button ${viewMode === 'split' ? 'active' : ''}`}
-          onClick={() => setViewMode('split')}
-          title="Split Mode (Editor + Live Preview)"
-        >
-          <Columns2 size={15} />
-        </button>
-        <button
-          className={`toolbar-button ${viewMode === 'preview' ? 'active' : ''}`}
-          onClick={() => setViewMode('preview')}
-          title="Eye Mode (Preview Only)"
-        >
-          <BookOpen size={15} />
-        </button>
-        <button
-          className={`toolbar-button ${viewMode === 'scratchpad' ? 'active' : ''}`}
-          onClick={() => setViewMode('scratchpad')}
-          title="Pen & Scratchpad Mode (Editor + Scratchpad)"
-        >
-          <StickyNote size={15} />
-        </button>
-        <button
-          className={`toolbar-button ${viewMode === 'reference' ? 'active' : ''}`}
-          onClick={() => setViewMode('reference')}
-          title="Pen & Reference Mode (Editor + your notes or another chapter, read-only)"
-        >
-          <BookOpenText size={15} />
-        </button>
+        {menuOpen && (
+          <div className="toolbar-menu" role="menu">
+            {sections.map((section) => (
+              <div key={section.title} className="toolbar-menu-section">
+                <div className="toolbar-menu-heading">{section.title}</div>
+                {section.entries.map((entry) => (
+                  <button
+                    key={entry.label}
+                    type="button"
+                    role="menuitem"
+                    className={`toolbar-menu-item ${entry.active ? 'active' : ''}`}
+                    disabled={entry.disabled}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      entry.run();
+                    }}
+                  >
+                    {entry.icon}
+                    <span className="toolbar-menu-label">{entry.label}</span>
+                    {entry.shortcut && <kbd className="toolbar-menu-shortcut">{entry.shortcut}</kbd>}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

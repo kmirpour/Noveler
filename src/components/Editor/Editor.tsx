@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -17,16 +17,19 @@ import {
   SpellAndGrammar,
   getSpellGrammarIssueAtPos,
   spellAndGrammarPluginKey,
+  rescanSpelling,
   type DocumentSpellIssue,
 } from '../../extensions/spellAndGrammar';
 import { useEditorStore } from '../../stores/editorStore';
 import { isTauri, isSupportedTextFile } from '../../services/fileService';
 import { extractWordsFromCodexEntry } from '../../services/projectService';
 import { applyCasing } from '../../services/thesaurusService';
-import { sanitizeSpellWord, clearSpellingCache, isWordIgnored } from '../../services/spellingService';
+import { clearSpellingCache } from '../../services/spellingService';
 import { getWordRangeAtPos } from '../../utils/editorUtils';
 import { getSceneIndexAtPosition, getSceneHeadingsSignatureInDoc } from '../../utils/chapterScenes';
 import { EditorContextMenu } from '../ContextMenu/EditorContextMenu';
+import { typefaceInfo } from '../../services/settings';
+import { cleanPastedText } from '../../utils/pasteCleanup';
 import './Editor.css';
 
 function getProjectIgnoreWords(): string[] {
@@ -45,7 +48,6 @@ const COUNT_DEBOUNCE_MS = 250;
 const PREVIEW_DEBOUNCE_MS = 300;
 
 export function Editor() {
-  const [initialMarkdown] = useState(() => useEditorStore.getState().markdownContent);
   const setEditorInstance = useEditorStore((s) => s.setEditorInstance);
   const updateCounts = useEditorStore((s) => s.updateCounts);
   const fontFamily = useEditorStore((s) => s.fontFamily);
@@ -55,6 +57,13 @@ export function Editor() {
   const typewriterMode = useEditorStore((s) => s.typewriterMode);
   const dimUnfocused = useEditorStore((s) => s.dimUnfocused);
   const spellCheckEnabled = useEditorStore((s) => s.spellCheckEnabled);
+  const lineHeight = useEditorStore((s) => s.lineHeight);
+  const lineWidth = useEditorStore((s) => s.lineWidth);
+  const smartQuotes = useEditorStore((s) => s.smartQuotes);
+  // The editor is created once, and again only when the smart-quotes setting changes; each time it
+  // starts from the text the store holds at that moment.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const initialMarkdown = useMemo(() => useEditorStore.getState().markdownContent, [smartQuotes]);
   const dictionaryKey = useEditorStore((s) => (s.novelProject?.customDictionary || []).join(','));
   const codexKey = useEditorStore((s) => (s.novelProject?.codex || []).map((c) => c.name).join(','));
 
@@ -74,12 +83,17 @@ export function Editor() {
       Placeholder.configure({
         placeholder: 'Start writing your story...',
       }),
-      Typography.configure({
-        openDoubleQuote: false,
-        closeDoubleQuote: false,
-        openSingleQuote: false,
-        closeSingleQuote: false,
-      }),
+      // Dashes and ellipses are always tidied; curly quotes only if the writer asked for them.
+      Typography.configure(
+        smartQuotes
+          ? {}
+          : {
+              openDoubleQuote: false,
+              closeDoubleQuote: false,
+              openSingleQuote: false,
+              closeSingleQuote: false,
+            }
+      ),
       Focus.configure({
         className: 'has-focus',
         mode: 'shallowest',
@@ -152,7 +166,7 @@ export function Editor() {
         }, AUTOSAVE_DELAY_MS);
       }
     },
-  });
+  }, [smartQuotes]);
 
   useEffect(() => {
     if (editor) {
@@ -175,13 +189,9 @@ export function Editor() {
     if (!spellCheckEnabled) {
       editor.view.dispatch(editor.state.tr.setMeta(spellAndGrammarPluginKey, []));
     } else {
-      // Trigger a lightweight re-scan
-      const currentIssues = spellAndGrammarPluginKey.getState(editor.state)?.issues || [];
-      const ignoreSet = new Set(getProjectIgnoreWords());
-      const filtered = currentIssues.filter(
-        (iss) => !isWordIgnored(sanitizeSpellWord(iss.matchedText).toLowerCase(), ignoreSet)
-      );
-      editor.view.dispatch(editor.state.tr.setMeta(spellAndGrammarPluginKey, filtered));
+      // Check the whole document again: marks come back when the check is switched on, and
+      // disappear for words just added to the novel's dictionary or story bible.
+      rescanSpelling(editor.view, getProjectIgnoreWords());
     }
   }, [editor, spellCheckEnabled, dictionaryKey, codexKey]);
 
@@ -334,10 +344,40 @@ export function Editor() {
     }
   };
 
+  /** Pastes the clipboard after tidying text copied from chat assistants or web pages. */
+  const handlePasteClean = async () => {
+    if (!editor) return;
+    try {
+      const text = cleanPastedText(await navigator.clipboard.readText());
+      if (text) {
+        editor.chain().focus().insertContent(text, { contentType: 'markdown' } as never).run();
+      }
+    } catch (err) {
+      console.warn('Clipboard paste failed:', err);
+    }
+  };
+
+  /** Cuts the selection out of the manuscript and parks it in the scratchpad. */
+  const handleMoveToScratchpad = () => {
+    if (!editor) return;
+    const { from, to } = editor.state.selection;
+    if (from === to) return;
+    const text = editor.state.doc.textBetween(from, to, '\n\n');
+    useEditorStore.getState().appendToScratchpadAction(text);
+    editor.chain().focus().deleteRange({ from, to }).run();
+  };
+
+  const pageStyle = {
+    fontSize: `${fontSize}px`,
+    '--editor-font': typefaceInfo(fontFamily).stack,
+    '--editor-line-height': String(lineHeight),
+    '--editor-width': `${lineWidth}px`,
+  } as CSSProperties;
+
   return (
     <div
-      className={`editor-container font-${fontFamily} ${paragraphIndent ? 'indent-fiction' : 'indent-block'} scene-title-${sceneTitleMode} ${typewriterMode ? 'typewriter-mode' : ''} ${dimUnfocused ? 'dim-unfocused' : ''}`}
-      style={{ fontSize: `${fontSize}px` }}
+      className={`editor-container ${paragraphIndent ? 'indent-fiction' : 'indent-block'} scene-title-${sceneTitleMode} ${typewriterMode ? 'typewriter-mode' : ''} ${dimUnfocused ? 'dim-unfocused' : ''}`}
+      style={pageStyle}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
       onContextMenu={handleContextMenu}
@@ -354,6 +394,8 @@ export function Editor() {
           onCut={handleCut}
           onCopy={handleCopy}
           onPaste={handlePaste}
+          onPasteClean={handlePasteClean}
+          onMoveToScratchpad={handleMoveToScratchpad}
           onClose={() => setContextMenu(null)}
         />
       )}

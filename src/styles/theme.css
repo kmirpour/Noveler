@@ -1,12 +1,14 @@
 /* ==========================================================================
-   MODULAR IDE THEME SYSTEM — 16-TOKEN SPECIFICATION
+   THEME SYSTEM
+   Each theme defines the same 16 core tokens. Everything else (aliases,
+   status colours, semantic colours) is derived once, below, so adding a theme
+   means adding one block here and one entry in services/themes.ts.
    Reference: THEMES_SPECIFICATION.md
    ========================================================================== */
 
-/* ==========================================================================
-   THEME 1: SEPIA (Warm Book Paper - Default)
-   Best for: Multi-hour writing, reading, reducing blue-light fatigue
-   ========================================================================== */
+/* --- Light themes ------------------------------------------------------- */
+
+/* Sepia: warm book paper (default) */
 :root,
 [data-theme='sepia'] {
   --bg-app: #f7f5ef;
@@ -25,44 +27,9 @@
   --btn-hover: #e5e0d4;
   --tag-bg: #e6ded1;
   --tag-color: #634725;
-
-  /* Backward-compatibility aliases for legacy styles */
-  --bg-surface: var(--bg-card);
-  --bg-subtle: var(--bg-toolbar);
-  --border-strong: var(--border-color);
-  --text-primary: var(--text-color);
-  --text-secondary: var(--text-muted);
-  --editor-bg: var(--bg-editor);
-  --editor-text: var(--text-color);
-  --editor-heading: var(--heading-color);
-  --editor-quote: var(--text-muted);
-  --editor-quote-border: var(--border-color);
-  --editor-code-bg: var(--accent-light);
-  --preview-bg: var(--bg-preview);
-  --preview-header-bg: var(--bg-toolbar);
-  --preview-border: var(--border-color);
-  --preview-text: var(--text-color);
-  --preview-heading: var(--heading-color);
-  --preview-quote: var(--text-muted);
-  --preview-quote-border: var(--border-color);
-  --preview-scene-break: var(--accent-color);
-  --sidebar-bg: var(--bg-sidebar);
-  --sidebar-header-bg: var(--bg-toolbar);
-  --sidebar-item-hover: var(--btn-hover);
-  --sidebar-item-active: var(--accent-light);
-  --sidebar-text-active: var(--accent-hover);
-  --statusbar-bg: var(--bg-toolbar);
-  --badge-bg: var(--tag-bg);
-  --badge-text: var(--tag-color);
-  --selection-bg: var(--accent-light);
-  --scrollbar-thumb: var(--border-color);
-  --scrollbar-thumb-hover: var(--text-muted);
 }
 
-/* ==========================================================================
-   THEME 2: LIGHT (Crisp Modern Paper)
-   Best for: Daytime editing, high-contrast proofreading
-   ========================================================================== */
+/* Light: crisp modern paper */
 [data-theme='light'] {
   --bg-app: #ffffff;
   --bg-editor: #ffffff;
@@ -80,44 +47,71 @@
   --btn-hover: #e9ecef;
   --tag-bg: #e3ebf7;
   --tag-color: #1c3b6c;
-
-  /* Backward-compatibility aliases */
-  --bg-surface: var(--bg-card);
-  --bg-subtle: var(--bg-toolbar);
-  --border-strong: var(--border-color);
-  --text-primary: var(--text-color);
-  --text-secondary: var(--text-muted);
-  --editor-bg: var(--bg-editor);
-  --editor-text: var(--text-color);
-  --editor-heading: var(--heading-color);
-  --editor-quote: var(--text-muted);
-  --editor-quote-border: var(--border-color);
-  --editor-code-bg: var(--accent-light);
-  --preview-bg: var(--bg-preview);
-  --preview-header-bg: var(--bg-toolbar);
-  --preview-border: var(--border-color);
-  --preview-text: var(--text-color);
-  --preview-heading: var(--heading-color);
-  --preview-quote: var(--text-muted);
-  --preview-quote-border: var(--border-color);
-  --preview-scene-break: var(--accent-color);
-  --sidebar-bg: var(--bg-sidebar);
-  --sidebar-header-bg: var(--bg-toolbar);
-  --sidebar-item-hover: var(--btn-hover);
-  --sidebar-item-active: var(--accent-light);
-  --sidebar-text-active: var(--accent-hover);
-  --statusbar-bg: var(--bg-toolbar);
-  --badge-bg: var(--tag-bg);
-  --badge-text: var(--tag-color);
-  --selection-bg: var(--accent-light);
-  --scrollbar-thumb: var(--border-color);
-  --scrollbar-thumb-hover: var(--text-muted);
 }
 
-/* ==========================================================================
-   THEME 3: DARK / MIDNIGHT (Deep Slate & Navy)
-   Best for: Late-night drafting, low-light environments
-   ========================================================================== */
+/* Solarized Light: low-glare cream with cool ink */
+[data-theme='solarized-light'] {
+  --bg-app: #eee8d5;
+  --bg-editor: #fdf6e3;
+  --bg-preview: #f7f0dc;
+  --bg-sidebar: #eee8d5;
+  --bg-toolbar: #e8e1cc;
+  --bg-card: #fffaf0;
+  --text-color: #475b62;
+  --text-muted: #73858c;
+  --heading-color: #073642;
+  --border-color: #ddd6c1;
+  --accent-color: #268bd2;
+  --accent-light: #e1ecf0;
+  --accent-hover: #1a6fa8;
+  --btn-hover: #e3dcc7;
+  --tag-bg: #e1ecf0;
+  --tag-color: #1a6fa8;
+}
+
+/* Rose: soft blush paper */
+[data-theme='rose'] {
+  --bg-app: #fbf3f1;
+  --bg-editor: #fffaf8;
+  --bg-preview: #f9efec;
+  --bg-sidebar: #f6e9e6;
+  --bg-toolbar: #f1e0dc;
+  --bg-card: #ffffff;
+  --text-color: #3a2c2e;
+  --text-muted: #85696d;
+  --heading-color: #2a1c1f;
+  --border-color: #e8d3ce;
+  --accent-color: #b4536a;
+  --accent-light: #f3dadd;
+  --accent-hover: #8f3c52;
+  --btn-hover: #ecd9d5;
+  --tag-bg: #f3dadd;
+  --tag-color: #8f3c52;
+}
+
+/* Typewriter: grey manuscript paper, black ink, red ribbon */
+[data-theme='typewriter'] {
+  --bg-app: #ecebe6;
+  --bg-editor: #f4f3ee;
+  --bg-preview: #eeede8;
+  --bg-sidebar: #e6e5df;
+  --bg-toolbar: #dfded8;
+  --bg-card: #fbfaf6;
+  --text-color: #2b2b2b;
+  --text-muted: #6d6c66;
+  --heading-color: #111111;
+  --border-color: #d2d1ca;
+  --accent-color: #b3261e;
+  --accent-light: #f1dcd9;
+  --accent-hover: #8c1d17;
+  --btn-hover: #d9d8d1;
+  --tag-bg: #f1dcd9;
+  --tag-color: #8c1d17;
+}
+
+/* --- Dark themes -------------------------------------------------------- */
+
+/* Dark: deep slate and navy */
 [data-theme='dark'] {
   --bg-app: #12141a;
   --bg-editor: #161821;
@@ -135,43 +129,9 @@
   --btn-hover: #262938;
   --tag-bg: #2b2520;
   --tag-color: #e0b080;
-
-  /* Backward-compatibility aliases */
-  --bg-surface: var(--bg-card);
-  --bg-subtle: var(--bg-toolbar);
-  --border-strong: var(--border-color);
-  --text-primary: var(--text-color);
-  --text-secondary: var(--text-muted);
-  --editor-bg: var(--bg-editor);
-  --editor-text: var(--text-color);
-  --editor-heading: var(--heading-color);
-  --editor-quote: var(--text-muted);
-  --editor-quote-border: var(--border-color);
-  --editor-code-bg: var(--accent-light);
-  --preview-bg: var(--bg-preview);
-  --preview-header-bg: var(--bg-toolbar);
-  --preview-border: var(--border-color);
-  --preview-text: var(--text-color);
-  --preview-heading: var(--heading-color);
-  --preview-quote: var(--text-muted);
-  --preview-quote-border: var(--border-color);
-  --preview-scene-break: var(--accent-color);
-  --sidebar-bg: var(--bg-sidebar);
-  --sidebar-header-bg: var(--bg-toolbar);
-  --sidebar-item-hover: var(--btn-hover);
-  --sidebar-item-active: var(--accent-light);
-  --sidebar-text-active: var(--accent-hover);
-  --statusbar-bg: var(--bg-toolbar);
-  --badge-bg: var(--tag-bg);
-  --badge-text: var(--tag-color);
-  --selection-bg: var(--accent-light);
-  --scrollbar-thumb: var(--border-color);
-  --scrollbar-thumb-hover: var(--text-muted);
 }
 
-/* ==========================================================================
-   THEME 4 (BONUS): FOREST / SAGE (Calming Organic Greens)
-   ========================================================================== */
+/* Forest: calming moss and pine */
 [data-theme='forest'] {
   --bg-app: #19201d;
   --bg-editor: #1f2824;
@@ -189,43 +149,9 @@
   --btn-hover: #2a3731;
   --tag-bg: #23342b;
   --tag-color: #92bfa6;
-
-  /* Backward-compatibility aliases */
-  --bg-surface: var(--bg-card);
-  --bg-subtle: var(--bg-toolbar);
-  --border-strong: var(--border-color);
-  --text-primary: var(--text-color);
-  --text-secondary: var(--text-muted);
-  --editor-bg: var(--bg-editor);
-  --editor-text: var(--text-color);
-  --editor-heading: var(--heading-color);
-  --editor-quote: var(--text-muted);
-  --editor-quote-border: var(--border-color);
-  --editor-code-bg: var(--accent-light);
-  --preview-bg: var(--bg-preview);
-  --preview-header-bg: var(--bg-toolbar);
-  --preview-border: var(--border-color);
-  --preview-text: var(--text-color);
-  --preview-heading: var(--heading-color);
-  --preview-quote: var(--text-muted);
-  --preview-quote-border: var(--border-color);
-  --preview-scene-break: var(--accent-color);
-  --sidebar-bg: var(--bg-sidebar);
-  --sidebar-header-bg: var(--bg-toolbar);
-  --sidebar-item-hover: var(--btn-hover);
-  --sidebar-item-active: var(--accent-light);
-  --sidebar-text-active: var(--accent-hover);
-  --statusbar-bg: var(--bg-toolbar);
-  --badge-bg: var(--tag-bg);
-  --badge-text: var(--tag-color);
-  --selection-bg: var(--accent-light);
-  --scrollbar-thumb: var(--border-color);
-  --scrollbar-thumb-hover: var(--text-muted);
 }
 
-/* ==========================================================================
-   THEME 5 (BONUS): NORD (Cold Arctic Frost)
-   ========================================================================== */
+/* Nord: cold arctic frost */
 [data-theme='nord'] {
   --bg-app: #242933;
   --bg-editor: #2e3440;
@@ -234,7 +160,7 @@
   --bg-toolbar: #2b303c;
   --bg-card: #3b4252;
   --text-color: #eceff4;
-  --text-muted: #7d899f;
+  --text-muted: #8f9bb0;
   --heading-color: #88c0d0;
   --border-color: #3b4252;
   --accent-color: #88c0d0;
@@ -243,13 +169,99 @@
   --btn-hover: #3b4252;
   --tag-bg: #2d3844;
   --tag-color: #88c0d0;
+}
 
-  /* Backward-compatibility aliases */
+/* Solarized Dark: deep teal with soft contrast */
+[data-theme='solarized-dark'] {
+  --bg-app: #00252e;
+  --bg-editor: #002b36;
+  --bg-preview: #01303c;
+  --bg-sidebar: #01313d;
+  --bg-toolbar: #073642;
+  --bg-card: #0a4050;
+  --text-color: #a7b6b8;
+  --text-muted: #6f8990;
+  --heading-color: #eee8d5;
+  --border-color: #0f4a59;
+  --accent-color: #2aa198;
+  --accent-light: #0b4a4f;
+  --accent-hover: #35c1b6;
+  --btn-hover: #0b4654;
+  --tag-bg: #0b4a4f;
+  --tag-color: #5fd0c6;
+}
+
+/* Dracula: charcoal with violet accents */
+[data-theme='dracula'] {
+  --bg-app: #21222c;
+  --bg-editor: #282a36;
+  --bg-preview: #242530;
+  --bg-sidebar: #21222c;
+  --bg-toolbar: #2d2f3d;
+  --bg-card: #343746;
+  --text-color: #f8f8f2;
+  --text-muted: #9aa3c7;
+  --heading-color: #f1e9ff;
+  --border-color: #3a3d4f;
+  --accent-color: #bd93f9;
+  --accent-light: #3b3355;
+  --accent-hover: #d0b3ff;
+  --btn-hover: #3a3d4f;
+  --tag-bg: #3b3355;
+  --tag-color: #d0b3ff;
+}
+
+/* Dusk: violet twilight with a rose accent */
+[data-theme='dusk'] {
+  --bg-app: #1b1826;
+  --bg-editor: #201d2d;
+  --bg-preview: #1d1a29;
+  --bg-sidebar: #181521;
+  --bg-toolbar: #262235;
+  --bg-card: #2c2840;
+  --text-color: #dcd7ea;
+  --text-muted: #948cab;
+  --heading-color: #f3effc;
+  --border-color: #332e47;
+  --accent-color: #e79ab0;
+  --accent-light: #3a2a3a;
+  --accent-hover: #f4b3c5;
+  --btn-hover: #322d45;
+  --tag-bg: #3a2a3a;
+  --tag-color: #f4b3c5;
+}
+
+/* Ink: true black for OLED screens and dark rooms */
+[data-theme='ink'] {
+  --bg-app: #000000;
+  --bg-editor: #050505;
+  --bg-preview: #000000;
+  --bg-sidebar: #0a0a0a;
+  --bg-toolbar: #0f0f0f;
+  --bg-card: #151515;
+  --text-color: #d6d6d6;
+  --text-muted: #8a8a8a;
+  --heading-color: #f2f2f2;
+  --border-color: #222222;
+  --accent-color: #e0b15c;
+  --accent-light: #2a2212;
+  --accent-hover: #f0c878;
+  --btn-hover: #1c1c1c;
+  --tag-bg: #2a2212;
+  --tag-color: #f0c878;
+}
+
+/* ==========================================================================
+   Derived tokens (defined once for every theme)
+   ========================================================================== */
+:root {
+  /* Aliases used by older component styles */
   --bg-surface: var(--bg-card);
   --bg-subtle: var(--bg-toolbar);
   --border-strong: var(--border-color);
   --text-primary: var(--text-color);
   --text-secondary: var(--text-muted);
+  --btn-active: var(--accent-light);
   --editor-bg: var(--bg-editor);
   --editor-text: var(--text-color);
   --editor-heading: var(--heading-color);
@@ -275,27 +287,72 @@
   --selection-bg: var(--accent-light);
   --scrollbar-thumb: var(--border-color);
   --scrollbar-thumb-hover: var(--text-muted);
+
+  /* Meaning-carrying colours, tuned for light surfaces */
+  --status-idea: #64748b;
+  --status-draft: #b45309;
+  --status-revised: #7c3aed;
+  --status-final: #047857;
+  --danger: #c0392b;
+  --danger-bg: rgba(192, 57, 43, 0.12);
+  --warning: #b45309;
+  --success: #047857;
+  --shadow-color: rgba(0, 0, 0, 0.14);
+
+  /* Type scale for interface text */
+  --ui-text-xs: 11px;
+  --ui-text-sm: 12px;
+  --ui-text-md: 13px;
+  --ui-text-lg: 15px;
+
+  /* Layering */
+  --z-overlay: 30;
+  --z-popover: 60;
+  --z-modal: 100;
+  --z-dialog: 200;
 }
 
-/* Global smoothing & selection color */
+/* ...and for dark surfaces (set from services/themes.ts) */
+:root[data-theme-kind='dark'] {
+  --status-idea: #94a3b8;
+  --status-draft: #fbbf24;
+  --status-revised: #c4b5fd;
+  --status-final: #6ee7b7;
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.16);
+  --warning: #fbbf24;
+  --success: #6ee7b7;
+  --shadow-color: rgba(0, 0, 0, 0.5);
+}
+
 ::selection {
   background: var(--accent-light);
   color: var(--text-color);
 }
 
-/* Scene / chapter status colours (shared by corkboard, inspector and sidebar) */
-:root {
-  --status-idea: #64748b;
-  --status-draft: #b45309;
-  --status-revised: #7c3aed;
-  --status-final: #047857;
+/* Keyboard focus is always visible */
+:where(button, a, select, [role='tab'], [role='menuitem'], [tabindex]):focus-visible {
+  outline: 2px solid var(--accent-color);
+  outline-offset: 1px;
 }
 
-[data-theme='dark'],
-[data-theme='forest'],
-[data-theme='nord'] {
-  --status-idea: #94a3b8;
-  --status-draft: #fbbf24;
-  --status-revised: #c4b5fd;
-  --status-final: #6ee7b7;
+:where(input, textarea):focus-visible {
+  border-color: var(--accent-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* The writing surface itself never shows a focus ring */
+.tiptap:focus-visible,
+[contenteditable='true']:focus-visible {
+  outline: none;
 }

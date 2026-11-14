@@ -1,3 +1,7 @@
+.theme-menu {
+  position: relative;
+}
+
 .theme-toggle-btn {
   display: inline-flex;
   align-items: center;
@@ -9,20 +13,120 @@
   border: 1px solid var(--border-color);
   border-radius: 6px;
   cursor: pointer;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  font-size: var(--ui-text-sm);
+  font-family: inherit;
+  font-weight: 500;
   user-select: none;
+  white-space: nowrap;
 }
 
 .theme-toggle-btn:hover {
   background: var(--btn-hover);
   border-color: var(--accent-color);
-  color: var(--heading-color);
 }
 
-.theme-toggle-btn .theme-label {
-  font-size: 11px;
+.theme-menu-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: var(--z-popover);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  width: 440px;
+  max-width: calc(100vw - 24px);
+  padding: 8px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px var(--shadow-color);
+}
+
+.theme-menu-heading {
+  padding: 4px 8px;
+  font-size: var(--ui-text-xs);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.theme-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  color: var(--text-color);
   font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.theme-menu-item:hover {
+  background: var(--btn-hover);
+}
+
+.theme-menu-item.active {
+  background: var(--accent-light);
+}
+
+.theme-menu-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.theme-menu-name {
+  font-size: var(--ui-text-md);
+  font-weight: 600;
+}
+
+.theme-menu-desc {
+  font-size: var(--ui-text-xs);
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.theme-menu-check {
+  color: var(--accent-color);
+  flex-shrink: 0;
+}
+
+/* A miniature page: paper colour with an ink line and an accent line */
+.theme-swatch {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  width: 28px;
+  height: 22px;
+  padding: 0 5px;
+  border: 1px solid rgba(128, 128, 128, 0.45);
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.theme-swatch span {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.theme-swatch span:last-child {
+  width: 60%;
+}
+
+@media (max-width: 560px) {
+  .theme-menu-popover {
+    grid-template-columns: 1fr;
+    max-height: 70vh;
+    overflow-y: auto;
+  }
 }

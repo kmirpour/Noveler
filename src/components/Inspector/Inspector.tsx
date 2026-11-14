@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import type { SceneMetadata, SceneStatus, SceneSnapshot } from '../../services/projectService';
 import { sceneMetaAt } from '../../utils/sceneMetadata';
+import { confirmDialog } from '../../services/dialogs';
 import './Inspector.css';
 
 export function Inspector() {
@@ -323,8 +324,14 @@ export function Inspector() {
                           </button>
                           <button
                             className="snapshot-action-btn restore"
-                            onClick={() => {
-                              if (confirm(`Restore snapshot "${snap.label}"? Current edits will be replaced.`)) {
+                            onClick={async () => {
+                              if (
+                                await confirmDialog({
+                                  title: `Restore snapshot "${snap.label}"?`,
+                                  message: 'The chapter text is replaced by this snapshot. Ctrl+Z undoes the restore.',
+                                  confirmLabel: 'Restore',
+                                })
+                              ) {
                                 void restoreSceneSnapshotAction(snap.id);
                               }
                             }}
@@ -334,8 +341,15 @@ export function Inspector() {
                           </button>
                           <button
                             className="snapshot-action-btn delete"
-                            onClick={() => {
-                              if (confirm(`Delete snapshot "${snap.label}"?`)) {
+                            onClick={async () => {
+                              if (
+                                await confirmDialog({
+                                  title: `Delete snapshot "${snap.label}"?`,
+                                  message: 'This saved copy cannot be recovered afterwards.',
+                                  confirmLabel: 'Delete snapshot',
+                                  danger: true,
+                                })
+                              ) {
                                 void deleteSceneSnapshotAction(snap.id);
                               }
                             }}
