@@ -55,6 +55,9 @@ export const updateWindowTitle = async (fileName: string | null, isDirty: boolea
     } catch {
       // ignore in non-tauri environment
     }
+  } else if (typeof document !== 'undefined') {
+    // In a browser the "window title" is the tab's title.
+    document.title = `${fileName || 'Untitled'}${isDirty ? ' •' : ''} — Noveler`;
   }
 };
 

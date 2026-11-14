@@ -12,6 +12,7 @@ import {
 } from '../../services/settings';
 import { THEMES } from '../../services/themes';
 import { ThemeSwatch } from '../ThemeToggle/ThemeToggle';
+import { appMode } from '../../services/appMode';
 import './SettingsModal.css';
 
 function Toggle({
@@ -238,7 +239,11 @@ export function SettingsModal() {
             <h3 className="settings-heading">Writing</h3>
             <Toggle
               label="Save automatically"
-              hint="Saves about a second after you stop typing, and whenever you switch chapters."
+              hint={
+                appMode() === 'basic'
+                  ? 'This browser cannot save straight to your files, so nothing is saved automatically. Use Save to download your work.'
+                  : 'Saves about a second after you stop typing, and whenever you switch chapters.'
+              }
               checked={s.autoSaveEnabled}
               onChange={s.setAutoSaveEnabled}
             />

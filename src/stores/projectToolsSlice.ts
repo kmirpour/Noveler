@@ -194,6 +194,10 @@ export const createProjectToolsSlice: SliceCreator<ProjectToolsPart> = (set, get
   },
 
   commitVersionAction: async () => {
+    if (!fileService.isTauri()) {
+      get().setStatusMessage('Saved versions use git and are available in the desktop app');
+      return false;
+    }
     const { projectPath, isDirty, saveFileAction } = get();
     if (!projectPath) {
       get().setStatusMessage('Open a novel folder to save a version');
@@ -277,6 +281,10 @@ export const createProjectToolsSlice: SliceCreator<ProjectToolsPart> = (set, get
   },
 
   syncGitAction: async () => {
+    if (!fileService.isTauri()) {
+      get().setStatusMessage('Pushing to GitHub uses git and is available in the desktop app');
+      return false;
+    }
     const { projectPath, novelProject, saveFileAction, isDirty } = get();
     if (!projectPath) {
       get().setStatusMessage('Open a novel folder to push to GitHub');

@@ -36,6 +36,7 @@ import { sceneKeys } from '../../utils/sceneMetadata';
 import { groupFilesByPrefix, formatWordsCompact, UNGROUPED_KEY } from '../../utils/fileGroups';
 import { extractFileName } from '../../services/fileService';
 import { confirmDialog } from '../../services/dialogs';
+import { shortcutLabel } from '../../services/appMode';
 import type { BinderItem, SceneStatus } from '../../services/projectService';
 import { getChapterScenes, type ChapterSceneItem } from '../../utils/chapterScenes';
 import { CastTab } from './CastTab';
@@ -1007,7 +1008,7 @@ export function Sidebar() {
                   type="button"
                   className="sidebar-btn primary-chapter-btn"
                   onClick={() => void createChapterAction()}
-                  title="Add Next Chapter sequentially (Ctrl+N)"
+                  title={`Add Next Chapter sequentially (${shortcutLabel('Ctrl+N', 'Alt+Shift+N')})`}
                 >
                   <FilePlus size={13} />
                   <span>+ Chapter</span>

@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useEditorStore } from '../stores/editorStore';
+import { isTauri } from '../services/fileService';
 
 export function useKeyboardShortcuts() {
   useEffect(() => {
@@ -11,6 +12,13 @@ export function useKeyboardShortcuts() {
         e.stopPropagation();
         action();
       };
+
+      // Browser only: Alt+Shift alternatives for shortcuts that browsers never pass to a page
+      // (Ctrl+N opens a window, Ctrl+Shift+T reopens a tab).
+      if (!isTauri() && e.altKey && e.shiftKey && !e.ctrlKey && !e.metaKey) {
+        if (e.code === 'KeyN') return handled(() => void store.newFile());
+        if (e.code === 'KeyT') return handled(() => store.toggleTypewriterMode());
+      }
 
       // F11 -> Toggle Focus Mode
       if (e.key === 'F11') {

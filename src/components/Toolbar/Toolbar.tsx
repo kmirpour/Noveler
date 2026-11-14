@@ -46,6 +46,7 @@ import {
   Repeat2,
 } from 'lucide-react';
 import { ThemeToggle } from '../ThemeToggle/ThemeToggle';
+import { shortcutLabel, supportsGit } from '../../services/appMode';
 import './Toolbar.css';
 
 interface MenuEntry {
@@ -154,13 +155,18 @@ export function Toolbar() {
     {
       title: 'File',
       entries: [
-        { label: 'New chapter', icon: <FilePlus size={15} />, shortcut: 'Ctrl+N', run: () => void s.newFile() },
+        { label: 'New chapter', icon: <FilePlus size={15} />, shortcut: shortcutLabel('Ctrl+N', 'Alt+Shift+N'), run: () => void s.newFile() },
         { label: 'Open novel folder…', icon: <FolderOpen size={15} />, shortcut: 'Ctrl+O', run: () => void s.openProjectFolderAction() },
         { label: 'Save as…', icon: <SaveAll size={15} />, shortcut: 'Ctrl+Shift+S', run: () => void s.saveFileAsAction() },
         { label: 'Export manuscript…', icon: <BookDown size={15} />, shortcut: 'Ctrl+E', run: s.toggleCompileModal },
         { label: 'Print / save as PDF', icon: <Printer size={15} />, shortcut: 'Ctrl+P', run: s.printAction },
-        { label: 'Save a version (git)', icon: <GitCommitHorizontal size={15} />, disabled: !s.hasProject, run: () => void s.commitVersionAction() },
-        { label: 'Push to GitHub', icon: <GitBranch size={15} />, run: () => void s.syncGitAction() },
+        // A browser cannot run git, so these two are offered by the desktop app only.
+        ...(supportsGit()
+          ? [
+              { label: 'Save a version (git)', icon: <GitCommitHorizontal size={15} />, disabled: !s.hasProject, run: () => void s.commitVersionAction() },
+              { label: 'Push to GitHub', icon: <GitBranch size={15} />, run: () => void s.syncGitAction() },
+            ]
+          : []),
         { label: 'Backups of this file…', icon: <History size={15} />, run: () => s.setBackupsOpen(true) },
       ],
     },
@@ -185,7 +191,7 @@ export function Toolbar() {
         { label: 'Copy context for AI', icon: <ClipboardCopy size={15} />, disabled: !s.hasProject, run: () => void s.copyContextPackAction() },
         { label: 'Paragraph focus', icon: <Focus size={15} />, shortcut: 'Ctrl+Shift+P', active: s.dimUnfocused, run: s.toggleDimUnfocused },
         { label: 'Show repeated words', icon: <Repeat2 size={15} />, active: s.showEchoes, run: s.toggleEchoes },
-        { label: 'Typewriter scrolling', icon: <ScrollText size={15} />, shortcut: 'Ctrl+Shift+T', active: s.typewriterMode, run: s.toggleTypewriterMode },
+        { label: 'Typewriter scrolling', icon: <ScrollText size={15} />, shortcut: shortcutLabel('Ctrl+Shift+T', 'Alt+Shift+T'), active: s.typewriterMode, run: s.toggleTypewriterMode },
         { label: 'Command palette', icon: <CommandIcon size={15} />, shortcut: 'Ctrl+K', run: () => s.setCommandPaletteOpen(true) },
         { label: 'Settings…', icon: <Settings size={15} />, shortcut: 'Ctrl+,', run: () => s.setSettingsOpen(true) },
       ],

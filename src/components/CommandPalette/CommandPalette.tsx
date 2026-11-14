@@ -45,6 +45,7 @@ import { useEditorStore } from '../../stores/editorStore';
 import { flattenScenes } from '../../services/projectService';
 import { extractFileName } from '../../services/fileService';
 import { THEMES } from '../../services/themes';
+import { shortcutLabel, supportsGit } from '../../services/appMode';
 import './CommandPalette.css';
 
 interface CommandItem {
@@ -152,7 +153,7 @@ export function CommandPalette() {
         id: 'file-new',
         category: 'File',
         title: 'New Document',
-        shortcut: 'Ctrl+N',
+        shortcut: shortcutLabel('Ctrl+N', 'Alt+Shift+N'),
         icon: <FilePlus size={16} />,
         action: () => void newFile(),
       },
@@ -210,13 +211,18 @@ export function CommandPalette() {
         icon: <Printer size={16} />,
         action: () => printAction(),
       },
-      {
-        id: 'file-git-push',
-        category: 'File',
-        title: 'Push Manuscript to GitHub',
-        icon: <GitBranch size={16} />,
-        action: () => void syncGitAction(),
-      },
+      // A browser cannot run git: pushing is offered by the desktop app only.
+      ...(supportsGit()
+        ? [
+            {
+              id: 'file-git-push',
+              category: 'File' as const,
+              title: 'Push Manuscript to GitHub',
+              icon: <GitBranch size={16} />,
+              action: () => void syncGitAction(),
+            },
+          ]
+        : []),
       {
         id: 'file-backups',
         category: 'File',
@@ -253,7 +259,7 @@ export function CommandPalette() {
         id: 'typewriter-toggle',
         category: 'View & Focus',
         title: 'Toggle Typewriter Scrolling (Center Cursor)',
-        shortcut: 'Ctrl+Shift+T',
+        shortcut: shortcutLabel('Ctrl+Shift+T', 'Alt+Shift+T'),
         icon: <ScrollText size={16} />,
         action: () => toggleTypewriterMode(),
       },

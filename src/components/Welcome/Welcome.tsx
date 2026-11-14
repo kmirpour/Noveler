@@ -10,6 +10,7 @@ import {
   reopenRecentNovel,
   forgetRecentNovel,
 } from '../../services/fileService';
+import { appMode } from '../../services/appMode';
 import './Welcome.css';
 
 /** Shown when no novel is open: pick up a recent novel, open a folder, or just start writing. */
@@ -62,6 +63,21 @@ export function Welcome() {
           A novel is a folder of plain Markdown chapters. Open one to pick up where you left off, or choose an
           empty folder to start a new book.
         </p>
+
+        {appMode() === 'folders' && (
+          <p className="welcome-note">
+            Your files stay on this computer. When you open a folder, your browser asks permission to read and
+            write it; nothing is uploaded. If the browser refuses a folder such as Documents or Desktop itself,
+            choose the folder that holds your novel.
+          </p>
+        )}
+        {appMode() === 'basic' && (
+          <p className="welcome-note warn" role="note">
+            This browser cannot save straight to your files, so Noveler works on a copy: Save downloads the file,
+            and nothing is saved automatically. For the full experience use Chrome, Edge or Opera on a computer,
+            or the desktop app.
+          </p>
+        )}
 
         <div className="welcome-actions">
           <button type="button" className="welcome-btn primary" onClick={() => void openProjectFolderAction()}>

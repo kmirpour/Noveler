@@ -426,9 +426,24 @@ If your novel folder is a git repository, the status bar shows how many files ha
 
 ---
 
+## Using Noveler in a Browser
+
+Noveler can also run in a web browser. It works on your own files, on your own computer:
+
+- **Full mode** (Chrome, Edge or Opera on a computer): **Open novel folder** asks the browser for permission to read and write the folder you choose. Nothing is uploaded; the website only supplies the app. Chapters are saved straight into your folder, with autosave, backups and everything else described in this guide. If the browser refuses a folder such as Documents or Desktop itself, choose the folder that holds your novel.
+- **Reopening:** the browser remembers the novels you opened, and the welcome screen lists them. Click one to reopen it; the browser may ask for permission again.
+- **Limited mode** (Firefox, Safari, phones and tablets): the browser cannot save into a folder, so Noveler works on a copy. **Save** downloads the file and nothing is saved automatically. For the full experience use a supported browser or the desktop app.
+- **Changed elsewhere?** If a chapter is changed outside Noveler while it is open (the desktop app, another tab, a sync tool), the next save asks which version to keep. The one you do not keep goes into the file's backups.
+- **Different from the desktop app:** saved versions (git) and GitHub push are desktop-only, and backups are kept for the files of an opened novel folder, not for a single file opened on its own.
+- **Shortcuts:** browsers keep some combinations for themselves, so use **Alt + Shift + N** for a new chapter and **Alt + Shift + T** for typewriter scrolling instead of Ctrl + N and Ctrl + Shift + T.
+
+The desktop app and the browser version can work on the same novel folder; both keep backups in the same place and the same format.
+
+---
+
 ## 13. Keyboard Shortcuts Reference
 
-Keep your hands on the keyboard with these shortcuts:
+Keep your hands on the keyboard with these shortcuts. (In a browser, use Alt + Shift + N and Alt + Shift + T in place of Ctrl + N and Ctrl + Shift + T, which the browser keeps for itself.)
 
 ### Document & File Operations
 | Shortcut | Action |

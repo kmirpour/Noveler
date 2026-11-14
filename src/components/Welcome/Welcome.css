@@ -166,3 +166,21 @@
   line-height: 1.5;
   color: var(--danger);
 }
+
+.welcome-note {
+  max-width: 420px;
+  margin: 12px 0 0;
+  font-size: var(--ui-text-sm);
+  line-height: 1.55;
+  color: var(--text-muted);
+  text-wrap: pretty;
+}
+
+.welcome-note.warn {
+  padding: 8px 12px;
+  text-align: left;
+  color: var(--text-color);
+  background: color-mix(in srgb, var(--warning) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning) 45%, transparent);
+  border-radius: 8px;
+}
