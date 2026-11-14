@@ -19,7 +19,8 @@ import { BackupsModal } from './components/Settings/BackupsModal';
 import { Welcome } from './components/Welcome/Welcome';
 import { applyTheme } from './services/themes';
 import { useEditorStore } from './stores/editorStore';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { wordsToday } from './utils/writingLog';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 import { useAppLifecycle } from './hooks/useAppLifecycle';
 import { Minimize2 } from 'lucide-react';
@@ -31,6 +32,28 @@ function App() {
   const viewMode = useEditorStore((s) => s.viewMode);
   const focusMode = useEditorStore((s) => s.focusMode);
   const setFocusMode = useEditorStore((s) => s.setFocusMode);
+  const dailyWordGoal = useEditorStore((s) => s.dailyWordGoal);
+  const todayWords = useEditorStore((s) => wordsToday(s.writingLog));
+  const [pointerActive, setPointerActive] = useState(false);
+
+  // In focus mode the controls stay out of sight until the mouse moves.
+  useEffect(() => {
+    if (!focusMode) return;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const onMove = () => {
+      setPointerActive(true);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => setPointerActive(false), 2000);
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      if (timer) clearTimeout(timer);
+      setPointerActive(false);
+    };
+  }, [focusMode]);
+
+  const goalPercent = dailyWordGoal > 0 ? Math.min(100, (todayWords / dailyWordGoal) * 100) : 0;
 
   // Sync theme with root DOM attribute for zero-re-render CSS variable cascade
   useEffect(() => {
@@ -38,7 +61,7 @@ function App() {
   }, [theme]);
 
   return (
-    <div className={`app ${focusMode ? 'focus-mode' : ''}`}>
+    <div className={`app ${focusMode ? 'focus-mode' : ''} ${focusMode && pointerActive ? 'pointer-active' : ''}`}>
       {!focusMode && <Toolbar />}
       <div className="app-body">
         {!focusMode && <Sidebar />}
@@ -72,6 +95,19 @@ function App() {
       {!focusMode && <StatusBar />}
 
       {/* Unobtrusive exit button when in distraction-free focus mode */}
+      {focusMode && dailyWordGoal > 0 && (
+        <div
+          className={`focus-goal-line ${goalPercent >= 100 ? 'met' : ''}`}
+          role="progressbar"
+          aria-label="Today's words toward the daily goal"
+          aria-valuemin={0}
+          aria-valuemax={dailyWordGoal}
+          aria-valuenow={Math.min(todayWords, dailyWordGoal)}
+          title={`${todayWords.toLocaleString()} of ${dailyWordGoal.toLocaleString()} words today`}
+        >
+          <span style={{ width: `${goalPercent}%` }} />
+        </div>
+      )}
       {focusMode && (
         <button
           className="exit-focus-btn"

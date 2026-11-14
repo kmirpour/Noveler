@@ -97,7 +97,7 @@
 }
 
 .palette-item.selected .palette-item-icon {
-  color: #3b82f6;
+  color: var(--accent-color);
 }
 
 .palette-item-info {

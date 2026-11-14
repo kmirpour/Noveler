@@ -256,7 +256,7 @@
 }
 
 .folder-icon {
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .binder-item-title {
@@ -334,8 +334,8 @@
 }
 
 .binder-menu-option.danger:hover {
-  background: rgba(239, 68, 68, 0.15);
-  color: #ef4444;
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 
 .rename-form {
@@ -348,7 +348,7 @@
   padding: 2px 4px;
   font-size: 12px;
   background: var(--bg-app);
-  border: 1px solid #3b82f6;
+  border: 1px solid var(--accent-color);
   border-radius: 3px;
   color: var(--text-primary);
   outline: none;
@@ -585,7 +585,7 @@
 }
 
 .scene-delete-btn:hover {
-  color: #ef4444 !important;
+  color: var(--danger) !important;
 }
 
 .add-scene-outline-btn {

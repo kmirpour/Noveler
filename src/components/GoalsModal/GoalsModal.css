@@ -52,7 +52,7 @@
 }
 
 .modal-title-icon {
-  color: #3b82f6;
+  color: var(--accent-color);
 }
 
 .modal-header h2 {
@@ -98,8 +98,8 @@
 }
 
 .session-goal-card.goal-achieved {
-  border-color: #10b981;
-  background: rgba(16, 185, 129, 0.05);
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 15%, transparent);
 }
 
 .goal-card-header {
@@ -122,7 +122,7 @@
   gap: 4px;
   font-size: 12px;
   font-weight: 600;
-  color: #10b981;
+  color: var(--success);
 }
 
 .goal-counter {
@@ -156,13 +156,13 @@
 
 .progress-bar-fill {
   height: 100%;
-  background: #3b82f6;
+  background: var(--accent-color);
   border-radius: 4px;
   transition: width 0.3s ease;
 }
 
 .goal-achieved .progress-bar-fill {
-  background: #10b981;
+  background: var(--success);
 }
 
 .progress-bar-caption {
@@ -225,9 +225,9 @@
 }
 
 .preset-chip.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: #ffffff;
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: var(--bg-card);
 }
 
 .custom-goal-form {
@@ -247,7 +247,7 @@
 }
 
 .custom-goal-input:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
 }
 
 .custom-goal-apply-btn {
@@ -289,7 +289,7 @@
 }
 
 .metric-icon {
-  color: #3b82f6;
+  color: var(--accent-color);
   flex-shrink: 0;
 }
 

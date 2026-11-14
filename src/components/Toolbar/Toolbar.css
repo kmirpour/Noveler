@@ -45,7 +45,7 @@
 }
 
 .toolbar-button.has-changes {
-  color: #e65100;
+  color: var(--warning);
 }
 
 .toolbar-button.has-changes::after {
@@ -55,7 +55,7 @@
   right: 5px;
   width: 6px;
   height: 6px;
-  background: #f57c00;
+  background: var(--warning);
   border-radius: 50%;
 }
 
@@ -107,7 +107,7 @@
 }
 
 .toolbar-select:focus {
-  border-color: var(--accent-color, #3b82f6);
+  border-color: var(--accent-color);
 }
 
 /* Single-row toolbar: no wrapping; rarer actions live in the More menu */

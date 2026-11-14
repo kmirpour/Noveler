@@ -301,17 +301,7 @@ function ChapterItem({
   };
 
   const getStatusColor = (status?: SceneStatus) => {
-    switch (status) {
-      case 'final':
-        return '#10b981';
-      case 'revised':
-        return '#8b5cf6';
-      case 'draft':
-        return '#f59e0b';
-      case 'idea':
-      default:
-        return '#64748b';
-    }
+    return `var(--status-${status || 'idea'})`;
   };
 
   return (

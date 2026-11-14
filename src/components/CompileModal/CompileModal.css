@@ -52,7 +52,7 @@
 
 .scope-pill.active {
   background: var(--accent-color);
-  color: #ffffff;
+  color: var(--bg-card);
   border-color: var(--accent-color);
 }
 
@@ -94,14 +94,14 @@
 }
 
 .format-card.active {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.08);
+  border-color: var(--accent-color);
+  background: var(--accent-light);
 }
 
 .format-card input[type="radio"] {
   margin-top: 3px;
   cursor: pointer;
-  accent-color: #3b82f6;
+  accent-color: var(--accent-color);
 }
 
 .format-info {
@@ -150,7 +150,7 @@
 .select-all-btn {
   background: transparent;
   border: none;
-  color: #3b82f6;
+  color: var(--accent-color);
   font-size: 12px;
   cursor: pointer;
   padding: 2px 6px;
@@ -158,7 +158,7 @@
 }
 
 .select-all-btn:hover {
-  background: rgba(59, 130, 246, 0.1);
+  background: var(--accent-light);
 }
 
 .scene-checklist {
@@ -199,7 +199,7 @@
 }
 
 .checklist-item .check-icon.checked {
-  color: #3b82f6;
+  color: var(--accent-color);
 }
 
 .checklist-item .scene-icon {
@@ -242,8 +242,8 @@
   align-items: center;
   gap: 6px;
   padding: 7px 16px;
-  background: #3b82f6;
-  color: #ffffff;
+  background: var(--accent-color);
+  color: var(--bg-card);
   border: none;
   border-radius: 6px;
   cursor: pointer;
@@ -253,7 +253,7 @@
 }
 
 .compile-submit-btn:hover:not(:disabled) {
-  background: #2563eb;
+  background: var(--accent-color);
 }
 
 .compile-submit-btn:disabled {

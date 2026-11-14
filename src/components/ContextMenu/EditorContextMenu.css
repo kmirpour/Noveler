@@ -126,7 +126,7 @@
 }
 
 .spelling-header-icon.grammar-icon {
-  color: #f59e0b;
+  color: var(--warning);
 }
 
 .spelling-issue-message {

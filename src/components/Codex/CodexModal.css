@@ -76,9 +76,9 @@
 }
 
 .codex-chip.active {
-  background: #3b82f6;
-  border-color: #3b82f6;
-  color: #ffffff;
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: var(--bg-card);
   font-weight: 500;
 }
 
@@ -141,23 +141,23 @@
 }
 
 .badge-character {
-  background: rgba(59, 130, 246, 0.15);
-  color: #3b82f6;
+  background: var(--accent-light);
+  color: var(--accent-color);
 }
 
 .badge-location {
-  background: rgba(16, 185, 129, 0.15);
-  color: #10b981;
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
 }
 
 .badge-item {
-  background: rgba(245, 158, 11, 0.15);
-  color: #f59e0b;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
 }
 
 .badge-lore {
-  background: rgba(139, 92, 246, 0.15);
-  color: #8b5cf6;
+  background: color-mix(in srgb, var(--status-revised) 15%, transparent);
+  color: var(--status-revised);
 }
 
 .codex-item-summary {
@@ -192,8 +192,8 @@
 }
 
 .codex-new-btn:hover {
-  border-color: #3b82f6;
-  color: #3b82f6;
+  border-color: var(--accent-color);
+  color: var(--accent-color);
 }
 
 .codex-main {
@@ -275,8 +275,8 @@
   gap: 6px;
   padding: 6px 12px;
   background: transparent;
-  border: 1px solid rgba(239, 68, 68, 0.4);
-  color: #ef4444;
+  border: 1px solid var(--danger-bg);
+  color: var(--danger);
   border-radius: 6px;
   font-size: 12px;
   cursor: pointer;
@@ -284,14 +284,14 @@
 }
 
 .codex-delete-btn:hover {
-  background: rgba(239, 68, 68, 0.1);
-  border-color: #ef4444;
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .codex-save-btn {
   padding: 7px 18px;
-  background: #3b82f6;
-  color: #ffffff;
+  background: var(--accent-color);
+  color: var(--bg-card);
   border: none;
   border-radius: 6px;
   font-size: 13px;
@@ -300,7 +300,7 @@
 }
 
 .codex-save-btn:hover {
-  background: #2563eb;
+  background: var(--accent-color);
 }
 
 .codex-scene-mentions-tag {
@@ -308,8 +308,8 @@
   align-items: center;
   gap: 4px;
   padding: 2px 6px;
-  background: rgba(16, 185, 129, 0.12);
-  color: #10b981;
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
   border-radius: 4px;
   font-size: 10px;
   font-weight: 500;

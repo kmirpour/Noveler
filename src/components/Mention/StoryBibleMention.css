@@ -94,23 +94,23 @@
 }
 
 .mention-item-icon-wrap.character {
-  background-color: rgba(59, 130, 246, 0.12);
-  color: #3b82f6;
+  background-color: var(--accent-light);
+  color: var(--accent-color);
 }
 
 .mention-item-icon-wrap.location {
-  background-color: rgba(16, 185, 129, 0.12);
-  color: #10b981;
+  background-color: color-mix(in srgb, var(--success) 15%, transparent);
+  color: var(--success);
 }
 
 .mention-item-icon-wrap.item {
-  background-color: rgba(245, 158, 11, 0.12);
-  color: #f59e0b;
+  background-color: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
 }
 
 .mention-item-icon-wrap.lore {
-  background-color: rgba(139, 92, 246, 0.12);
-  color: #8b5cf6;
+  background-color: color-mix(in srgb, var(--status-revised) 15%, transparent);
+  color: var(--status-revised);
 }
 
 .mention-item-info {
@@ -294,7 +294,7 @@
   border: none;
   border-radius: 5px;
   background-color: var(--accent-color);
-  color: #ffffff;
+  color: var(--bg-card);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;

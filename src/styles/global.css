@@ -182,3 +182,38 @@ body {
   border-color: var(--border-strong);
 }
 
+
+/* Focus mode: the exit button appears only while the mouse is moving */
+.exit-focus-btn {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app.pointer-active .exit-focus-btn,
+.exit-focus-btn:focus-visible {
+  opacity: 0.9;
+  pointer-events: auto;
+}
+
+/* A hairline at the top of the window fills as today's goal is reached */
+.focus-goal-line {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  z-index: 40;
+  background: transparent;
+}
+
+.focus-goal-line span {
+  display: block;
+  height: 100%;
+  background: var(--accent-color);
+  opacity: 0.55;
+  transition: width 0.4s ease;
+}
+
+.focus-goal-line.met span {
+  background: var(--success);
+}

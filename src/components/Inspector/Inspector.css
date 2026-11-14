@@ -92,7 +92,7 @@
 }
 
 .synopsis-sparkle-icon {
-  color: #3b82f6;
+  color: var(--accent-color);
 }
 
 .inspector-scene-name {
@@ -140,30 +140,30 @@
 }
 
 .status-pill-btn.active.idea {
-  background: rgba(100, 116, 139, 0.15);
-  border-color: #64748b;
-  color: #475569;
+  background: color-mix(in srgb, var(--status-idea) 15%, transparent);
+  border-color: var(--status-idea);
+  color: var(--status-idea);
   font-weight: 600;
 }
 
 .status-pill-btn.active.draft {
-  background: rgba(245, 158, 11, 0.15);
-  border-color: #f59e0b;
-  color: #d97706;
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  border-color: var(--warning);
+  color: var(--warning);
   font-weight: 600;
 }
 
 .status-pill-btn.active.revised {
-  background: rgba(139, 92, 246, 0.15);
-  border-color: #8b5cf6;
-  color: #7c3aed;
+  background: color-mix(in srgb, var(--status-revised) 15%, transparent);
+  border-color: var(--status-revised);
+  color: var(--status-revised);
   font-weight: 600;
 }
 
 .status-pill-btn.active.final {
-  background: rgba(16, 185, 129, 0.15);
-  border-color: #10b981;
-  color: #059669;
+  background: color-mix(in srgb, var(--success) 15%, transparent);
+  border-color: var(--success);
+  color: var(--status-final);
   font-weight: 600;
 }
 
@@ -179,7 +179,7 @@
 }
 
 .inspector-input-wrapper:focus-within {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
 }
 
 .inspector-text-input {
@@ -209,7 +209,7 @@
 
 .scene-progress-fill {
   height: 100%;
-  background: #3b82f6;
+  background: var(--accent-color);
   border-radius: 3px;
   transition: width 0.2s ease;
 }
@@ -239,7 +239,7 @@
 }
 
 .inspector-textarea:focus {
-  border-color: #3b82f6;
+  border-color: var(--accent-color);
 }
 
 /* Snapshots Section */
@@ -255,7 +255,7 @@
   gap: 4px;
   background: transparent;
   border: 1px dashed var(--border-color);
-  color: #3b82f6;
+  color: var(--accent-color);
   border-radius: 4px;
   font-size: 11px;
   padding: 2px 6px;
@@ -264,8 +264,8 @@
 }
 
 .take-snapshot-btn:hover {
-  border-color: #3b82f6;
-  background: rgba(59, 130, 246, 0.08);
+  border-color: var(--accent-color);
+  background: var(--accent-light);
 }
 
 .snapshot-list {
@@ -342,15 +342,15 @@
 }
 
 .snapshot-action-btn.restore:hover {
-  color: #10b981;
+  color: var(--success);
 }
 
 .snapshot-action-btn.delete:hover {
-  color: #ef4444;
+  color: var(--danger);
 }
 
 .snapshot-action-btn.preview:hover {
-  color: #3b82f6;
+  color: var(--accent-color);
 }
 
 .snapshot-preview-modal {
@@ -434,8 +434,8 @@
   padding: 6px 14px;
   border-radius: 6px;
   border: none;
-  background: #3b82f6;
-  color: #ffffff;
+  background: var(--accent-color);
+  color: var(--bg-card);
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
